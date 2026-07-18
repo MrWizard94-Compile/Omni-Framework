@@ -17,11 +17,11 @@ Every subject gets: pinned-commit corpus fetch, structured analysis (components,
 |---|---|---|---|
 | Fabric Loader | loader | open-source deep | ✅ 2026-07-18 |
 | Prism Launcher | launcher | open-source deep | ✅ 2026-07-18 |
-| Quilt Loader | loader | open-source deep | ⬜ |
-| NeoForge (FancyModLoader) | loader | open-source deep | ⬜ |
+| Quilt Loader | loader | open-source deep | ✅ 2026-07-18 |
+| NeoForge (FancyModLoader) | loader | open-source deep | ✅ 2026-07-18 |
 | MinecraftForge (legacy baseline) | loader | open-source deep | ⬜ |
 | SpongePowered Mixin | subsystem | open-source deep | ⬜ |
-| Sinytra Connector | compat layer | open-source deep | ⬜ |
+| Sinytra Connector | compat layer | open-source deep | ✅ 2026-07-18 |
 | MultiMC | launcher | open-source deep | ⬜ |
 | ATLauncher | launcher | open-source deep | ⬜ |
 | HMCL | launcher | open-source deep | ⬜ |
@@ -61,5 +61,5 @@ Per-mod port queue for top tiers: license check → (if restrictive) author outr
 
 | Item | Owner | Status |
 |---|---|---|
-| Azure app registration for MSA OAuth | MrWizard94 | ⬜ not started |
+| Azure app registration for MSA OAuth | MrWizard94 | ⏸ deferred until Phase 4 nears (director decision, 2026-07-18) |
 | Mojang approval of Azure client ID (form) | MrWizard94 | ⬜ blocked on above |
