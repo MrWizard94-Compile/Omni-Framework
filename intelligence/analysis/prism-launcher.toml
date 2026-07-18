@@ -1,0 +1,623 @@
+# Vivisection: Prism Launcher — hand-audited against the pinned commit below.
+# Every fact cites the source register in [[sources]].
+
+[subject]
+slug = "prism-launcher"
+name = "Prism Launcher"
+kind = "launcher"
+method = "open-source-deep"
+repo_url = "https://github.com/PrismLauncher/PrismLauncher.git"
+license = "GPL-3.0-only (with MultiMC/PolyMC heritage code under Apache-2.0)"
+pinned_commit = "d2fa7cf7f7aa8fa5e3d4f5f7b474621c732cd525"
+language = "C++ (Qt 6)"
+analyzed_at = "2026-07-18"
+summary = """
+Prism Launcher (v12 line at the pinned commit) is the community's reference-quality open-source
+launcher, descended from MultiMC via PolyMC. Its two crown jewels: (1) the **component model** —
+an instance is a declarative stack of versioned components (minecraft, loader, mods of the
+platform kind) described by mmc-pack.json and resolved against a launcher-owned metadata service
+(meta.prismlauncher.org), which insulates the launcher from Mojang format churn and lets bad
+upstream metadata be patched server-side without shipping a release; and (2) a complete,
+correct Microsoft authentication implementation with both interactive OAuth and device-code
+flows, the full Xbox/XSTS error taxonomy, multi-account management, and token refresh.
+
+Everything else is disciplined engineering around those cores: a resumable task graph for
+version/asset/library updates, automatic Java runtime discovery AND auto-install from Mojang's
+runtime manifests, a unified ResourceAPI over CurseForge/Modrinth/Technic/ATLauncher/FTB/packwiz,
+hash-based metadata recovery for unknown local mods, and folder models for every resource type
+(mods, resource/texture/shader/data packs, worlds). It is the single richest feature-source for
+OmniLauncher; its Qt/C++ implementation does not port to our Tauri stack, but nearly every
+behavioral contract does."""
+
+# ── Source register ─────────────────────────────────────────────────────────
+
+[[sources]]
+key = "auth-flow"
+kind = "code"
+ref = "launcher/minecraft/auth/AuthFlow.cpp"
+note = "Orchestrates the ordered auth step chain with per-step retry/abort semantics"
+
+[[sources]]
+key = "msa-step"
+kind = "code"
+ref = "launcher/minecraft/auth/steps/MSAStep.cpp"
+note = "Interactive OAuth 2.0 authorization-code flow vs login.microsoftonline.com/consumers"
+
+[[sources]]
+key = "msa-device"
+kind = "code"
+ref = "launcher/minecraft/auth/steps/MSADeviceCodeStep.cpp"
+note = "Device-code flow (…/consumers/oauth2/v2.0/devicecode + token polling)"
+
+[[sources]]
+key = "xbox-user"
+kind = "code"
+ref = "launcher/minecraft/auth/steps/XboxUserStep.cpp"
+note = "XBL user authentication: user.auth.xboxlive.com/user/authenticate"
+
+[[sources]]
+key = "xsts"
+kind = "code"
+ref = "launcher/minecraft/auth/steps/XboxAuthorizationStep.cpp"
+note = "XSTS authorization: xsts.auth.xboxlive.com/xsts/authorize incl. XErr taxonomy"
+
+[[sources]]
+key = "launcher-login"
+kind = "code"
+ref = "launcher/minecraft/auth/steps/LauncherLoginStep.cpp"
+note = "Minecraft services token via api.minecraftservices.com/launcher/login"
+
+[[sources]]
+key = "entitlements"
+kind = "code"
+ref = "launcher/minecraft/auth/steps/EntitlementsStep.cpp"
+note = "Ownership proof via api.minecraftservices.com/entitlements/license"
+
+[[sources]]
+key = "profile-step"
+kind = "code"
+ref = "launcher/minecraft/auth/steps/MinecraftProfileStep.cpp"
+note = "UUID/username via api.minecraftservices.com/minecraft/profile"
+
+[[sources]]
+key = "account-data"
+kind = "code"
+ref = "launcher/minecraft/auth/AccountData.cpp"
+note = "Serialized token/state model for an account (MSA + XBL + MC tokens, expiries)"
+
+[[sources]]
+key = "account-list"
+kind = "code"
+ref = "launcher/minecraft/auth/AccountList.cpp"
+note = "Multi-account registry with default-account selection and refresh scheduling"
+
+[[sources]]
+key = "instance-list"
+kind = "code"
+ref = "launcher/InstanceList.cpp"
+note = "Instance discovery: any folder with instance.cfg; INI-backed settings"
+
+[[sources]]
+key = "mc-instance"
+kind = "code"
+ref = "launcher/minecraft/MinecraftInstance.cpp"
+note = "Wires instance settings into java args, game dirs, launch profile"
+
+[[sources]]
+key = "pack-profile"
+kind = "code"
+ref = "launcher/minecraft/PackProfile.cpp"
+note = "The component stack: reads/writes mmc-pack.json, exposes ordered components"
+
+[[sources]]
+key = "component"
+kind = "code"
+ref = "launcher/minecraft/Component.cpp"
+note = "One stack entry: uid + version + cached/custom version file"
+
+[[sources]]
+key = "component-update"
+kind = "code"
+ref = "launcher/minecraft/ComponentUpdateTask.cpp"
+note = "Resolves component versions + requires/conflicts against the meta index"
+
+[[sources]]
+key = "onesix"
+kind = "code"
+ref = "launcher/minecraft/OneSixVersionFormat.cpp"
+note = "Internal 'OneSix' version-file format (MultiMC lineage): patches, jar mods, agents"
+
+[[sources]]
+key = "mojang-format"
+kind = "code"
+ref = "launcher/minecraft/MojangVersionFormat.cpp"
+note = "Ingests Mojang's official version JSON into the internal model"
+
+[[sources]]
+key = "library"
+kind = "code"
+ref = "launcher/minecraft/Library.cpp"
+note = "Library model: gradle specifiers, OS rules, natives, download resolution"
+
+[[sources]]
+key = "rules"
+kind = "code"
+ref = "launcher/minecraft/Rule.cpp"
+note = "OS/feature rule evaluation for libraries and arguments"
+
+[[sources]]
+key = "meta-index"
+kind = "code"
+ref = "launcher/meta/Index.cpp"
+note = "Client of the launcher-owned metadata service (uid -> version lists)"
+
+[[sources]]
+key = "meta-versionlist"
+kind = "code"
+ref = "launcher/meta/VersionList.cpp"
+note = "Per-uid version list with recommended/latest semantics"
+
+[[sources]]
+key = "asset-task"
+kind = "code"
+ref = "launcher/minecraft/update/AssetUpdateTask.cpp"
+note = "Asset index fetch + object download against resources.download.minecraft.net"
+
+[[sources]]
+key = "libraries-task"
+kind = "code"
+ref = "launcher/minecraft/update/LibrariesTask.cpp"
+note = "Rule-filtered library download/verification task"
+
+[[sources]]
+key = "launch-part"
+kind = "code"
+ref = "launcher/minecraft/launch/LauncherPartLaunch.cpp"
+note = "Final JVM assembly and process start via the launcher's Java shim part"
+
+[[sources]]
+key = "auto-java"
+kind = "code"
+ref = "launcher/minecraft/launch/AutoInstallJava.cpp"
+note = "Launch-time step that installs the required Java runtime if missing"
+
+[[sources]]
+key = "java-manifest"
+kind = "code"
+ref = "launcher/java/download/ManifestDownloadTask.cpp"
+note = "Downloads Mojang java-runtime manifests for auto-install"
+
+[[sources]]
+key = "java-list"
+kind = "code"
+ref = "launcher/java/JavaInstallList.cpp"
+note = "Detects installed JVMs across vendors/locations; validates with JavaChecker"
+
+[[sources]]
+key = "resource-api"
+kind = "code"
+ref = "launcher/modplatform/ResourceAPI.h"
+note = "Unified search/version/download abstraction over all mod platforms"
+
+[[sources]]
+key = "modplatform-dirs"
+kind = "code"
+ref = "launcher/modplatform/ (atlauncher, flame, ftb, import_ftb, legacy_ftb, modrinth, packwiz, technic)"
+note = "Per-platform clients implementing the ResourceAPI + pack import paths"
+
+[[sources]]
+key = "ensure-metadata"
+kind = "code"
+ref = "launcher/modplatform/EnsureMetadataTask.cpp"
+note = "Recovers platform metadata for local files by hash lookup"
+
+[[sources]]
+key = "resource-model"
+kind = "code"
+ref = "launcher/minecraft/mod/ResourceFolderModel.cpp"
+note = "Watched-folder model base for mods/packs/worlds with enable/disable"
+
+[[sources]]
+key = "mod-folder"
+kind = "code"
+ref = "launcher/minecraft/mod/ModFolderModel.cpp"
+note = "Mods-folder specialization: metadata reads, update checks"
+
+[[sources]]
+key = "buildconfig"
+kind = "code"
+ref = "buildconfig/BuildConfig.h"
+note = "DEFAULT_RESOURCE_BASE = https://resources.download.minecraft.net/"
+
+[[sources]]
+key = "cmake"
+kind = "code"
+ref = "CMakeLists.txt"
+note = "Launcher_VERSION_MAJOR 12; Launcher_META_URL = https://meta.prismlauncher.org/v1/"
+
+[[sources]]
+key = "wiki-msauth"
+kind = "url"
+ref = "https://wiki.vg/Microsoft_Authentication"
+note = "Community documentation of the full Microsoft auth chain"
+retrieved = "2026-07-18"
+
+# ── Architecture components ─────────────────────────────────────────────────
+
+[[components]]
+name = "Authentication step chain"
+path = "launcher/minecraft/auth/"
+role = "Complete Microsoft account login, refresh, and ownership verification"
+source_keys = ["auth-flow", "msa-step", "msa-device", "xbox-user", "xsts", "launcher-login", "entitlements", "profile-step", "account-data", "account-list"]
+description = """
+AuthFlow runs an ordered list of AuthStep objects, each owning one protocol hop: MSAStep
+(interactive OAuth authorization-code against login.microsoftonline.com/consumers) or
+MSADeviceCodeStep (devicecode + token polling) -> XboxUserStep (user.auth.xboxlive.com) ->
+XboxAuthorizationStep (xsts.auth.xboxlive.com, with explicit handling of the XErr taxonomy:
+no Xbox account, child account needing family consent, region restrictions — each mapped to a
+user-actionable message and help link) -> LauncherLoginStep (api.minecraftservices.com/launcher/
+login) -> EntitlementsStep (entitlements/license — ownership proof) -> MinecraftProfileStep
+(minecraft/profile — UUID/name) -> GetSkinStep. AccountData serializes the full token state with
+expiries for silent refresh; AccountList manages multiple accounts with a default. Never touches
+a password — exactly the COMPLIANCE.md §2 contract OmniLauncher must implement."""
+
+[[components]]
+name = "Component/meta system"
+path = "launcher/minecraft/PackProfile.cpp + launcher/meta/"
+role = "Instance = declarative stack of versioned components resolved via a launcher-owned meta service"
+source_keys = ["pack-profile", "component", "component-update", "meta-index", "meta-versionlist", "cmake"]
+description = """
+An instance's mmc-pack.json lists components (e.g. net.minecraft, org.lwjgl3, a mod loader) with
+versions. Meta Index/VersionList fetch per-uid version catalogs from meta.prismlauncher.org/v1/
+(a service the project generates from Mojang + loader upstreams), and ComponentUpdateTask
+resolves the stack — dependency requirements between components, recommended versions, conflict
+detection. Because the launcher consumes ITS OWN normalized metadata rather than raw upstream
+formats, Mojang/loader format churn and upstream metadata bugs are absorbed server-side. This is
+the strongest launcher-architecture idea in the corpus and a direct adopt for Omni (with our own
+meta service)."""
+
+[[components]]
+name = "Instance model"
+path = "launcher/InstanceList.cpp + launcher/minecraft/MinecraftInstance.cpp"
+role = "Self-contained instance folders with INI settings and per-instance overrides"
+source_keys = ["instance-list", "mc-instance"]
+description = """
+An instance is any folder under instances/ containing instance.cfg (INI). InstanceList discovers
+and watches them; MinecraftInstance layers per-instance settings (java path/args, memory, window
+size, account pinning) over global defaults and materializes the launch profile. Instances are
+fully self-contained and copy/export-friendly — a property users rely on heavily and Omni keeps."""
+
+[[components]]
+name = "Version/asset update pipeline"
+path = "launcher/minecraft/update/ + OneSix/Mojang version formats"
+role = "Task graph that makes an instance runnable: version files, libraries, assets, folders"
+source_keys = ["onesix", "mojang-format", "library", "rules", "asset-task", "libraries-task"]
+description = """
+MojangVersionFormat ingests official version JSON; OneSixVersionFormat is the internal superset
+(MultiMC lineage) adding patches, jar mods, agents, and overrides. Library models parse gradle
+specifiers, evaluate OS/feature rules, and resolve download URLs (with mirror/base overrides);
+LibrariesTask and AssetUpdateTask verify-by-hash and download only deltas (assets from
+resources.download.minecraft.net per the asset index). LegacyFMLLibrariesTask keeps ancient
+Forge versions launchable — deep-history support is part of the product's appeal."""
+
+[[components]]
+name = "Launch task chain"
+path = "launcher/minecraft/launch/"
+role = "Ordered pre-launch steps culminating in JVM assembly and process supervision"
+source_keys = ["launch-part", "auto-java", "mc-instance"]
+description = """
+Launch is itself a task pipeline: ClaimAccount (session locking), AutoInstallJava,
+CreateGameFolders, ExtractNatives, EnsureAvailableMemory (checks free RAM before spawning),
+EnsureOfflineLibraries, MinecraftTarget (direct-join a server/world on start), then
+LauncherPartLaunch assembles the classpath/JVM args and starts the game through the launcher's
+Java shim, capturing logs. Clean separation of steps makes failures diagnosable and the chain
+extensible — the exact pattern OmniLauncher's Rust core should mirror."""
+
+[[components]]
+name = "Java runtime management"
+path = "launcher/java/ + launcher/java/download/"
+role = "Detect every installed JVM; auto-install the right Mojang runtime when missing"
+source_keys = ["java-list", "java-manifest", "auto-java"]
+description = """
+JavaInstallList sweeps vendor install locations (registry on Windows) and validates candidates
+by actually executing a checker; JavaVersion models version/arch compatibility. When an instance
+needs a Java it can't find, the java/download tasks fetch Mojang's java-runtime manifest and
+install the exact runtime component (ManifestDownloadTask + ArchiveDownloadTask + SymlinkTask),
+wired into launch as AutoInstallJava. Users never manually install Java — table stakes for Omni."""
+
+[[components]]
+name = "Mod platform integration"
+path = "launcher/modplatform/"
+role = "One abstraction over CurseForge, Modrinth, Technic, ATLauncher, FTB, packwiz"
+source_keys = ["resource-api", "modplatform-dirs", "ensure-metadata"]
+description = """
+ResourceAPI defines search/version-lookup/download contracts; per-platform clients (flame =
+CurseForge, modrinth, technic, atlauncher, ftb/import_ftb/legacy_ftb, packwiz) implement them,
+giving the UI a single code path for browsing and installing mods, modpacks, resource packs, and
+shaders across platforms. EnsureMetadataTask closes the loop for local files: it hashes unknown
+jars and asks the platforms' hash-lookup APIs to recover identity/versions, enabling update
+checks on hand-installed mods. Import paths from rival launchers are first-class — a deliberate
+migration funnel Omni should copy."""
+
+[[components]]
+name = "Resource folder models"
+path = "launcher/minecraft/mod/"
+role = "Watched, toggleable models for every user-content type"
+source_keys = ["resource-model", "mod-folder"]
+description = """
+ResourceFolderModel is a file-watched, Qt-model-backed base for content folders with
+enable/disable (file renaming), metadata sidecars, and batch operations; specializations cover
+mods, resource packs, texture packs, shader packs, data packs, and world saves. The
+generalization beyond 'mods' is what makes the launcher feel complete — Omni inherits the
+taxonomy."""
+
+# ── Feature inventory ───────────────────────────────────────────────────────
+
+[[features]]
+name = "Component-stack instance definition"
+category = "instance-model"
+description = "Instance = ordered list of versioned components (mmc-pack.json) resolved against a meta index, not a hardcoded 'version + loader' pair."
+maturity = "core"
+future_proofing = 5
+omni_relevance = "adopt"
+notes = "OmniLauncher's instance model should be a component stack from day one — it cleanly hosts OmniLoader, compat layers, and future component kinds."
+source_keys = ["pack-profile", "component-update"]
+
+[[features]]
+name = "Launcher-owned metadata service"
+category = "instance-model"
+description = "All version metadata is consumed from the project's own normalized service (meta.prismlauncher.org), generated from upstreams; upstream churn and bugs are absorbed server-side."
+maturity = "core"
+future_proofing = 5
+omni_relevance = "adapt"
+notes = "Adopt the pattern; Omni must budget the small meta-service infrastructure (static generation + CDN suffices, per Prism's design)."
+source_keys = ["meta-index", "cmake"]
+
+[[features]]
+name = "Interactive OAuth authorization-code login"
+category = "auth"
+description = "Standards-correct OAuth 2.0 against login.microsoftonline.com/consumers with browser handoff."
+maturity = "core"
+future_proofing = 5
+omni_relevance = "adopt"
+source_keys = ["msa-step"]
+
+[[features]]
+name = "Device-code login fallback"
+category = "auth"
+description = "Full devicecode+polling implementation for environments where a browser handoff is awkward."
+maturity = "stable"
+future_proofing = 4
+omni_relevance = "adopt"
+notes = "Also the right dev-mode flow for Omni before our Azure client ID is approved (COMPLIANCE.md §2)."
+source_keys = ["msa-device"]
+
+[[features]]
+name = "XSTS error taxonomy handling"
+category = "auth"
+description = "Every known XErr (no Xbox profile, child account, region block) maps to a specific user-actionable message with help links."
+maturity = "core"
+future_proofing = 4
+omni_relevance = "adopt"
+notes = "Auth failure UX is where launchers lose users; this taxonomy is ready-made requirements text for Omni."
+source_keys = ["xsts"]
+
+[[features]]
+name = "Multi-account management with silent refresh"
+category = "auth"
+description = "Multiple Microsoft accounts, default selection, serialized token state with expiries, background refresh, per-instance account pinning."
+maturity = "core"
+future_proofing = 4
+omni_relevance = "adopt"
+source_keys = ["account-list", "account-data"]
+
+[[features]]
+name = "Automatic Java runtime install"
+category = "java"
+description = "Fetches Mojang java-runtime manifests and installs the exact required runtime at launch time when missing."
+maturity = "core"
+future_proofing = 5
+omni_relevance = "adopt"
+source_keys = ["auto-java", "java-manifest"]
+
+[[features]]
+name = "JVM discovery and validation"
+category = "java"
+description = "Sweeps vendor locations and the Windows registry for JVMs and validates each by execution before offering it."
+maturity = "core"
+future_proofing = 4
+omni_relevance = "adopt"
+source_keys = ["java-list"]
+
+[[features]]
+name = "Version-file patch system (OneSix)"
+category = "instance-model"
+description = "Per-instance JSON patches can override/extend any component's version data: custom libraries, jar mods, agents, argument edits."
+maturity = "core"
+future_proofing = 4
+omni_relevance = "adapt"
+notes = "Power-user escape hatch that has kept the MultiMC family alive through every ecosystem shift; Omni should expose the same capability with a friendlier surface."
+source_keys = ["onesix"]
+
+[[features]]
+name = "Unified multi-platform ResourceAPI"
+category = "mod-platforms"
+description = "Single search/version/download abstraction implemented by CurseForge, Modrinth, Technic, ATLauncher, FTB, and packwiz clients."
+maturity = "core"
+future_proofing = 5
+omni_relevance = "adopt"
+notes = "Also the natural seam for honoring CurseForge's third-party distribution flags per platform rules."
+source_keys = ["resource-api", "modplatform-dirs"]
+
+[[features]]
+name = "Hash-based metadata recovery"
+category = "mod-platforms"
+description = "Unknown local jars are fingerprinted and resolved through platform hash-lookup APIs, restoring identity, versions, and updatability."
+maturity = "stable"
+future_proofing = 4
+omni_relevance = "adopt"
+notes = "Directly relevant to Phase 6: the same mechanism bootstraps Omni's mod census from users' existing folders."
+source_keys = ["ensure-metadata"]
+
+[[features]]
+name = "Competitor instance import"
+category = "migration"
+description = "First-class import of instances/packs from CurseForge, FTB (modern + legacy), Technic, ATLauncher, and packwiz."
+maturity = "stable"
+future_proofing = 4
+omni_relevance = "adopt"
+notes = "Migration funnels are an adoption strategy, not a convenience. Omni must import from every major launcher — including Prism itself."
+source_keys = ["modplatform-dirs"]
+
+[[features]]
+name = "Pre-launch task pipeline"
+category = "launch"
+description = "Launch is an ordered, extensible task chain (account claim, java install, natives, memory check, direct-join target) with per-step diagnostics."
+maturity = "core"
+future_proofing = 4
+omni_relevance = "adopt"
+source_keys = ["launch-part", "auto-java"]
+
+[[features]]
+name = "Delta asset/library updates by hash"
+category = "launch"
+description = "Libraries and assets are verified by hash and only missing/corrupt objects are fetched; rules select OS-correct artifacts."
+maturity = "core"
+future_proofing = 4
+omni_relevance = "adopt"
+source_keys = ["libraries-task", "asset-task", "rules"]
+
+[[features]]
+name = "Deep-history version support"
+category = "compat"
+description = "Ancient versions remain launchable (legacy FML library task, launchwrapper-era handling) — two decades of Minecraft in one launcher."
+maturity = "stable"
+future_proofing = 3
+omni_relevance = "observe"
+notes = "Omni targets 1.21.1-forward first (plan decision); revisit breadth after the framework is stable."
+source_keys = ["onesix", "libraries-task"]
+
+# ── Auth flows ──────────────────────────────────────────────────────────────
+
+[[auth_flows]]
+name = "Microsoft account login (interactive and device-code)"
+description = """
+The complete EULA-compliant Java Edition login chain as implemented by AuthFlow's step list.
+Prism uses the api.minecraftservices.com/launcher/login and /entitlements/license endpoints (the
+official-launcher-style pair). No password ever transits the launcher; consent happens in
+Microsoft's surfaces. Token state (MSA access+refresh, XBL, XSTS, Minecraft token, expiries) is
+serialized per account for silent refresh."""
+steps = """
+1. MSAStep (interactive: …/consumers/oauth2/v2.0/authorize + token) or MSADeviceCodeStep (…/devicecode + token polling) -> Microsoft access + refresh tokens
+2. XboxUserStep: POST user.auth.xboxlive.com/user/authenticate -> XBL token + user hash
+3. XboxAuthorizationStep: POST xsts.auth.xboxlive.com/xsts/authorize -> XSTS token (XErr taxonomy handled: no profile / child / region)
+4. LauncherLoginStep: POST api.minecraftservices.com/launcher/login -> Minecraft access token
+5. EntitlementsStep: GET api.minecraftservices.com/entitlements/license -> ownership proof
+6. MinecraftProfileStep: GET api.minecraftservices.com/minecraft/profile -> UUID + username
+7. GetSkinStep: fetch active skin for UI"""
+source_keys = ["auth-flow", "msa-step", "msa-device", "xbox-user", "xsts", "launcher-login", "entitlements", "profile-step", "wiki-msauth"]
+
+# ── File formats ────────────────────────────────────────────────────────────
+
+[[file_formats]]
+name = "instance.cfg"
+format_kind = "ini"
+path_pattern = "instances/<name>/instance.cfg"
+source_keys = ["instance-list", "mc-instance"]
+description = """
+INI marker+settings file that makes a folder an instance: name, icon, notes, and per-instance
+overrides (java path/args, memory, window geometry, account, wrapper commands). Anything unset
+falls through to global settings — a two-layer settings model Omni should keep."""
+
+[[file_formats]]
+name = "mmc-pack.json"
+format_kind = "json"
+path_pattern = "instances/<name>/mmc-pack.json"
+source_keys = ["pack-profile", "component"]
+description = """
+The component stack: formatVersion plus an ordered 'components' list of {uid, version,
+important/dependencyOnly flags, cached requires}. The de-facto interchange format of the
+MultiMC family — Omni's importer must read it, and Omni's native instance format should be a
+superset."""
+
+[[file_formats]]
+name = "OneSix version file"
+format_kind = "json"
+path_pattern = "instances/<name>/patches/<uid>.json + meta cache"
+source_keys = ["onesix"]
+description = """
+Internal version-data format (superset of Mojang's): mainClass, +libraries/+jarMods/+agents
+additions, argument edits, traits. Both the meta service's payload format and the per-instance
+patch override format."""
+
+[[file_formats]]
+name = "Mojang version manifest + asset index"
+format_kind = "json"
+path_pattern = "meta upstream / assets/indexes/<id>.json"
+source_keys = ["mojang-format", "asset-task"]
+description = """
+Official upstream formats (version JSON: libraries with rules/natives/downloads, arguments,
+assetIndex; asset index: name -> {hash, size} objects fetched from
+resources.download.minecraft.net/<h2>/<hash>). Prism ingests them into the internal model —
+Omni will consume the same upstreams through its own meta layer."""
+
+# ── Protocols ───────────────────────────────────────────────────────────────
+
+[[protocols]]
+name = "Microsoft/Xbox/Minecraft auth chain"
+endpoint = "login.microsoftonline.com/consumers, user.auth.xboxlive.com, xsts.auth.xboxlive.com, api.minecraftservices.com"
+source_keys = ["msa-step", "msa-device", "xbox-user", "xsts", "launcher-login", "entitlements", "profile-step"]
+description = """
+Exact endpoints verified in source: /consumers/oauth2/v2.0/{authorize,token,devicecode};
+user.auth.xboxlive.com/user/authenticate; xsts.auth.xboxlive.com/xsts/authorize;
+api.minecraftservices.com/{launcher/login, entitlements/license, minecraft/profile}. This is
+COMPLIANCE.md §2 made concrete."""
+
+[[protocols]]
+name = "Launcher meta service"
+endpoint = "https://meta.prismlauncher.org/v1/"
+source_keys = ["meta-index", "cmake"]
+description = """
+Static JSON index: a root index of component uids, per-uid version lists, per-version OneSix
+payloads. CDN-friendly, cacheable, offline-tolerant. The build URL is a CMake cache variable —
+forks point it at their own service, which is exactly what Omni will do."""
+
+[[protocols]]
+name = "Mojang download CDNs"
+endpoint = "resources.download.minecraft.net, libraries.minecraft.net (via version JSON URLs)"
+source_keys = ["asset-task", "libraries-task", "buildconfig"]
+description = """
+Assets by content hash under resources.download.minecraft.net/<h2>/<hash>; libraries from the
+URLs the version JSON declares. Hash-verified, delta-only downloads."""
+
+# ── Analysis notes ──────────────────────────────────────────────────────────
+
+[[notes]]
+title = "What Omni adopts wholesale vs re-architects"
+body = """
+Adopt behaviorally: component-stack instances, launcher-owned meta, the full auth chain +
+error taxonomy, auto-Java, unified ResourceAPI, hash metadata recovery, migration importers,
+pre-launch task pipeline. Re-architect: all of it lands in Rust/Tauri instead of Qt/C++ —
+Prism's Qt model/view coupling is its biggest source of complexity and does not port. Behavioral
+contracts (formats, endpoints, step ordering, error cases) are stack-independent and now
+captured in this analysis."""
+source_keys = ["resource-api", "pack-profile", "auth-flow"]
+
+[[notes]]
+title = "Offline-play handling is compliance-sensitive"
+body = """
+Prism supports offline sessions (EnsureOfflineLibraries exists to keep launch working without
+network). Omni policy per COMPLIANCE.md: offline convenience for verified owners is acceptable;
+anything enabling play without ownership verification is not. Phase 3 must specify Omni's
+offline semantics precisely (cached entitlement + expiry window) rather than inheriting behavior
+implicitly."""
+source_keys = ["launch-part", "entitlements"]
+
+[[notes]]
+title = "Version/tooling facts at pin"
+body = """
+Launcher_VERSION_MAJOR = 12 (CMakeLists.txt); Qt 6 / C++; meta URL and resource base are build
+-time configurable (Launcher_META_URL cache var, DEFAULT_RESOURCE_BASE in BuildConfig.h);
+GPL-3.0-only license (COPYING.md) with MultiMC-heritage files — license terms recorded for
+ADR-0002 fact-use only; no Prism code is copied into Omni products."""
+source_keys = ["cmake", "buildconfig"]
