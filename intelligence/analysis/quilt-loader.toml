@@ -1,0 +1,367 @@
+# Vivisection: Quilt Loader — hand-audited against the pinned commit below.
+
+[subject]
+slug = "quilt-loader"
+name = "Quilt Loader"
+kind = "loader"
+method = "open-source-deep"
+repo_url = "https://github.com/QuiltMC/quilt-loader.git"
+license = "Apache-2.0"
+pinned_commit = "099e7f9e368a7e023e4a313ac129ee221057f832"
+language = "Java"
+analyzed_at = "2026-07-18"
+summary = """
+Quilt Loader (0.30.0 at the pinned commit) is a community hard-fork of Fabric Loader that kept
+Fabric's minimal-core philosophy and Knot-derived launch layer but re-imagined the middle of the
+pipeline around three big ideas: (1) a **loader plugin system** — mods and the loader itself
+extend discovery/resolution through sandboxed plugins; (2) a **generalized dependency solver**
+whose rules are open to those plugins; and (3) a **custom NIO filesystem layer** (memory, zip,
+joined, unified filesystems) that backs an ahead-of-time transform cache — mods are transformed
+once into a cached synthetic filesystem instead of per-class at runtime.
+
+Its most strategically important property for the Omni-Framework: Quilt **runs unmodified
+Fabric mods natively**. fabric.mod.json is wrapped into Quilt's internal metadata model
+(FabricModMetadataWrapper and friends), Fabric entrypoints and Mixin configs are honored, and
+the ecosystem's mods just work. It is a production-proven existence proof for ADR-0003's
+compat-layer strategy — implemented at the metadata-model level rather than Sinytra-style jar
+rewriting, which is the cheaper approach when the host loader is architecturally close to the
+guest ecosystem."""
+
+# ── Source register ─────────────────────────────────────────────────────────
+
+[[sources]]
+key = "loader-impl"
+kind = "code"
+ref = "src/main/java/org/quiltmc/loader/impl/QuiltLoaderImpl.java"
+note = "Central loader singleton and lifecycle"
+
+[[sources]]
+key = "plugin-pkg"
+kind = "code"
+ref = "src/main/java/org/quiltmc/loader/impl/plugin/ (BasePluginContext.java, BuiltinPluginContext.java, …)"
+note = "Loader plugin runtime: contexts, scheduling, built-in plugins"
+
+[[sources]]
+key = "plugin-api"
+kind = "code"
+ref = "src/main/java/org/quiltmc/loader/api/plugin/ (ModLocation.java, ModMetadataExt.java, PluginGuiTreeNode.java, …)"
+note = "Public plugin SPI incl. GUI tree reporting for plugin-discovered mods"
+
+[[sources]]
+key = "solver-pkg"
+kind = "code"
+ref = "src/main/java/org/quiltmc/loader/impl/solver/"
+note = "Generalized rule-based dependency solver (sat4j-backed)"
+
+[[sources]]
+key = "qmj-reader"
+kind = "code"
+ref = "src/main/java/org/quiltmc/loader/impl/metadata/qmj/V1ModMetadataReader.java"
+note = "quilt.mod.json schema-versioned reader"
+
+[[sources]]
+key = "quilt-overrides"
+kind = "code"
+ref = "src/main/java/org/quiltmc/loader/impl/metadata/qmj/QuiltOverrides.java"
+note = "User-editable dependency override file support"
+
+[[sources]]
+key = "fabric-wrapper"
+kind = "code"
+ref = "src/main/java/org/quiltmc/loader/impl/metadata/qmj/FabricModMetadataWrapper.java"
+note = "Wraps fabric.mod.json metadata into Quilt's internal model"
+
+[[sources]]
+key = "fabric-compat-pkg"
+kind = "code"
+ref = "src/main/java/org/quiltmc/loader/impl/fabric/ (metadata/, util/)"
+note = "Fabric ecosystem compatibility subsystem"
+
+[[sources]]
+key = "fs-memory"
+kind = "code"
+ref = "src/main/java/org/quiltmc/loader/impl/filesystem/QuiltMemoryFileSystem.java"
+note = "In-memory NIO filesystem"
+
+[[sources]]
+key = "fs-zip"
+kind = "code"
+ref = "src/main/java/org/quiltmc/loader/impl/filesystem/QuiltZipFileSystem.java"
+note = "Custom zip filesystem (incl. custom-compressed writer variant)"
+
+[[sources]]
+key = "fs-joined"
+kind = "code"
+ref = "src/main/java/org/quiltmc/loader/impl/filesystem/QuiltJoinedFileSystem.java"
+note = "Overlay/join of multiple filesystems into one view"
+
+[[sources]]
+key = "fs-unified"
+kind = "code"
+ref = "src/main/java/org/quiltmc/loader/impl/filesystem/QuiltUnifiedFileSystem.java"
+note = "Unified filesystem used for the transform cache output"
+
+[[sources]]
+key = "transformer-pkg"
+kind = "code"
+ref = "src/main/java/org/quiltmc/loader/impl/transformer/"
+note = "Ahead-of-time transform pipeline writing into the transform cache"
+
+[[sources]]
+key = "patch-pkg"
+kind = "code"
+ref = "src/main/java/org/quiltmc/loader/impl/patch/"
+note = "Loader-owned game/class patches"
+
+[[sources]]
+key = "entrypoint-pkg"
+kind = "code"
+ref = "src/main/java/org/quiltmc/loader/impl/entrypoint/"
+note = "Entrypoint storage/invocation (Fabric-derived, Fabric keys honored)"
+
+[[sources]]
+key = "launch-pkg"
+kind = "code"
+ref = "src/main/java/org/quiltmc/loader/impl/launch/"
+note = "Knot-derived launch layer"
+
+[[sources]]
+key = "game-pkg"
+kind = "code"
+ref = "src/main/java/org/quiltmc/loader/impl/game/"
+note = "Game provider layer (Fabric-derived)"
+
+[[sources]]
+key = "gui-report"
+kind = "code"
+ref = "src/main/java/org/quiltmc/loader/impl/gui/ + src/main/java/org/quiltmc/loader/impl/report/"
+note = "Interactive error GUI and structured crash/report generation"
+
+[[sources]]
+key = "gradle-props"
+kind = "code"
+ref = "gradle.properties"
+note = "quilt_loader = 0.30.0"
+
+[[sources]]
+key = "quilt-docs"
+kind = "url"
+ref = "https://quiltmc.org/en/usage/getting-started/"
+note = "Official Quilt documentation"
+retrieved = "2026-07-18"
+
+# ── Architecture components ─────────────────────────────────────────────────
+
+[[components]]
+name = "Loader plugin system"
+path = "src/main/java/org/quiltmc/loader/impl/plugin/ + api/plugin/"
+role = "Discovery and resolution are extensible by plugins shipped in mods"
+source_keys = ["plugin-pkg", "plugin-api"]
+description = """
+Quilt turns the loader's own pipeline into an extension surface: loader plugins (declared by
+mods or built in) participate in scanning locations, contributing mod candidates, adding solver
+rules, and reporting into the error GUI tree. Built-in behavior (mods folder scanning, Fabric
+mod support) is itself implemented as plugins over the same SPI — the strongest form of
+dogfooding. This is the most ambitious extension architecture in the loader corpus; it trades
+implementation complexity for the ability to absorb new ecosystems without forking the loader."""
+
+[[components]]
+name = "Generalized dependency solver"
+path = "src/main/java/org/quiltmc/loader/impl/solver/"
+role = "Rule-based sat4j solving, open to plugin-contributed rules"
+source_keys = ["solver-pkg", "plugin-api"]
+description = """
+Where Fabric encodes a fixed dependency model into SAT clauses, Quilt exposes the rule layer:
+plugins can define custom rule types over 'LoadOption's that the solver resolves together with
+the standard depends/breaks semantics. quilt.mod.json also gains richer constraint syntax
+(version intervals, any/all groups, 'unless' conditions). Same solver engine class as Fabric
+(sat4j), materially more general problem model."""
+
+[[components]]
+name = "quilt.mod.json metadata system"
+path = "src/main/java/org/quiltmc/loader/impl/metadata/qmj/"
+role = "Schema-versioned native metadata, a deliberate superset of Fabric's"
+source_keys = ["qmj-reader", "quilt-overrides"]
+description = """
+quilt.mod.json (read by V1ModMetadataReader) restructures Fabric's manifest: a 'quilt_loader'
+root object, structured contributors/licenses/icons, provides with versions, load_type,
+repositories, and the richer dependency constraint model. QuiltOverrides adds a user-facing
+escape hatch: a config file can patch any mod's dependencies without touching the jar — the
+community's answer to 'two mods disagree about versions and I just want to play'."""
+
+[[components]]
+name = "Fabric compatibility subsystem"
+path = "src/main/java/org/quiltmc/loader/impl/fabric/ + metadata/qmj/Fabric*Wrapper*"
+role = "Runs unmodified Fabric mods natively — metadata-model-level compat"
+source_keys = ["fabric-compat-pkg", "fabric-wrapper", "entrypoint-pkg"]
+description = """
+Fabric mods are first-class citizens: fabric.mod.json is parsed and wrapped
+(FabricModMetadataWrapper / QuiltModMetadataWrapperFabric bridge both directions), Fabric
+entrypoint keys and Mixin configs are honored by the shared launch layer, and the solver sees
+Fabric dependencies as native constraints. Because Quilt kept Fabric's launch/transform
+architecture, no bytecode rewriting is needed — compat lives entirely in the metadata and
+discovery layers. Existence proof that a host loader architecturally close to its guest
+ecosystem gets compat almost for free (contrast: Sinytra Connector, which must rewrite jars to
+cross the NeoForge gap)."""
+
+[[components]]
+name = "NIO filesystem layer + transform cache"
+path = "src/main/java/org/quiltmc/loader/impl/filesystem/ + transformer/"
+role = "Custom filesystems backing ahead-of-time, cached mod transformation"
+source_keys = ["fs-memory", "fs-zip", "fs-joined", "fs-unified", "transformer-pkg"]
+description = """
+A full suite of custom NIO FileSystemProviders: in-memory, custom zip (with its own compressed
+writer), 'joined' overlays, and a 'unified' filesystem. The transformer pipeline runs mods
+through their transformations once, writing results into a persistent transform cache exposed as
+one of these filesystems; subsequent launches serve pre-transformed classes. This shifts
+transformation cost from every-class-load to first-launch — a materially different performance
+architecture from Fabric/FML's transform-on-load, and directly relevant to OmniLoader's design
+space (especially with 50k-mod ambitions where startup cost compounds)."""
+
+[[components]]
+name = "Knot-derived launch and game layer"
+path = "src/main/java/org/quiltmc/loader/impl/launch/ + game/ + patch/"
+role = "Fabric-heritage bootstrap: transforming class loader + game providers"
+source_keys = ["launch-pkg", "game-pkg", "patch-pkg", "loader-impl"]
+description = """
+The bootstrap chain is recognizably Fabric's (see the fabric-loader dossier): Knot-style class
+loader, GameProvider abstraction, game patches. Quilt's divergence is everything behind that
+front door (plugins, solver, filesystems, metadata). For Omni this means the Fabric analysis
+transfers: one architecture family, two metadata/resolution philosophies to compare."""
+
+[[components]]
+name = "Error reporting GUI"
+path = "src/main/java/org/quiltmc/loader/impl/gui/ + report/"
+role = "Interactive load-failure windows and structured crash reports"
+source_keys = ["gui-report", "plugin-api"]
+description = """
+Load failures open an interactive window with a tree of what was found where and which rules
+failed (plugins report into the same tree), plus structured report files. Materially better
+failure UX than raw logs, and the plugin-visible reporting tree is a good pattern for a loader
+that wants third-party ecosystems to explain their own failures."""
+
+# ── Feature inventory ───────────────────────────────────────────────────────
+
+[[features]]
+name = "Native Fabric mod compatibility"
+category = "compat"
+description = "Unmodified Fabric mods load natively via metadata wrapping and the shared launch layer; no jar rewriting."
+maturity = "core"
+future_proofing = 5
+omni_relevance = "adopt"
+notes = "The proof that ADR-0003 works when host and guest share architecture. OmniLoader's Fabric compat layer should be modeled on this (metadata-level), not on jar rewriting."
+source_keys = ["fabric-wrapper", "fabric-compat-pkg"]
+
+[[features]]
+name = "Loader plugin system"
+category = "architecture"
+description = "Discovery, resolution rules, and error reporting are extensible by plugins shipped inside mods; built-in behavior uses the same SPI."
+maturity = "stable"
+future_proofing = 4
+omni_relevance = "adapt"
+notes = "Powerful but heavy. For Omni, a scoped-down version — ecosystem adapters as loader plugins — is exactly the compat-layer SPI shape ADR-0003 needs."
+source_keys = ["plugin-pkg", "plugin-api"]
+
+[[features]]
+name = "Plugin-extensible SAT solving"
+category = "dependency-resolution"
+description = "sat4j solving over a rule model that plugins can extend; richer native constraint syntax than Fabric."
+maturity = "stable"
+future_proofing = 4
+omni_relevance = "adapt"
+notes = "Omni's multi-ecosystem resolution needs plugin-contributed rules (per-ecosystem semantics feeding one solver). Quilt is the reference implementation."
+source_keys = ["solver-pkg"]
+
+[[features]]
+name = "User dependency overrides"
+category = "dev-experience"
+description = "A config file patches any mod's declared dependencies without editing jars (QuiltOverrides)."
+maturity = "stable"
+future_proofing = 4
+omni_relevance = "adopt"
+notes = "Cheap to build, enormous goodwill. Omni should ship this day one with a friendlier surface (launcher UI over the same file)."
+source_keys = ["quilt-overrides"]
+
+[[features]]
+name = "Ahead-of-time transform cache"
+category = "bytecode"
+description = "Mods are transformed once into a persistent cache served by custom NIO filesystems; later launches skip transformation."
+maturity = "core"
+future_proofing = 4
+omni_relevance = "adapt"
+notes = "The right cost model for huge mod counts, at the price of cache-invalidation complexity. OmniLoader Phase 3 must decide transform-on-load vs cached-AOT; this is the AOT evidence."
+source_keys = ["transformer-pkg", "fs-unified"]
+
+[[features]]
+name = "Custom NIO filesystem suite"
+category = "architecture"
+description = "Memory/zip/joined/unified FileSystemProviders give the loader uniform, efficient access to real, synthetic, and overlaid content."
+maturity = "core"
+future_proofing = 3
+omni_relevance = "observe"
+notes = "Impressive engineering with real maintenance weight (a whole FS layer to own). Omni should reach for it only if the AOT-cache route is chosen."
+source_keys = ["fs-memory", "fs-zip", "fs-joined"]
+
+[[features]]
+name = "Schema-versioned superset metadata"
+category = "metadata"
+description = "quilt.mod.json restructures and extends fabric.mod.json (structured people/licenses, load_type, richer constraints) while the loader still reads Fabric's format."
+maturity = "core"
+future_proofing = 4
+omni_relevance = "adapt"
+notes = "Concrete prior art for omni.mod.json: be a strict superset of the ecosystems you host, and keep reading theirs."
+source_keys = ["qmj-reader", "quilt-docs"]
+
+[[features]]
+name = "Interactive load-failure GUI"
+category = "dev-experience"
+description = "Failures open a window with a discovery/rule tree instead of burying users in logs; plugins report into the same tree."
+maturity = "stable"
+future_proofing = 4
+omni_relevance = "adopt"
+source_keys = ["gui-report"]
+
+# ── File formats ────────────────────────────────────────────────────────────
+
+[[file_formats]]
+name = "quilt.mod.json"
+format_kind = "json"
+path_pattern = "<mod jar root>/quilt.mod.json"
+source_keys = ["qmj-reader", "quilt-docs"]
+description = """
+Native manifest: 'schema_version' + 'quilt_loader' object (id, group, version, entrypoints,
+plugins, jars, provides w/ versions, load_type, repositories, intermediate_mappings, metadata
+block with structured contributors/contact/license/icon) plus depends/breaks with interval and
+group constraint syntax. The loader also reads fabric.mod.json for Fabric mods; when both are
+present the Quilt manifest wins."""
+
+[[file_formats]]
+name = "Dependency override file"
+format_kind = "json"
+path_pattern = "config/quilt-loader-overrides.json (user-editable)"
+source_keys = ["quilt-overrides"]
+description = """
+User-side patches to any installed mod's dependency declarations (add/replace/remove) applied
+at resolution time — the sanctioned escape hatch when upstream constraints are wrong or stale."""
+
+# ── Analysis notes ──────────────────────────────────────────────────────────
+
+[[notes]]
+title = "Two compat strategies now measured"
+body = """
+With Quilt and Sinytra Connector both in the corpus, the two viable compat architectures are
+documented: metadata-level hosting (Quilt: cheap, requires architectural closeness to the guest)
+vs jar-rewriting translation (Sinytra: expensive, crosses any gap). OmniLoader's Phase 3 design
+should plan a Fabric-family layer of the first kind and treat FML-family support as the second
+kind — matching what the evidence says each costs."""
+source_keys = ["fabric-compat-pkg", "fabric-wrapper"]
+
+[[notes]]
+title = "Fork-divergence economics"
+body = """
+Quilt kept Fabric's launch architecture but forked the pipeline's middle. The result is a loader
+that reads as 'Fabric plus ambition': every divergence (plugins, solver generality, filesystems,
+AOT cache) trades maintenance weight for extensibility. Quilt 0.30.0 remains behind Fabric in
+ecosystem share — a reminder that architectural superiority alone does not move mod authors;
+Omni's adoption strategy must lead with compat coverage, not architecture."""
+source_keys = ["gradle-props", "loader-impl"]
