@@ -1,0 +1,160 @@
+# Vivisection: GDLauncher — hand-audited against the pinned commit below.
+# Strategic subject: the corpus's documented Electron exit and acquisition case study.
+
+[subject]
+slug = "gdlauncher"
+name = "GDLauncher (legacy)"
+kind = "launcher"
+method = "open-source-deep"
+repo_url = "https://github.com/gorilla-devs/GDLauncher.git"
+license = "GPL-3.0 (COPYING.md notices)"
+pinned_commit = "92a8e9a952bfdf9170513743ad41976bc6e76280"
+language = "JavaScript (Electron + React) with Rust native modules (napi-rs)"
+analyzed_at = "2026-07-18"
+summary = """
+GDLauncher (1.1.30 at the pinned commit) is the corpus's Electron datapoint — a polished
+React/antd launcher whose own repository documents the limits of the stack: alongside the
+Electron app sits a cargo.toml and a napi/ directory, Rust native modules injected via napi-rs
+because JavaScript alone could not carry the launcher's compute-heavy paths. The team's
+subsequent history completes the lesson: they announced GDLauncher Carbon, a ground-up rewrite
+around a Rust core (confirming the Modrinth-direction consensus), and were acquired by
+Overwolf/CurseForge (Dec 2022), after which Carbon development ultimately ceased — leaving
+this legacy codebase as the maintained artifact.
+
+Two lessons for Omni, one technical and one strategic. Technical: this is the third
+independent team (with Modrinth building in Rust and GDLauncher retrofitting then rewriting)
+whose trajectory converges on 'Rust core, web UI' — ADR-0001's strongest external validation,
+now from the failure direction. Strategic: the acquisition shows platform owners buy
+successful launchers to consolidate distribution; Omni's independence (own platform ambitions,
+proprietary core, first-party company) is a moat decision, and the corpus's third governance
+data point after MultiMC and Forge."""
+
+[[sources]]
+key = "package-json"
+kind = "code"
+ref = "package.json"
+note = "gdlauncher 1.1.30; Electron + React (craco, antd) toolchain"
+
+[[sources]]
+key = "napi-rust"
+kind = "code"
+ref = "cargo.toml + napi/ + Cargo.lock"
+note = "Rust native modules embedded in the Electron app via napi-rs"
+
+[[sources]]
+key = "src-layout"
+kind = "code"
+ref = "src/ (Root-Electron.js, Root-Web.js, Root-Dev.js, app/, common/, ui/)"
+note = "Multi-target React app layout (Electron/web roots), shared common/ logic"
+
+[[sources]]
+key = "packaging"
+kind = "code"
+ref = "dev-app-update.yml + entitlements.mac.plist + vcredist/ + scripts/"
+note = "Electron packaging/update surface: per-OS entitlements, bundled vcredist"
+
+[[sources]]
+key = "license"
+kind = "code"
+ref = "LICENSE + COPYING.md"
+note = "GPL-3.0 with additional copying notices"
+
+[[sources]]
+key = "carbon-repo"
+kind = "url"
+ref = "https://github.com/gorilla-devs/GDLauncher-Carbon"
+note = "The announced Rust-core rewrite (development ceased; repo archived)"
+retrieved = "2026-07-18"
+
+[[sources]]
+key = "overwolf-announcement"
+kind = "url"
+ref = "https://www.overwolf.com/blog/gdlauncher-joins-overwolf/"
+note = "Acquisition announcement (Overwolf/CurseForge, December 2022)"
+retrieved = "2026-07-18"
+
+[[components]]
+name = "Electron/React application shell"
+path = "src/ (Root-Electron.js, app/, ui/) + package.json"
+role = "The launcher as a web app in an Electron shell with React/antd UI"
+source_keys = ["src-layout", "package-json"]
+description = """
+A capable single-page React application (antd component library, craco build) with separate
+Electron/web/dev roots and launcher logic in JavaScript under app/ and common/. The UI
+velocity the stack enabled is visible in the product's polish — the same web-UI advantage
+Omni keeps in Tauri — while everything below the UI became the reason to leave."""
+
+[[components]]
+name = "Rust escape hatch (napi-rs modules)"
+path = "cargo.toml + napi/"
+role = "Native Rust modules compiled into the Electron app for performance-critical paths"
+source_keys = ["napi-rust"]
+description = """
+The load-bearing evidence in this subject: rather than accept JavaScript performance for
+compute-heavy launcher work, the team embedded Rust via napi-rs *inside* Electron — a halfway
+house to the full Carbon rewrite. When a team starts bolting the target architecture into the
+legacy shell, the migration verdict is already in. Recorded as ADR-0001 validation from the
+retrofit direction (Modrinth validates it greenfield)."""
+
+[[components]]
+name = "Electron distribution surface"
+path = "dev-app-update.yml + entitlements.mac.plist + vcredist/"
+role = "The operational cost side of Electron packaging"
+source_keys = ["packaging"]
+description = """
+Auto-update channels, macOS entitlements, bundled Visual C++ redistributables — the
+per-OS operational surface of shipping Chromium. Contrast with Tauri's system-webview
+model (modrinth-app dossier): smaller artifacts, no bundled browser to patch. Feeds the
+footprint/security rationale already recorded in ADR-0001."""
+
+[[features]]
+name = "Web-stack UI velocity"
+category = "architecture"
+description = "React/antd delivered a polished, fast-iterating launcher UI."
+maturity = "core"
+future_proofing = 4
+omni_relevance = "adopt"
+notes = "The half of Electron worth keeping — and Tauri keeps it. Omni's frontend inherits the web-UI approach with a Rust core underneath."
+source_keys = ["src-layout", "package-json"]
+
+[[features]]
+name = "Electron as the runtime for a launcher"
+category = "architecture"
+description = "Chromium-bundled desktop shell carrying launcher logic in JavaScript."
+maturity = "legacy"
+future_proofing = 2
+omni_relevance = "avoid"
+notes = "The subject's own napi-rs retrofit and Carbon rewrite are the verdict. ADR-0001 confirmed from the failure direction."
+source_keys = ["napi-rust", "packaging", "carbon-repo"]
+
+[[features]]
+name = "Incremental native migration via napi-rs"
+category = "architecture"
+description = "Rust modules embedded per-hotspot inside a JS application."
+maturity = "stable"
+future_proofing = 3
+omni_relevance = "observe"
+notes = "A competent migration technique worth knowing; Omni starts Rust-native so it should never need it."
+source_keys = ["napi-rust"]
+
+[[features]]
+name = "Consolidation-by-acquisition exposure"
+category = "governance"
+description = "A successful independent launcher was acquired by the dominant content platform; its rewrite then ceased."
+maturity = "legacy"
+future_proofing = 1
+omni_relevance = "avoid"
+notes = "Third governance datapoint (with MultiMC, Forge): distribution consolidates toward platform owners. Omni's first-party independence and own-platform ambitions are the countermeasure."
+source_keys = ["overwolf-announcement", "carbon-repo"]
+
+[[notes]]
+title = "The corpus's stack verdict is now unanimous"
+body = """
+Across the launcher corpus: MultiMC/Prism carry Qt/C++ competently but at high development
+cost; ATLauncher shows the JVM-UI ceiling; GDLauncher documents Electron's limits from inside
+(napi-rs retrofit, Carbon rewrite intent); Modrinth ships the Rust-core/web-UI answer in
+production. Every trajectory that had freedom to choose converged where ADR-0001 landed.
+Stack risk for OmniLauncher is now fully retired as an open question; remaining launcher
+decisions are behavioral (feature set, formats, services), all cataloged across these
+dossiers for Phase 2 synthesis."""
+source_keys = ["napi-rust", "carbon-repo", "package-json"]
