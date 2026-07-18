@@ -1,0 +1,11 @@
+# Normalize all text to LF in the repository (reproducible builds, SOUL §21).
+* text=auto eol=lf
+
+# Windows scripts that require CRLF
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# Binary — never touch
+*.png binary
+*.jar binary
+*.db  binary
