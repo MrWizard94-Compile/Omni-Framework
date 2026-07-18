@@ -1,0 +1,196 @@
+# Vivisection: MultiMC — hand-audited against the pinned commit below.
+# Family baseline: the ancestor of Prism (via PolyMC). Analyzed comparatively —
+# the prism-launcher dossier carries the deep treatment of the shared architecture.
+
+[subject]
+slug = "multimc"
+name = "MultiMC"
+kind = "launcher"
+method = "open-source-deep"
+repo_url = "https://github.com/MultiMC/Launcher.git"
+license = "Apache-2.0 (portions; per-file notices in COPYING.md)"
+pinned_commit = "1ac310d51f07c36c88e5de097ee0ac929dd505df"
+language = "C++ (Qt)"
+analyzed_at = "2026-07-18"
+summary = """
+MultiMC is the origin of the instance-launcher lineage: it invented the self-contained
+instance model, the component stack with a launcher-owned meta service (meta.multimc.org/v1/),
+and the OneSix version-file format that Prism inherited wholesale (fork chain: MultiMC ->
+PolyMC -> Prism). This analysis is deliberately comparative: the shared architecture —
+components, OneSix/Mojang version formats, task-based updates, MSA auth steps, instance.cfg —
+is documented in depth in the prism-launcher dossier; here we record what the baseline itself
+establishes, where the fork diverged, and what the divergence teaches.
+
+The strategic lessons are organizational as much as technical. MultiMC pioneered every core
+idea, then its restrictive stance (branding requirements, controlled distribution, slower
+opening of development) drove the community to fork; Prism now out-develops it (compare
+activity and feature depth at the two pins — e.g. Prism's auto-Java download, broader platform
+integrations, packwiz support). For a proprietary-but-community-facing project like Omni, this
+is the cautionary tale to design against: openness of contribution and distribution is a
+survival trait in this ecosystem, independent of code quality."""
+
+# ── Source register ─────────────────────────────────────────────────────────
+
+[[sources]]
+key = "cmake"
+kind = "code"
+ref = "CMakeLists.txt"
+note = "Launcher_META_URL = https://meta.multimc.org/v1/ — the original meta service"
+
+[[sources]]
+key = "components"
+kind = "code"
+ref = "launcher/minecraft/Component.cpp + ComponentUpdateTask.cpp"
+note = "The original component-stack implementation Prism inherited"
+
+[[sources]]
+key = "onesix"
+kind = "code"
+ref = "launcher/minecraft/OneSixVersionFormat.cpp + MojangVersionFormat.cpp"
+note = "Origin of the OneSix version-file format"
+
+[[sources]]
+key = "meta-pkg"
+kind = "code"
+ref = "launcher/meta/ (Index.cpp, JsonFormat.cpp, Version.cpp)"
+note = "Meta index client — same design later seen at Prism"
+
+[[sources]]
+key = "auth-pkg"
+kind = "code"
+ref = "launcher/minecraft/auth/ (AccountData.cpp, AccountList.cpp, AuthRequest.cpp, AuthStep.cpp) + MSA support"
+note = "Step-based MSA auth — the pre-fork ancestor of Prism's chain"
+
+[[sources]]
+key = "inline-tests"
+kind = "code"
+ref = "launcher/minecraft/ (Library_test.cpp, GradleSpecifier_test.cpp, MojangVersionFormat_test.cpp, Index_test.cpp)"
+note = "In-tree unit tests colocated with the code under test"
+
+[[sources]]
+key = "copying"
+kind = "code"
+ref = "COPYING.md"
+note = "Apache-2.0 portions with per-file license inventory"
+
+[[sources]]
+key = "multimc-site"
+kind = "url"
+ref = "https://multimc.org/"
+note = "Official site: distribution model and branding policy context"
+retrieved = "2026-07-18"
+
+# ── Architecture components ─────────────────────────────────────────────────
+
+[[components]]
+name = "Component/meta system (the original)"
+path = "launcher/minecraft/Component.cpp + launcher/meta/ + CMakeLists.txt"
+role = "First implementation of instance-as-component-stack over a launcher-owned meta service"
+source_keys = ["components", "meta-pkg", "cmake"]
+description = """
+Everything the prism-launcher dossier documents as the corpus's strongest launcher idea
+originates here, verified at meta.multimc.org/v1/ with the same Index/VersionList client
+design and ComponentUpdateTask resolution. Historical significance for Omni: this pattern has
+now survived three launcher generations (MultiMC -> PolyMC -> Prism) and one independent
+reinvention (Modrinth's daedalus) — the strongest possible future-proofing evidence."""
+
+[[components]]
+name = "OneSix version format (the original)"
+path = "launcher/minecraft/OneSixVersionFormat.cpp"
+role = "Origin of the patch-based version-file superset of Mojang's format"
+source_keys = ["onesix"]
+description = """
+The format Prism still ships (see prism-launcher dossier for the format treatment). Notable at
+the baseline: the format was designed generically enough in ~2013-era MultiMC that a decade of
+loader churn (Forge lifecycles, Fabric's arrival, NeoForge) never forced a breaking rewrite —
+evidence for Omni's Phase 3 that a well-designed patch/override model is a decades-scale asset."""
+
+[[components]]
+name = "Step-based MSA auth (pre-fork)"
+path = "launcher/minecraft/auth/"
+role = "The ancestor of Prism's auth chain, already step-decomposed"
+source_keys = ["auth-pkg"]
+description = """
+AccountData/AccountList/AuthStep show the same decomposition later refined by Prism
+(dedicated step classes per protocol hop). Comparative value: diffing the two trees shows the
+fork mostly *added* steps (device-code flow, entitlement/profile refinements) rather than
+restructuring — the step-chain shape absorbed protocol evolution cleanly, which is why the
+prism dossier marks it adopt."""
+
+[[components]]
+name = "In-tree unit testing discipline"
+path = "launcher/minecraft/*_test.cpp"
+role = "Tests colocated with implementation files"
+source_keys = ["inline-tests"]
+description = """
+MultiMC colocates unit tests with the code (Library_test, GradleSpecifier_test,
+MojangVersionFormat_test, Index_test) — coverage exactly at the format/parsing seams where
+launchers break. The chosen seams are the lesson: version formats, gradle specifiers, meta
+JSON, and library rules are the highest-value test targets in a launcher, matching where Omni
+should concentrate its Phase 4 test matrix."""
+
+# ── Feature inventory ───────────────────────────────────────────────────────
+
+[[features]]
+name = "Instance-launcher paradigm (origin)"
+category = "instance-model"
+description = "Self-contained, copyable instances with per-instance settings — the model every modern launcher now assumes."
+maturity = "core"
+future_proofing = 5
+omni_relevance = "adopt"
+notes = "Already adopted via the prism analysis; recorded here as the origin with three-generation survival evidence."
+source_keys = ["components", "onesix"]
+
+[[features]]
+name = "Launcher-owned meta service (origin)"
+category = "instance-model"
+description = "meta.multimc.org/v1/ — the first normalized, self-owned launcher metadata service."
+maturity = "core"
+future_proofing = 5
+omni_relevance = "adopt"
+notes = "Pattern now confirmed across MultiMC, Prism, and Modrinth (daedalus). Omni builds its own; design treatment in the prism dossier."
+source_keys = ["cmake", "meta-pkg"]
+
+[[features]]
+name = "Restrictive distribution/branding stance"
+category = "governance"
+description = "Controlled builds and branding requirements that ultimately drove the PolyMC/Prism forks."
+maturity = "legacy"
+future_proofing = 1
+omni_relevance = "avoid"
+notes = "The corpus's clearest governance lesson: in this ecosystem, community forks route around restrictiveness. Omni's proprietary core must pair with generous user-facing openness (free launcher, open formats, migration paths) to avoid the same fate."
+source_keys = ["copying", "multimc-site"]
+
+[[features]]
+name = "Format-seam unit testing"
+category = "dev-experience"
+description = "Unit tests concentrated on version formats, specifiers, and meta parsing."
+maturity = "stable"
+future_proofing = 4
+omni_relevance = "adopt"
+notes = "The test-target map for OmniLauncher's Phase 4/5 test matrix."
+source_keys = ["inline-tests"]
+
+# ── Analysis notes ──────────────────────────────────────────────────────────
+
+[[notes]]
+title = "Fork-lineage delta (MultiMC -> Prism) as a feature roadmap"
+body = """
+Diffing the baseline against Prism's pin yields the community's revealed priorities — what a
+decade of users made the fork build first: device-code auth, automatic Java download/install,
+more platform integrations (Modrinth, packwiz, FTB variants), richer resource-folder models,
+and migration importers. That delta list is effectively a prioritized backlog for OmniLauncher's
+MVP: the fork built what users demanded loudest, and Omni should ship that set from day one.
+The shared skeleton both carry (components, meta, OneSix, task graphs, step auth) is the
+stable core documented in the prism-launcher dossier."""
+source_keys = ["components", "auth-pkg", "onesix"]
+
+[[notes]]
+title = "Scope note"
+body = """
+This is a deliberately comparative analysis: MultiMC and Prism share most of their
+architecture by direct descent, and duplicating the prism-launcher dossier's component/format
+treatment would violate the corpus's no-redundancy discipline. Facts recorded here are those
+the baseline uniquely establishes (origins, meta URL, test discipline, governance lesson).
+For any shared subsystem, the prism-launcher dossier is authoritative."""
+source_keys = ["copying", "cmake"]
