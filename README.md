@@ -49,7 +49,7 @@ Omni_Framework/
 
 ## Status
 
-**Phase 0 — Foundation** ✅ (this delivery) · **Phase 1 — Vivisection Corpus** ▶ in progress (2 of ~14 subjects complete: Fabric Loader, Prism Launcher).
+**Phase 0 — Foundation** ✅ · **Phase 1 — Vivisection Corpus** ✅ (14/14 subjects, 2026-07-18) · **Phase 2 — Feature Synthesis** ▶ next (director cherry-pick session required).
 
 ## Legal
 

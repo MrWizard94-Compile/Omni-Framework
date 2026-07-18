@@ -9,7 +9,7 @@ Legend: ✅ complete · ▶ in progress · ⬜ not started
 
 Repo + remote (`MrWizard94-Compile/Omni-Framework`, private), governance docs wired to SOUL, monorepo layout, intelligence database schema + deterministic ingest/analyze/dossier pipeline.
 
-## Phase 1 — Vivisection Corpus ▶
+## Phase 1 — Vivisection Corpus ✅ (2026-07-18)
 
 Every subject gets: pinned-commit corpus fetch, structured analysis (components, features, file formats, auth flows, protocols — all with provenance), DB rows, and a generated dossier.
 
@@ -19,16 +19,16 @@ Every subject gets: pinned-commit corpus fetch, structured analysis (components,
 | Prism Launcher | launcher | open-source deep | ✅ 2026-07-18 |
 | Quilt Loader | loader | open-source deep | ✅ 2026-07-18 |
 | NeoForge (FancyModLoader) | loader | open-source deep | ✅ 2026-07-18 |
-| MinecraftForge (legacy baseline) | loader | open-source deep | ⬜ |
+| MinecraftForge (legacy baseline) | loader | open-source deep | ✅ 2026-07-18 (comparative baseline) |
 | SpongePowered Mixin | subsystem | open-source deep | ✅ 2026-07-18 |
 | Sinytra Connector | compat layer | open-source deep | ✅ 2026-07-18 |
 | MultiMC | launcher | open-source deep | ✅ 2026-07-18 (comparative baseline) |
-| ATLauncher | launcher | open-source deep | ⬜ |
-| HMCL | launcher | open-source deep | ⬜ |
+| ATLauncher | launcher | open-source deep | ✅ 2026-07-18 |
+| HMCL | launcher | open-source deep | ✅ 2026-07-18 |
 | Modrinth App | launcher | open-source deep | ✅ 2026-07-18 (incl. daedalus meta + labrinth API notes) |
-| GDLauncher | launcher | open-source deep | ⬜ |
-| CurseForge App | launcher | **black-box only** (ADR-0002) | ⬜ |
-| Official Minecraft Launcher | launcher | **black-box only** (ADR-0002) | ⬜ |
+| GDLauncher | launcher | open-source deep | ✅ 2026-07-18 |
+| CurseForge App | launcher | **black-box only** (ADR-0002) | ✅ 2026-07-18 |
+| Official Minecraft Launcher | launcher | **black-box only** (ADR-0002) | ✅ 2026-07-18 |
 
 Exit criteria: all subjects ingested; dossiers complete; comparative queries answer "who does X best?" for every major capability.
 

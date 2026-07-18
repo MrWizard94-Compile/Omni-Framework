@@ -13,7 +13,8 @@
 ## Current State (update this section every delivery)
 
 - **Phase 0 (Foundation): complete** — repo, governance, intelligence pipeline.
-- **Phase 1 (Vivisection Corpus): in progress (8/14)** — subjects done: `fabric-loader`, `prism-launcher`, `quilt-loader`, `fancymodloader`, `sinytra-connector`, `spongepowered-mixin`, `modrinth-app`, `multimc`. Next: MinecraftForge (legacy baseline), ATLauncher, HMCL, GDLauncher, plus black-box dossiers (CurseForge app, official launcher).
+- **Phase 1 (Vivisection Corpus): complete (14/14, 2026-07-18)** — all subjects in the DB: 4 loader-family, 8 launchers (incl. 2 black-box per ADR-0002), Mixin, Sinytra Connector. 71 components, 103 scored features, 213 provenance sources.
+- **Next: Phase 2 (Feature Synthesis)** — generate the comparative matrix from `feature_matrix`, then the **director cherry-pick session** (hard requirement: user input) → `docs/REQUIREMENTS.md`.
 - Key Phase 3 input already banked: the compat-layer "bill of materials" (sinytra-connector dossier) and the two-strategy compat comparison (quilt-loader vs sinytra-connector notes). Flag for director: corpus HEAD is at MC 26.x — re-confirm the 1.21.1 launch target in Phase 3.
 - OmniLauncher/OmniLoader: design targets documented in their READMEs; **no code until Phase 4** by design (see docs/ROADMAP.md).
 
