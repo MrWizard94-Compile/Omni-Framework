@@ -1,0 +1,349 @@
+# Vivisection: Sinytra Connector — hand-audited against the pinned commit below.
+# THE load-bearing prior art for ADR-0003 (running Fabric mods on a foreign loader).
+
+[subject]
+slug = "sinytra-connector"
+name = "Sinytra Connector"
+kind = "compat-layer"
+method = "open-source-deep"
+repo_url = "https://github.com/Sinytra/Connector.git"
+license = "MIT"
+pinned_commit = "2f7ef8c82826bf58ea89f74353d23ab23d77b813"
+language = "Java"
+analyzed_at = "2026-07-18"
+summary = """
+Sinytra Connector (3.0.0-beta.3 at the pinned commit, targeting Minecraft 26.1.2 / NeoForge
+26.1.2.80) runs unmodified Fabric mods on NeoForge — the hardest version of the compat problem,
+because host and guest share almost nothing (see the fancymodloader dossier's gap analysis). It
+is the single most important subject in the corpus for OmniLoader's ADR-0003 strategy, and its
+architecture decomposes the problem into exactly the pillars Omni will need:
+
+1. **Locate**: a NeoForge locator finds Fabric jars in the mods folder and claims them.
+2. **Translate (ahead-of-time)**: a transformer subproject rewrites each jar once — remapping
+   intermediary names to the host's Mojang-official names (AutoRenamingTool), translating
+   fabric.mod.json into FML-visible metadata, patching known API divergences in bytecode, and
+   caching results keyed by input hash.
+3. **Bridge (runtime)**: an embedded 'Forgified Fabric Loader' provides Fabric's loader API
+   surface on top of FML, and the separately-shipped Forgified Fabric API is the ported Fabric
+   API surface; a runtime bridge mod plus a large hand-maintained Mixin suite paper over
+   behavioral gaps (registries, networking, client internals).
+
+The honest lessons are equally valuable: a large compat/ mixin package means translation is
+never fully automatic; the beta version string after years of work measures the maintenance
+cost of chasing two moving ecosystems; and the ecosystem-dependency web (FFLoader, FFAPI,
+AdapterCore/Runtime data, Launchpad) shows a compat layer is a product line, not a jar."""
+
+# ── Source register ─────────────────────────────────────────────────────────
+
+[[sources]]
+key = "locator"
+kind = "code"
+ref = "src/main/java/org/sinytra/connector/locator/ConnectorLocator.java"
+note = "FML locator that discovers Fabric jars and routes them into translation"
+
+[[sources]]
+key = "locator-filter"
+kind = "code"
+ref = "src/main/java/org/sinytra/connector/locator/filter/"
+note = "Filters: dedupe against native ports / FFAPI-provided modules"
+
+[[sources]]
+key = "locator-transform"
+kind = "code"
+ref = "src/main/java/org/sinytra/connector/locator/transform/"
+note = "Locator-side hookup of the jar transformation step"
+
+[[sources]]
+key = "early-loader"
+kind = "code"
+ref = "src/main/java/org/sinytra/connector/ConnectorEarlyLoader.java"
+note = "Early lifecycle: constructs Fabric mod containers, runs Fabric entrypoints on FML"
+
+[[sources]]
+key = "coremod-compat"
+kind = "code"
+ref = "src/main/java/org/sinytra/connector/service/coremod/"
+note = "Fabric ASM-style class generation compat inside FML's pipeline"
+
+[[sources]]
+key = "fork-join"
+kind = "code"
+ref = "src/main/java/org/sinytra/connector/ConnectorForkJoinThreadFactory.java"
+note = "Parallel transformation infrastructure"
+
+[[sources]]
+key = "transformer-jar"
+kind = "code"
+ref = "transformer/src/main/java/org/sinytra/connector/transformer/jar/"
+note = "Whole-jar AOT transformation pipeline and cache"
+
+[[sources]]
+key = "transformer-transform"
+kind = "code"
+ref = "transformer/src/main/java/org/sinytra/connector/transformer/transform/"
+note = "Bytecode transforms: remapping integration, API divergence patches"
+
+[[sources]]
+key = "transformer-patch"
+kind = "code"
+ref = "transformer/src/main/java/org/sinytra/connector/transformer/patch/"
+note = "Targeted class patchers for known incompatibilities"
+
+[[sources]]
+key = "transformer-plugin"
+kind = "code"
+ref = "transformer/src/main/java/org/sinytra/connector/transformer/plugin/"
+note = "Extension surface of the transformation pipeline"
+
+[[sources]]
+key = "transformer-runner"
+kind = "code"
+ref = "transformer/src/runner/"
+note = "Out-of-process/parallel execution of jar transformation"
+
+[[sources]]
+key = "bridge-mod"
+kind = "code"
+ref = "src/mod/java/org/sinytra/connector/mod/ConnectorMod.java"
+note = "Runtime bridge mod on the FML side"
+
+[[sources]]
+key = "compat-pkg"
+kind = "code"
+ref = "src/mod/java/org/sinytra/connector/mod/compat/"
+note = "Hand-maintained behavioral shims (LateSheetsInit, registry/client fixups, …)"
+
+[[sources]]
+key = "mixin-suite"
+kind = "code"
+ref = "src/mod/java/org/sinytra/connector/mod/mixin/ (block, client, item, network, registries, …)"
+note = "Large Mixin suite bridging behavioral gaps per subsystem"
+
+[[sources]]
+key = "mixin-safeguard"
+kind = "code"
+ref = "src/main/java/org/sinytra/connector/locator/MixinTransformSafeguard.java"
+note = "Guards against cross-ecosystem Mixin application failures"
+
+[[sources]]
+key = "module-migrator"
+kind = "code"
+ref = "src/main/java/org/sinytra/connector/service/ModuleLayerMigrator.java"
+note = "Moves translated jars into FML's JPMS module world"
+
+[[sources]]
+key = "gradle-props"
+kind = "code"
+ref = "gradle.properties"
+note = "versionConnector=3.0.0-beta.3, versionMc=26.1.2, versionNeoForge=26.1.2.80, FFLoader 2.5.85+0.19.3, FFAPI 0.155.0, ART 2.0.23, ClassTweaker 0.3.0-beta.2"
+
+[[sources]]
+key = "readme"
+kind = "code"
+ref = "README.md + docs/"
+note = "Project scope, supported ecosystem, and user documentation"
+
+[[sources]]
+key = "ffapi-repo"
+kind = "url"
+ref = "https://github.com/Sinytra/ForgifiedFabricAPI"
+note = "The ported Fabric API surface (separate project, hard dependency of the strategy)"
+retrieved = "2026-07-18"
+
+# ── Architecture components ─────────────────────────────────────────────────
+
+[[components]]
+name = "Locator + dedupe filter"
+path = "src/main/java/org/sinytra/connector/locator/"
+role = "Finds Fabric jars in a NeoForge world, claims them, and prevents double-loading"
+source_keys = ["locator", "locator-filter", "locator-transform"]
+description = """
+ConnectorLocator plugs into FML's locator SPI (see fancymodloader dossier) so Fabric jars in
+the ordinary mods/ folder are recognized rather than rejected. The filter layer is subtle and
+essential: if a mod exists both as a Fabric jar and as a native NeoForge port or is provided by
+the Forgified Fabric API, the guest copy must be excluded — cross-ecosystem duplicate
+resolution. OmniLoader inherits this exact problem at larger scale (N ecosystems, plus native
+Omni ports) and should design identity/provides matching across ecosystems from day one."""
+
+[[components]]
+name = "AOT jar transformation pipeline"
+path = "transformer/ (jar/, transform/, patch/, plugin/, runner/)"
+role = "One-time whole-jar translation: remap, metadata-translate, patch, cache"
+source_keys = ["transformer-jar", "transformer-transform", "transformer-patch", "transformer-plugin", "transformer-runner", "fork-join"]
+description = """
+Each Fabric jar is rewritten once (parallelized via a dedicated runner + fork-join
+infrastructure, cached against input hashes): intermediary->Mojang-official remapping through
+AutoRenamingTool with mapping data shipped as 'Adapter' artifacts; fabric.mod.json translated
+into FML-visible metadata; access wideners converted toward the host's access-transformer
+world (ClassTweaker tooling in the dependency set); and targeted bytecode patches applied for
+known API divergences. The patch/ + plugin/ split keeps the hand-curated divergence knowledge
+separate from the mechanical pipeline — the maintainable shape for what is inherently a living
+patch set. This is the architecture Omni's FML-family compat layer (the far-shore case) will
+need; the near-shore Fabric case can stay metadata-level per the quilt-loader dossier."""
+
+[[components]]
+name = "Embedded guest loader (Forgified Fabric Loader)"
+path = "dependency: versionForgifiedFabricLoader in gradle.properties + service/ConnectorEarlyLoader.java"
+role = "Fabric Loader's API surface reimplemented over FML's lifecycle"
+source_keys = ["early-loader", "gradle-props"]
+description = """
+Mods call FabricLoader.getInstance() and friends; something must answer. Connector ships a
+forked Fabric Loader (2.5.85+0.19.3 tracks upstream 0.19.3) whose internals delegate to
+FML/NeoForge, while ConnectorEarlyLoader constructs Fabric mod containers and fires Fabric
+entrypoints at the right moments of FML's lifecycle. Lesson for OmniLoader: hosting an
+ecosystem means providing its *loader API* as a facade over your own — plan the facade layer
+as a first-class deliverable per hosted ecosystem."""
+
+[[components]]
+name = "Runtime bridge mod + compat/mixin suite"
+path = "src/mod/java/org/sinytra/connector/mod/"
+role = "Hand-maintained behavioral glue where translation cannot reach"
+source_keys = ["bridge-mod", "compat-pkg", "mixin-suite", "mixin-safeguard"]
+description = """
+ConnectorMod runs as a normal NeoForge mod and carries the long tail: mixins into registries
+(freeze/unfreeze timing differences), networking (payload registration models), client
+internals (render sheets, key mappings, model/renderer timing), item/block extension
+interfaces, plus guards like MixinTransformSafeguard. Every file here is empirical evidence of
+a behavioral gap that pure translation could not close. For Omni's Phase 6/7 realism: budget a
+permanent, test-backed shim suite per hosted ecosystem, and treat its size as a health metric —
+growth means the ecosystems are diverging faster than the layer is catching up."""
+
+[[components]]
+name = "Coremod/ASM compat service"
+path = "src/main/java/org/sinytra/connector/service/coremod/ + FabricASMClassGenerator"
+role = "Supports Fabric-side runtime class generation inside FML's transformation world"
+source_keys = ["coremod-compat", "early-loader"]
+description = """
+Some Fabric mods generate or modify classes at runtime through Fabric-ecosystem conventions;
+Connector routes those through FML's transformation machinery (ClassProcessor world) so both
+ecosystems' bytecode magic composes instead of colliding. The narrowest, most fragile seam in
+the whole system — and a warning for OmniLoader's transformation-pipeline design: the class
+generation/modification SPI must be shared across all hosted ecosystems from the start."""
+
+# ── Feature inventory ───────────────────────────────────────────────────────
+
+[[features]]
+name = "Cross-ecosystem mod execution (Fabric on NeoForge)"
+category = "compat"
+description = "Unmodified Fabric jars from the mods folder run on NeoForge through locate -> translate -> bridge."
+maturity = "stable"
+future_proofing = 5
+omni_relevance = "adopt"
+notes = "The existence proof for ADR-0003's hard case. Omni adopts the architecture, not the code (MIT would even permit more — but per ADR-0002 we record and reimplement)."
+source_keys = ["locator", "transformer-jar", "early-loader"]
+
+[[features]]
+name = "Hash-cached AOT jar translation"
+category = "bytecode"
+description = "Whole-jar rewriting happens once per input hash, in parallel, out of the hot startup path on later launches."
+maturity = "core"
+future_proofing = 5
+omni_relevance = "adopt"
+notes = "Converges with Quilt's AOT-cache conclusion from the opposite direction. Two independent corpus subjects arriving at cached AOT is a strong Phase 3 signal for OmniLoader."
+source_keys = ["transformer-jar", "transformer-runner", "fork-join"]
+
+[[features]]
+name = "Mapping-set translation (intermediary -> official)"
+category = "compat"
+description = "Guest-namespace binaries are remapped to the host namespace via AutoRenamingTool with shipped mapping data."
+maturity = "core"
+future_proofing = 4
+omni_relevance = "adopt"
+notes = "Decides a Phase 3 ADR input: whichever namespace OmniLoader natively uses, it needs a production remapping step for every ecosystem it hosts."
+source_keys = ["transformer-transform", "gradle-props"]
+
+[[features]]
+name = "Cross-ecosystem metadata translation"
+category = "metadata"
+description = "fabric.mod.json (deps, entrypoints, mixins, access wideners) is translated into host-visible metadata at transform time."
+maturity = "core"
+future_proofing = 5
+omni_relevance = "adopt"
+notes = "Validates Omni's plan to treat mod metadata as a canonical internal model with per-ecosystem importers."
+source_keys = ["transformer-jar", "locator-transform"]
+
+[[features]]
+name = "Cross-ecosystem duplicate/provides resolution"
+category = "dependency-resolution"
+description = "Guest jars are excluded when the same mod exists natively or is provided by the ported API layer."
+maturity = "stable"
+future_proofing = 4
+omni_relevance = "adopt"
+notes = "Omni's resolver needs a global identity model spanning every hosted ecosystem + native ports — this filter is the minimal viable version of it."
+source_keys = ["locator-filter"]
+
+[[features]]
+name = "Ported API surface strategy (FFAPI)"
+category = "compat"
+description = "Fabric API is ported once as a separate host-native project; thousands of mods then run against it unmodified."
+maturity = "core"
+future_proofing = 5
+omni_relevance = "adopt"
+notes = "The highest-leverage move in the whole strategy: port the API layer, not the mods. Omni's Phase 7 pipeline should prioritize API-surface projects above individual mods."
+source_keys = ["ffapi-repo", "gradle-props"]
+
+[[features]]
+name = "Hand-maintained behavioral shim suite"
+category = "compat"
+description = "A living Mixin/compat package closes the gaps translation cannot (registries, networking, client timing)."
+maturity = "core"
+future_proofing = 3
+omni_relevance = "adopt"
+notes = "Not optional — plan it, test it, and track its size as a divergence metric. Ties directly into the mod-test-suite assets already in the WPAI portfolio."
+source_keys = ["compat-pkg", "mixin-suite"]
+
+[[features]]
+name = "Transformation safety guards"
+category = "bytecode"
+description = "Explicit safeguards detect and contain cross-ecosystem Mixin/transform failures rather than corrupting classes silently."
+maturity = "stable"
+future_proofing = 4
+omni_relevance = "adopt"
+notes = "Fail-fast-with-context at the most dangerous seam; pairs with FML's audit-log idea into one OmniLoader observability story (SOUL §16)."
+source_keys = ["mixin-safeguard", "coremod-compat"]
+
+# ── File formats ────────────────────────────────────────────────────────────
+
+[[file_formats]]
+name = "Translated-jar cache"
+format_kind = "binary (jars + hash index)"
+path_pattern = "host cache directory keyed by input jar hash (transformer/jar pipeline)"
+source_keys = ["transformer-jar"]
+description = """
+The AOT pipeline's output store: rewritten jars indexed by source-jar hash so unchanged mods
+skip translation on every later launch, and cache entries invalidate themselves when the mod,
+the mappings, or the pipeline version change. OmniLoader's equivalent should add the audit
+metadata FML pioneered (what was transformed, by what, why) to every cache entry."""
+
+# ── Analysis notes ──────────────────────────────────────────────────────────
+
+[[notes]]
+title = "The complete compat-layer bill of materials"
+body = """
+Connector empirically enumerates what 'host a foreign ecosystem' costs: (1) locator/claiming
+integration in the host's discovery, (2) an AOT translation pipeline (remap + metadata + patch
++ cache), (3) the guest loader API reimplemented as a facade, (4) the guest's standard API
+library ported natively (FFAPI), (5) a permanent behavioral shim suite, (6) cross-ecosystem
+identity/dedupe in resolution, and (7) safety guards + observability at the bytecode seam.
+Seven line items — this is the checklist OmniLoader's Phase 3 compat-layer SPI design and
+Phase 7 porting pipeline should be costed against, per hosted ecosystem."""
+source_keys = ["locator", "transformer-jar", "early-loader", "ffapi-repo", "compat-pkg", "locator-filter", "mixin-safeguard"]
+
+[[notes]]
+title = "Maintenance-cost reality check"
+body = """
+3.0.0-beta.3 against MC 26.1.2 after years of development, with a fork of Fabric Loader pinned
+to upstream 0.19.3 and an FFAPI tracking upstream Fabric API releases: the compat layer runs a
+permanent race with two upstreams. Omni's advantage over Sinytra's position: OmniLoader owns
+the host side, so host-side churn is under our control — the race narrows to guest upstreams
+only. That asymmetry is the strongest argument for the Omni-Framework existing at all."""
+source_keys = ["gradle-props", "readme"]
+
+[[notes]]
+title = "Version note at pin"
+body = """
+Targets Minecraft 26.1.2 / NeoForge 26.1.2.80 (2026 version scheme). The Omni-Framework's
+declared first target is 1.21.1 (project decision); the ecosystem's head has moved to 26.x.
+Flagged to the director: Phase 3 should re-confirm the launch target version explicitly —
+the corpus evidence (Connector, FML) is freshest at the 26.x line."""
+source_keys = ["gradle-props"]
