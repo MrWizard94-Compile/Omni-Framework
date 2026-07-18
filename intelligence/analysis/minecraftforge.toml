@@ -1,0 +1,163 @@
+# Vivisection: MinecraftForge — comparative baseline against NeoForge's FancyModLoader.
+# The fancymodloader dossier is authoritative for the shared FML architecture.
+
+[subject]
+slug = "minecraftforge"
+name = "MinecraftForge"
+kind = "loader"
+method = "open-source-deep"
+repo_url = "https://github.com/MinecraftForge/MinecraftForge.git"
+license = "LGPL-2.1 (LICENSE.txt, per-part notices)"
+pinned_commit = "6c3729d6e96d5d07526c0572962f502f5fd645f3"
+language = "Java"
+analyzed_at = "2026-07-18"
+summary = """
+MinecraftForge is the two-decade patriarch of Minecraft modding and the codebase NeoForge
+forked in 2023. Analyzed comparatively: the modern FML architecture is documented in the
+fancymodloader dossier; what this baseline uniquely shows is (1) the **pre-consolidation
+layout** — fmlloader/fmlcore/fmlearlydisplay plus language providers as separate subprojects
+(javafmllanguage, lowcodelanguage, mclanguage), the multi-artifact structure NeoForge later
+collapsed; (2) the **game-patching half** that FML alone doesn't show: patches/ holds source
+patches applied to decompiled Minecraft, producing the patched game + Forge API in src/ — the
+'modify the game itself' strategy that complements runtime class transformation; and (3)
+**SRG/MCP naming heritage** (MCPNamingService in fmlloader) versus NeoForge's move to Mojang
+official mappings — the mapping-universe fault line that Omni's compat pipeline must
+straddle for legacy-Forge-era mods.
+
+Strategically, Forge is the second fork-governance data point after MultiMC: leadership
+friction in 2023 split the ecosystem, NeoForge took the momentum (compare activity and the
+26.x targeting in the fancymodloader dossier against this repo's cadence), and mods now target
+NeoForge first. Same lesson, larger scale: community trust is an architectural asset."""
+
+[[sources]]
+key = "layout"
+kind = "code"
+ref = "settings.gradle + fmlloader/ + fmlcore/ + fmlearlydisplay/ + javafmllanguage/ + lowcodelanguage/ + mclanguage/"
+note = "Pre-consolidation multi-subproject FML layout"
+
+[[sources]]
+key = "fml-loading"
+kind = "code"
+ref = "fmlloader/src/main/java/net/minecraftforge/fml/loading/ (FMLLoader.java, ModSorter.java, LoadingModList.java, ModDirTransformerDiscoverer.java)"
+note = "The pre-fork loading pipeline (compare fancymodloader dossier)"
+
+[[sources]]
+key = "mcp-naming"
+kind = "code"
+ref = "fmlloader/src/main/java/net/minecraftforge/fml/loading/MCPNamingService.java"
+note = "SRG/MCP name handling — the legacy mapping universe"
+
+[[sources]]
+key = "patches"
+kind = "code"
+ref = "patches/ + src/ + minecraft.versions.toml"
+note = "Source patches to decompiled Minecraft: the game-modification half of Forge"
+
+[[sources]]
+key = "mdk"
+kind = "code"
+ref = "mdk/"
+note = "Mod Development Kit shipped from the same repo"
+
+[[sources]]
+key = "license"
+kind = "code"
+ref = "LICENSE.txt"
+note = "LGPL-2.1 with per-part notices"
+
+[[sources]]
+key = "forge-docs"
+kind = "url"
+ref = "https://docs.minecraftforge.net/"
+note = "Official Forge documentation"
+retrieved = "2026-07-18"
+
+[[components]]
+name = "Multi-subproject FML (pre-consolidation)"
+path = "fmlloader/ + fmlcore/ + fmlearlydisplay/ + *language/"
+role = "The distributed layout NeoForge later collapsed into one FancyModLoader repo"
+source_keys = ["layout", "fml-loading"]
+description = """
+Loader, core lifecycle, early display, and each language provider live as separate Gradle
+subprojects with separate artifacts. Functionally these map one-to-one onto the consolidated
+FancyModLoader packages (see that dossier); the delta is pure structure — and the successor's
+choice to consolidate is the verdict on which structure won. Recorded as the 'before' picture
+of the corpus's strongest consolidation case study."""
+
+[[components]]
+name = "Game patch pipeline"
+path = "patches/ + src/ + minecraft.versions.toml"
+role = "Source-level patches to decompiled Minecraft produce the Forge-modified game"
+source_keys = ["patches"]
+description = """
+Beyond runtime class transformation, Forge rewrites the game: patches/ contains source diffs
+applied to decompiled, deobfuscated Minecraft, producing a patched game with Forge's hook and
+event surfaces baked in (src/). This is the deepest possible integration strategy — maximal
+API power, maximal per-version porting cost — and the structural reason Forge-family updates
+trail Fabric-family updates (quantified in the fabric-loader dossier's update-speed note).
+OmniLoader's design explicitly avoids this cost curve: hooks via transformation, never via
+maintained game patches."""
+
+[[components]]
+name = "SRG/MCP naming service"
+path = "fmlloader/src/main/java/net/minecraftforge/fml/loading/MCPNamingService.java"
+role = "The legacy intermediate-mapping universe of the Forge era"
+source_keys = ["mcp-naming"]
+description = """
+Forge-era mods compile against SRG intermediate names (MCP heritage), remapped at runtime —
+the third mapping universe in the corpus alongside Fabric's intermediary and NeoForge's Mojang
+-official names. Any Omni compat support for the pre-NeoForge Forge back-catalog must translate
+SRG; the tooling exists (the AutoRenamingTool lineage noted in the sinytra-connector dossier
+handles SRG), but it is a distinct pipeline input Omni's Phase 3 mapping ADR must budget."""
+
+[[features]]
+name = "Baked-in game API via source patches"
+category = "architecture"
+description = "The game itself is patched to host Forge's event/hook/registry surfaces."
+maturity = "core"
+future_proofing = 2
+omni_relevance = "avoid"
+notes = "Maximal power, maximal porting drag. Omni takes the Fabric-family lesson instead: minimal core + transformation-based hooks."
+source_keys = ["patches", "forge-docs"]
+
+[[features]]
+name = "SRG mapping universe (legacy back-catalog)"
+category = "compat"
+description = "The Forge-era intermediate naming scheme that a decade of mods compiled against."
+maturity = "legacy"
+future_proofing = 2
+omni_relevance = "observe"
+notes = "Only relevant if Omni's census (Phase 6) shows meaningful demand for pre-1.20 Forge mods; then the compat pipeline adds SRG translation."
+source_keys = ["mcp-naming"]
+
+[[features]]
+name = "In-repo MDK distribution"
+category = "dev-experience"
+description = "The mod development kit ships from the loader's own repository, versioned together."
+maturity = "core"
+future_proofing = 4
+omni_relevance = "adopt"
+notes = "Loader and mod-dev tooling versioned as one unit — Omni's native-mod SDK should live in the monorepo the same way."
+source_keys = ["mdk"]
+
+[[features]]
+name = "Fork-governance outcome (Forge -> NeoForge)"
+category = "governance"
+description = "The 2023 leadership split moved ecosystem momentum wholesale to the fork."
+maturity = "legacy"
+future_proofing = 1
+omni_relevance = "avoid"
+notes = "Second data point with MultiMC->Prism: this ecosystem forks around governance failure regardless of technical merit. Feeds the same Omni openness strategy."
+source_keys = ["layout", "forge-docs"]
+
+[[notes]]
+title = "Scope note"
+body = """
+Comparative baseline: shared FML architecture (discovery, module classloading ancestry,
+mods.toml, language providers, early display) is documented authoritatively in the
+fancymodloader dossier; this analysis records only what the pre-fork baseline uniquely
+establishes — the multi-subproject 'before' picture, the game-patch pipeline, SRG heritage,
+and the governance outcome. The metadata format here is mods.toml (META-INF/mods.toml) versus
+NeoForge's renamed neoforge.mods.toml — a one-line but load-bearing compat detail for reading
+each family's jars."""
+source_keys = ["layout", "patches", "mcp-naming"]
