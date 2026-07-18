@@ -1,0 +1,432 @@
+# Vivisection: FancyModLoader (NeoForge) — hand-audited against the pinned commit below.
+
+[subject]
+slug = "fancymodloader"
+name = "FancyModLoader (NeoForge)"
+kind = "loader"
+method = "open-source-deep"
+repo_url = "https://github.com/neoforged/FancyModLoader.git"
+license = "LGPL-2.1 (with vendored securejarhandler and ModLauncher-heritage code, see LICENSE-securejarhandler / modlauncher-LICENSE)"
+pinned_commit = "e8c54b8a04241b0400148e8745e4e209726f4439"
+language = "Java (current JDK line; JPMS-centric)"
+analyzed_at = "2026-07-18"
+summary = """
+FancyModLoader (FML) is NeoForge's mod loader — the modern continuation of the Forge loading
+stack, now consolidated into one repository that has absorbed its historical satellite libraries
+(ModLauncher's transformation core and securejarhandler's module machinery live in-repo under
+loader/src). At the pinned commit it targets the current Minecraft 26.1 line (NeoForge
+26.1.x-beta test coordinates in gradle.properties).
+
+FML's identity versus the Fabric family is **heavyweight integration**: mods are real JPMS
+modules loaded by a ModuleClassLoader with per-module isolation; metadata is TOML
+(neoforge.mods.toml) parsed by night-config; mod classes are found by annotation scanning
+(@Mod) through language providers rather than declared entrypoints; dependency resolution is
+topological sorting with version-range checks (not SAT); and the loader owns a GL early-display
+window that shows progress and errors before the game can render. It trades Fabric's minimalism
+for structure: strong module boundaries, a uniform ClassProcessor transformation audit pipeline,
+and rich load-failure diagnostics (typed ModLoadingIssue, IncompatibleModReason detection of
+foreign jars). For OmniLoader this is the second great architecture family to host — and the
+harder one, per Sinytra's evidence."""
+
+# ── Source register ─────────────────────────────────────────────────────────
+
+[[sources]]
+key = "fml-loader"
+kind = "code"
+ref = "loader/src/main/java/net/neoforged/fml/loading/FMLLoader.java"
+note = "Loader entry/orchestration"
+
+[[sources]]
+key = "loading-modlist"
+kind = "code"
+ref = "loader/src/main/java/net/neoforged/fml/loading/LoadingModList.java"
+note = "The resolved mod list handed to the game phase"
+
+[[sources]]
+key = "mod-sorter"
+kind = "code"
+ref = "loader/src/main/java/net/neoforged/fml/loading/ModSorter.java"
+note = "Topological dependency sorting + version-range validation"
+
+[[sources]]
+key = "unique-builder"
+kind = "code"
+ref = "loader/src/main/java/net/neoforged/fml/loading/UniqueModListBuilder.java"
+note = "Duplicate-mod resolution (highest version wins policy)"
+
+[[sources]]
+key = "toposort"
+kind = "code"
+ref = "loader/src/main/java/net/neoforged/fml/loading/toposort/"
+note = "Topological sort utility used by ModSorter"
+
+[[sources]]
+key = "discoverer"
+kind = "code"
+ref = "loader/src/main/java/net/neoforged/fml/loading/moddiscovery/ModDiscoverer.java"
+note = "Runs locators/readers to produce ModFiles"
+
+[[sources]]
+key = "mods-folder-locator"
+kind = "code"
+ref = "loader/src/main/java/net/neoforged/fml/loading/moddiscovery/locators/ModsFolderLocator.java"
+note = "The mods/ directory locator"
+
+[[sources]]
+key = "jarinjar-locator"
+kind = "code"
+ref = "loader/src/main/java/net/neoforged/fml/loading/moddiscovery/locators/JarInJarDependencyLocator.java"
+note = "Nested-jar (JarJar) dependency extraction"
+
+[[sources]]
+key = "game-locator"
+kind = "code"
+ref = "loader/src/main/java/net/neoforged/fml/loading/moddiscovery/locators/GameLocator.java"
+note = "Locates the game itself as a module input"
+
+[[sources]]
+key = "toml-reader"
+kind = "code"
+ref = "loader/src/main/java/net/neoforged/fml/loading/moddiscovery/readers/JarModsDotTomlModFileReader.java"
+note = "Reads neoforge.mods.toml manifests"
+
+[[sources]]
+key = "modfile-parser"
+kind = "code"
+ref = "loader/src/main/java/net/neoforged/fml/loading/moddiscovery/ModFileParser.java"
+note = "TOML manifest -> ModFileInfo/ModInfo model (night-config backed)"
+
+[[sources]]
+key = "incompatible-reason"
+kind = "code"
+ref = "loader/src/main/java/net/neoforged/fml/loading/moddiscovery/IncompatibleModReason.java"
+note = "Detects foreign jars (Fabric/Quilt/plain library) and explains them"
+
+[[sources]]
+key = "module-cl"
+kind = "code"
+ref = "loader/src/main/java/net/neoforged/fml/classloading/ModuleClassLoader.java"
+note = "JPMS module class loader for game+mods"
+
+[[sources]]
+key = "jarcontents-module"
+kind = "code"
+ref = "loader/src/main/java/net/neoforged/fml/classloading/JarContentsModuleFinder.java"
+note = "Vendored securejarhandler successor: jars as synthetic JPMS modules"
+
+[[sources]]
+key = "class-transformer"
+kind = "code"
+ref = "loader/src/main/java/net/neoforged/fml/classloading/transformation/ClassTransformer.java"
+note = "ModLauncher-heritage transformation core, now in-repo"
+
+[[sources]]
+key = "processor-set"
+kind = "code"
+ref = "loader/src/main/java/net/neoforged/fml/classloading/transformation/ClassProcessorSet.java"
+note = "Ordered ClassProcessor pipeline with audit trail"
+
+[[sources]]
+key = "transforming-cl"
+kind = "code"
+ref = "loader/src/main/java/net/neoforged/fml/classloading/transformation/TransformingClassLoader.java"
+note = "Transformation-applying class loader"
+
+[[sources]]
+key = "lang-loader"
+kind = "code"
+ref = "loader/src/main/java/net/neoforged/fml/loading/LanguageProviderLoader.java"
+note = "Discovers/loads language providers"
+
+[[sources]]
+key = "spi-language"
+kind = "code"
+ref = "loader/src/main/java/net/neoforged/neoforgespi/language/ (IModLanguageLoader.java, IModInfo.java, …)"
+note = "Vendored SPI for language providers and mod metadata"
+
+[[sources]]
+key = "mc-lang-provider"
+kind = "code"
+ref = "loader/src/main/java/net/neoforged/fml/mclanguageprovider/MinecraftModLanguageProvider.java"
+note = "Treats Minecraft itself as a mod via a language provider"
+
+[[sources]]
+key = "modscan"
+kind = "code"
+ref = "loader/src/main/java/net/neoforged/fml/loading/modscan/"
+note = "Annotation scanning (@Mod discovery) feeding ModFileScanData"
+
+[[sources]]
+key = "mixin-advice"
+kind = "code"
+ref = "loader/src/main/java/net/neoforged/fml/loading/mixin/FMLMixinAdviceProvider.java"
+note = "Mixin integration point in the loading pipeline"
+
+[[sources]]
+key = "early-display"
+kind = "code"
+ref = "earlydisplay/src/main/java/net/neoforged/fml/earlydisplay/DisplayWindow.java"
+note = "GL early splash window with progress + error/theme rendering"
+
+[[sources]]
+key = "loading-issue"
+kind = "code"
+ref = "loader/src/main/java/net/neoforged/fml/ModLoadingIssue.java"
+note = "Typed, translatable load problem model"
+
+[[sources]]
+key = "version-matrix"
+kind = "code"
+ref = "loader/src/main/java/net/neoforged/fml/loading/VersionSupportMatrix.java"
+note = "Cross-version compatibility pinning table"
+
+[[sources]]
+key = "gradle-props"
+kind = "code"
+ref = "gradle.properties"
+note = "test_neoforge_version=26.1.0.5-beta, test_minecraft_version=26.1"
+
+[[sources]]
+key = "licenses"
+kind = "code"
+ref = "LICENSE.txt + LICENSE-securejarhandler + modlauncher-LICENSE"
+note = "LGPL-2.1 core with vendored-library license carve-outs"
+
+[[sources]]
+key = "neoforged-docs"
+kind = "url"
+ref = "https://docs.neoforged.net/docs/gettingstarted/modfiles/"
+note = "Official neoforge.mods.toml documentation"
+retrieved = "2026-07-18"
+
+# ── Architecture components ─────────────────────────────────────────────────
+
+[[components]]
+name = "FMLLoader orchestration"
+path = "loader/src/main/java/net/neoforged/fml/loading/FMLLoader.java"
+role = "End-to-end loading pipeline: discovery -> sorting -> modules -> transformation -> game"
+source_keys = ["fml-loader", "loading-modlist"]
+description = """
+FMLLoader drives the whole sequence and materializes LoadingModList — the validated, sorted mod
+set with its issue list. Compared to Fabric's Knot the orchestration is broader in scope: it
+also owns config paths (FMLPaths/FMLConfig), the early display lifecycle, language provider
+loading, and version-support decisions. One repo now contains what was historically five
+(FML + ModLauncher + securejarhandler + SPI + early display) — a consolidation Omni should
+imitate from day one rather than arrive at."""
+
+[[components]]
+name = "Mod discovery (locators + readers)"
+path = "loader/src/main/java/net/neoforged/fml/loading/moddiscovery/"
+role = "Pluggable location scanning producing ModFiles from TOML manifests"
+source_keys = ["discoverer", "mods-folder-locator", "jarinjar-locator", "game-locator", "toml-reader", "modfile-parser", "incompatible-reason"]
+description = """
+ModDiscoverer runs IModFileCandidateLocators (mods folder, dev folders/jars, jar-in-jar
+extraction, the game itself via GameLocator, path-based additions) and readers
+(JarModsDotTomlModFileReader) that parse neoforge.mods.toml through night-config into
+ModFileInfo/ModInfo. IncompatibleModReason inspects rejected jars and tells the user *what they
+are* ('this is a Fabric mod') instead of a generic failure — small class, outsized UX value.
+JarInJarDependencyLocator gives FML the nested-jar capability equivalent to Fabric's, as a
+locator rather than a metadata intrinsic."""
+
+[[components]]
+name = "JPMS module classloading"
+path = "loader/src/main/java/net/neoforged/fml/classloading/"
+role = "Every mod jar becomes a Java module in a controlled module layer"
+source_keys = ["module-cl", "jarcontents-module"]
+description = """
+The vendored securejarhandler successor (JarContentsModule* family) wraps arbitrary jars into
+synthetic JPMS modules — including module-info synthesis, package claiming, and
+ResourceMaskingClassLoader tricks — and ModuleClassLoader loads game + mods as a module layer.
+Result: real namespace/package isolation and services via the module system, at the cost of the
+module-conflict class of errors mod developers wrestle with (split packages, duplicate modules).
+The strongest isolation model in the corpus; also its most developer-visible friction."""
+
+[[components]]
+name = "ClassProcessor transformation pipeline"
+path = "loader/src/main/java/net/neoforged/fml/classloading/transformation/"
+role = "Ordered, audited bytecode transformation core (ModLauncher's successor)"
+source_keys = ["class-transformer", "processor-set", "transforming-cl"]
+description = """
+ClassTransformer runs an ordered ClassProcessorSet over every loaded class inside
+TransformingClassLoader, with ClassProcessorAuditLog recording which processor did what to which
+class (queryable when debugging broken bytecode), hierarchy recomputation support for frame
+computation, and transform statistics. Compared to Fabric's leaner Mixin+FabricTransformer
+stack, this is an industrial pipeline with observability built in — the audit-trail idea is a
+direct adopt for OmniLoader, whose multi-ecosystem transformation will need exactly that
+debuggability."""
+
+[[components]]
+name = "Dependency sorting (toposort)"
+path = "loader/src/main/java/net/neoforged/fml/loading/ModSorter.java"
+role = "Topological ordering + version-range checks + duplicate resolution"
+source_keys = ["mod-sorter", "toposort", "unique-builder"]
+description = """
+UniqueModListBuilder collapses duplicates (highest version wins), then ModSorter validates
+declared dependency ranges and topologically orders mods (ordering constraints BEFORE/AFTER
+matter because FML mods load in sequence). No SAT solving: version conflicts fail with an issue
+rather than being solved around. Simpler and more predictable than Fabric/Quilt, weaker at
+untangling deep conflicts — evidence for Omni that the solver choice is a real spectrum, and
+ordering (which Fabric lacks natively) matters to this ecosystem's mods."""
+
+[[components]]
+name = "Language providers + annotation scanning"
+path = "loader/src/main/java/net/neoforged/fml/loading/modscan/ + LanguageProviderLoader + neoforgespi/language"
+role = "How mod code gets found and instantiated: scan for @Mod via pluggable providers"
+source_keys = ["modscan", "lang-loader", "spi-language", "mc-lang-provider"]
+description = """
+Language providers (javafml for @Mod classes, lowcode for code-less content mods, a Minecraft
+provider that models the game itself as a mod) receive ModFileScanData — the product of
+class-file annotation scanning — and construct mod containers. Scanning is more expensive than
+Fabric's declared entrypoints but enables the ecosystem's annotation-driven idioms (event bus
+subscribers discovered by annotation). The 'game is just another mod through a provider' move
+is elegant and mirrors Fabric's GameProvider from the opposite direction."""
+
+[[components]]
+name = "Early display window"
+path = "earlydisplay/src/main/java/net/neoforged/fml/earlydisplay/DisplayWindow.java"
+role = "GL splash with load progress, themable, doubles as fatal-error UI"
+source_keys = ["early-display"]
+description = """
+A minimal GL window appears near-instantly at boot, streams real loading progress (memory bar,
+mod counts, log lines), is user-themable, and — critically — renders load errors as readable
+UI with the typed ModLoadingIssue list when startup fails, instead of a silent crash-to-log.
+The best boot UX in the loader corpus."""
+
+# ── Feature inventory ───────────────────────────────────────────────────────
+
+[[features]]
+name = "JPMS module isolation for mods"
+category = "architecture"
+description = "Mods are synthesized into real Java modules with package claiming and module-layer loading."
+maturity = "core"
+future_proofing = 4
+omni_relevance = "adapt"
+notes = "Real isolation, real friction (split packages, module conflicts). Omni Phase 3 decision: module layers vs classloader partitions; the audit here is the evidence base."
+source_keys = ["module-cl", "jarcontents-module"]
+
+[[features]]
+name = "Audited transformation pipeline"
+category = "bytecode"
+description = "Every class transformation is recorded per-processor in a queryable audit log with statistics."
+maturity = "core"
+future_proofing = 5
+omni_relevance = "adopt"
+notes = "OmniLoader will stack native + Fabric-compat + FML-compat transformations; a per-class audit trail is how anyone debugs that. Adopt wholesale."
+source_keys = ["processor-set", "class-transformer"]
+
+[[features]]
+name = "TOML mod manifest (neoforge.mods.toml)"
+category = "metadata"
+description = "Multi-mod-per-jar TOML manifest with dependency ranges, ordering constraints, sides, and display metadata; jar identity from the jar's own manifest attributes."
+maturity = "core"
+future_proofing = 3
+omni_relevance = "observe"
+notes = "Omni's compat layer must parse it faithfully. For omni.mod.json itself, Fabric/Quilt's schema-versioned JSON remains the better model (explicit schema evolution)."
+source_keys = ["toml-reader", "modfile-parser", "neoforged-docs"]
+
+[[features]]
+name = "Foreign-jar diagnosis"
+category = "dev-experience"
+description = "Rejected jars are classified (Fabric mod, plain library, wrong side) and reported with specific, actionable messages."
+maturity = "stable"
+future_proofing = 4
+omni_relevance = "adopt"
+notes = "Trivial cost, huge support-ticket reduction. Omni inverts it: we diagnose AND then actually load the foreign jar via the right compat layer."
+source_keys = ["incompatible-reason"]
+
+[[features]]
+name = "Early display splash + error UI"
+category = "dev-experience"
+description = "Instant GL window with true progress and typed-issue error rendering before the game engine exists."
+maturity = "core"
+future_proofing = 4
+omni_relevance = "adopt"
+notes = "Pairs naturally with OmniLauncher: launcher owns pre-JVM UX, early display owns in-JVM boot UX, one continuous progress story."
+source_keys = ["early-display", "loading-issue"]
+
+[[features]]
+name = "Load-order constraints"
+category = "dependency-resolution"
+description = "Mods declare BEFORE/AFTER ordering against other mods; sorting is topological and deterministic."
+maturity = "core"
+future_proofing = 3
+omni_relevance = "adapt"
+notes = "Fabric has no native ordering; FML mods depend on it. Omni's resolver must support ordering constraints to host FML-family mods correctly."
+source_keys = ["mod-sorter", "toposort"]
+
+[[features]]
+name = "Language provider SPI"
+category = "extension"
+description = "Pluggable providers define how mod code is discovered/instantiated (annotation scan, lowcode, the game itself)."
+maturity = "core"
+future_proofing = 4
+omni_relevance = "adapt"
+notes = "Same role as Fabric's language adapters one level higher. Omni's native format should support both declared entrypoints AND provider-style discovery for compat."
+source_keys = ["lang-loader", "spi-language", "mc-lang-provider"]
+
+[[features]]
+name = "Nested jars via locator (JarJar)"
+category = "distribution"
+description = "Embedded dependency jars are extracted and version-resolved by a dedicated locator."
+maturity = "core"
+future_proofing = 4
+omni_relevance = "adopt"
+notes = "Converges with Fabric's nested jars: both ecosystems assume jar-in-jar. Omni's discovery must treat it as a first-class primitive."
+source_keys = ["jarinjar-locator"]
+
+[[features]]
+name = "Version support matrix"
+category = "compat"
+description = "A curated table lets mods declared for adjacent game versions pass validation when actually compatible."
+maturity = "stable"
+future_proofing = 3
+omni_relevance = "adopt"
+notes = "A pragmatic 'known-compatible' whitelist — exactly the mechanism Omni's census/tiering data can feed at much larger scale."
+source_keys = ["version-matrix"]
+
+[[features]]
+name = "Consolidated single-repo loader stack"
+category = "architecture"
+description = "ModLauncher, securejarhandler, SPI, and early display are absorbed into one repository with one release cadence."
+maturity = "stable"
+future_proofing = 4
+omni_relevance = "adopt"
+notes = "They paid the multi-repo coordination tax for a decade and consolidated. Omni starts consolidated (monorepo already)."
+source_keys = ["licenses", "fml-loader"]
+
+# ── File formats ────────────────────────────────────────────────────────────
+
+[[file_formats]]
+name = "neoforge.mods.toml"
+format_kind = "toml"
+path_pattern = "<mod jar>/META-INF/neoforge.mods.toml"
+source_keys = ["toml-reader", "modfile-parser", "neoforged-docs"]
+description = """
+TOML manifest read by night-config: top-level modLoader/loaderVersion/license + one or more
+[[mods]] tables (modId, version — often '${file.jarVersion}' substituted from the jar manifest —
+displayName, description, logo) + per-mod [[dependencies.<modId>]] tables (modId, type
+required/optional/incompatible, versionRange as Maven ranges, ordering BEFORE/AFTER, side
+BOTH/CLIENT/SERVER). Multiple mods per jar are first-class. Omni's FML-family compat layer must
+implement this format bit-for-bit, including the jar-manifest version substitution."""
+
+# ── Analysis notes ──────────────────────────────────────────────────────────
+
+[[notes]]
+title = "The architectural gap Sinytra has to bridge"
+body = """
+Reading FML against Fabric makes the compat difficulty concrete: different metadata (TOML vs
+JSON), different code discovery (annotation scan vs entrypoints), different isolation (JPMS
+modules vs single transforming loader), different mappings (Mojang official vs intermediary),
+different resolution (toposort+ordering vs SAT). Sinytra Connector's jar-rewriting approach
+exists because nothing short of translation crosses this gap. OmniLoader must decide which side
+of the gap its native architecture sits on — the corpus now documents both shores."""
+source_keys = ["module-cl", "modscan", "mod-sorter"]
+
+[[notes]]
+title = "Version/tooling facts at pin"
+body = """
+Repo tests target NeoForge 26.1.0.5-beta on Minecraft 26.1 (gradle.properties) — the current MC
+line under the 2026 version scheme. LGPL-2.1 core license with explicit carve-out files for the
+vendored securejarhandler and ModLauncher heritage. Facts recorded for ADR-0002 use; no FML code
+is copied into Omni products."""
+source_keys = ["gradle-props", "licenses"]
