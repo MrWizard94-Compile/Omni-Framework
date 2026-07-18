@@ -1,0 +1,38 @@
+# ── Omni-Framework .gitignore ──────────────────────────────────────────────
+# Vivisection corpus: shallow clones of subject repos. Rebuilt deterministically
+# by intelligence/tools/ingest.py from pinned commits — never committed.
+intelligence/corpus/
+
+# Intelligence database: build artifact, rebuilt deterministically from
+# intelligence/analysis/*.toml + schema.sql (see ADR-0004).
+intelligence/omni_intel.db
+intelligence/omni_intel.db-journal
+intelligence/omni_intel.db-wal
+intelligence/omni_intel.db-shm
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Rust (OmniLauncher core — Phase 4)
+target/
+
+# Node (OmniLauncher UI — Phase 4)
+node_modules/
+dist/
+
+# Java/Gradle (OmniLoader — Phase 4)
+build/
+.gradle/
+
+# OS / editor artifacts
+Thumbs.db
+Desktop.ini
+*.swp
+*~
+.DS_Store

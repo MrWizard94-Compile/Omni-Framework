@@ -1,0 +1,16 @@
+Copyright © 2026 Wizard Productions AI Studio (wpaistudio.net). All rights reserved.
+
+This repository and its contents are proprietary to Wizard Productions AI Studio.
+No part of this repository may be copied, distributed, modified, sublicensed, or
+used to create derivative works without prior written permission from
+Wizard Productions AI Studio.
+
+Third-party software analyzed by this project (the "vivisection corpus") is NOT
+contained in this repository. Corpus subjects are fetched at build time from
+their upstream repositories and remain governed exclusively by their own
+licenses. This project records only facts, metadata, and original analysis
+about those subjects, with full provenance. See docs/COMPLIANCE.md.
+
+"Minecraft" is a trademark of Mojang Synergies AB. This project is not an
+official Minecraft product and is not approved by or associated with Mojang
+or Microsoft.
