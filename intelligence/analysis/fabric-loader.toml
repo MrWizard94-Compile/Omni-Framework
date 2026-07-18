@@ -1,0 +1,503 @@
+# Vivisection: Fabric Loader — hand-audited against the pinned commit below.
+# Every fact cites the source register at the bottom-level [[sources]] entries.
+
+[subject]
+slug = "fabric-loader"
+name = "Fabric Loader"
+kind = "loader"
+method = "open-source-deep"
+repo_url = "https://github.com/FabricMC/fabric-loader.git"
+license = "Apache-2.0"
+pinned_commit = "35b0b1c0268eb5f9d377322db491b0bb436541a8"
+language = "Java (Java 8 core, multi-release JAR extensions)"
+analyzed_at = "2026-07-18"
+summary = """
+Fabric Loader (v0.17.3 at the pinned commit) is the minimal-core mod loader of the Fabric
+ecosystem. Its defining philosophy: the loader itself ships zero gameplay API — it only locates
+the game, builds a transforming class loader, discovers and solves the mod set, applies Mixin and
+its own lightweight transformations, remaps everything to stable 'intermediary' names, and hands
+control to the game. All convenience APIs live in separate, independently-versioned mods (Fabric
+API). This gives the loader an extremely small update surface when Minecraft updates — the main
+reason Fabric ships day-one updates and the single most important lesson for OmniLoader.
+
+The architecture is a chain: Knot (launch + transforming class loader) -> GameProvider (locates
+and patches the specific game, via ServiceLoader SPI) -> ModDiscoverer (candidate finders +
+nested JARs) -> ModMetadataParser (fabric.mod.json, schema-versioned) -> ModResolver/ModSolver
+(SAT-based dependency solving on relocated sat4j) -> EntrypointStorage (language-adapter-backed
+entrypoints) -> FabricMixinBootstrap + FabricTransformer (bytecode work) -> game main().
+"""
+
+# ── Source register ─────────────────────────────────────────────────────────
+
+[[sources]]
+key = "knot"
+kind = "code"
+ref = "src/main/java/net/fabricmc/loader/impl/launch/knot/Knot.java"
+note = "Launch entry; builds KnotClassLoader, drives GameProvider lifecycle"
+
+[[sources]]
+key = "knot-delegate"
+kind = "code"
+ref = "src/main/java/net/fabricmc/loader/impl/launch/knot/KnotClassDelegate.java"
+note = "Class-load pipeline: transformation hooks, package sealing, code-source tracking"
+
+[[sources]]
+key = "launcher-base"
+kind = "code"
+ref = "src/main/java/net/fabricmc/loader/impl/launch/FabricLauncherBase.java"
+note = "Shared launcher plumbing; dev-time remapping orchestration"
+
+[[sources]]
+key = "mixin-bootstrap"
+kind = "code"
+ref = "src/main/java/net/fabricmc/loader/impl/launch/FabricMixinBootstrap.java"
+note = "Boots Mixin, registers each mod's mixin configs, per-mod compat levels"
+
+[[sources]]
+key = "mixin-versions"
+kind = "code"
+ref = "src/main/java/net/fabricmc/loader/impl/launch/FabricMixinVersions.java"
+note = "Tracks supported Mixin versions for compat checking"
+
+[[sources]]
+key = "mixin-service"
+kind = "code"
+ref = "src/main/java/net/fabricmc/loader/impl/launch/knot/MixinServiceKnot.java"
+note = "IMixinService implementation bridging Mixin into the Knot class loader"
+
+[[sources]]
+key = "mapping-config"
+kind = "code"
+ref = "src/main/java/net/fabricmc/loader/impl/launch/MappingConfiguration.java"
+note = "Loads intermediary/named mapping tables (mappingio)"
+
+[[sources]]
+key = "loader-impl"
+kind = "code"
+ref = "src/main/java/net/fabricmc/loader/impl/FabricLoaderImpl.java"
+note = "Central singleton: freeze/load lifecycle, mod container registry"
+
+[[sources]]
+key = "discoverer"
+kind = "code"
+ref = "src/main/java/net/fabricmc/loader/impl/discovery/ModDiscoverer.java"
+note = "Walks candidate finders, reads fabric.mod.json (also from nested ZIP entries)"
+
+[[sources]]
+key = "candidate-finders"
+kind = "code"
+ref = "src/main/java/net/fabricmc/loader/impl/discovery/DirectoryModCandidateFinder.java"
+note = "One of three ModCandidateFinder impls (directory / classpath / argument)"
+
+[[sources]]
+key = "resolver"
+kind = "code"
+ref = "src/main/java/net/fabricmc/loader/impl/discovery/ModResolver.java"
+note = "Drives dependency resolution over discovered candidates"
+
+[[sources]]
+key = "solver"
+kind = "code"
+ref = "src/main/java/net/fabricmc/loader/impl/discovery/ModSolver.java"
+note = "Encodes the mod set as a pseudo-boolean SAT problem (relocated sat4j)"
+
+[[sources]]
+key = "result-analyzer"
+kind = "code"
+ref = "src/main/java/net/fabricmc/loader/impl/discovery/ResultAnalyzer.java"
+note = "Turns unsat cores into human-readable dependency error messages"
+
+[[sources]]
+key = "runtime-remapper"
+kind = "code"
+ref = "src/main/java/net/fabricmc/loader/impl/discovery/RuntimeModRemapper.java"
+note = "Remaps mods to the runtime namespace with relocated tinyremapper"
+
+[[sources]]
+key = "metadata-parser"
+kind = "code"
+ref = "src/main/java/net/fabricmc/loader/impl/metadata/ModMetadataParser.java"
+note = "Schema-version dispatch for fabric.mod.json (V0/V1 parsers)"
+
+[[sources]]
+key = "v1-parser"
+kind = "code"
+ref = "src/main/java/net/fabricmc/loader/impl/metadata/V1ModMetadataParser.java"
+note = "Current fabric.mod.json schema (schemaVersion 1) parser"
+
+[[sources]]
+key = "metadata-verifier"
+kind = "code"
+ref = "src/main/java/net/fabricmc/loader/impl/metadata/MetadataVerifier.java"
+note = "Post-parse validation: id rules, version semantics, warning surface"
+
+[[sources]]
+key = "entrypoint-storage"
+kind = "code"
+ref = "src/main/java/net/fabricmc/loader/impl/entrypoint/EntrypointStorage.java"
+note = "Registers and lazily instantiates entrypoints through LanguageAdapters"
+
+[[sources]]
+key = "api-facade"
+kind = "code"
+ref = "src/main/java/net/fabricmc/loader/api/FabricLoader.java"
+note = "The tiny public API facade mods compile against"
+
+[[sources]]
+key = "game-provider"
+kind = "code"
+ref = "src/main/java/net/fabricmc/loader/impl/game/GameProvider.java"
+note = "SPI making the loader game-agnostic (ServiceLoader-discovered)"
+
+[[sources]]
+key = "mc-provider"
+kind = "code"
+ref = "minecraft/src/main/java/net/fabricmc/loader/impl/game/minecraft/MinecraftGameProvider.java"
+note = "Minecraft-specific provider: jar location, Bundler handling, boot patches"
+
+[[sources]]
+key = "mc-version-lookup"
+kind = "code"
+ref = "minecraft/src/main/java/net/fabricmc/loader/impl/game/minecraft/McVersionLookup.java"
+note = "Fingerprints the game jar to detect the Minecraft version"
+
+[[sources]]
+key = "transformer"
+kind = "code"
+ref = "src/main/java/net/fabricmc/loader/impl/transformer/FabricTransformer.java"
+note = "Loader's own (non-Mixin) class transformations"
+
+[[sources]]
+key = "env-strip"
+kind = "code"
+ref = "src/main/java/net/fabricmc/loader/impl/transformer/EnvironmentStrippingData.java"
+note = "@Environment-driven client/server member stripping"
+
+[[sources]]
+key = "build-gradle"
+kind = "code"
+ref = "build.gradle"
+note = "Vendoring/relocation of sat4j, tinyremapper, mappingio; gson under impl/lib"
+
+[[sources]]
+key = "gradle-props"
+kind = "code"
+ref = "gradle.properties"
+note = "Loader version 0.17.3, paired Mixin fork version 0.17.3+mixin.0.8.7"
+
+[[sources]]
+key = "wiki-fmj"
+kind = "url"
+ref = "https://wiki.fabricmc.net/documentation:fabric_mod_json_spec"
+note = "Official fabric.mod.json schema documentation"
+retrieved = "2026-07-18"
+
+[[sources]]
+key = "wiki-loader"
+kind = "url"
+ref = "https://wiki.fabricmc.net/documentation:fabric_loader"
+note = "Official loader architecture overview"
+retrieved = "2026-07-18"
+
+# ── Architecture components ─────────────────────────────────────────────────
+
+[[components]]
+name = "Knot launch framework"
+path = "src/main/java/net/fabricmc/loader/impl/launch/knot/"
+role = "Process entry point and transforming class loader"
+source_keys = ["knot", "knot-delegate", "launcher-base"]
+description = """
+Knot (with KnotClient/KnotServer thin entries) owns the JVM boot: it instantiates the
+environment-specific KnotClassLoader, locates the GameProvider via ServiceLoader, lets the
+provider inject game jars onto the transforming class path, runs loader init (discovery,
+resolution, remapping, Mixin bootstrap), then invokes the game's real main(). KnotClassDelegate
+is the heart: every class load flows through it, applying Mixin + FabricTransformer output,
+enforcing package sealing, and tracking code sources so mods and game classes coexist in one
+loader. A DummyClassLoader parent prevents accidental leakage from the system class path."""
+
+[[components]]
+name = "GameProvider SPI"
+path = "src/main/java/net/fabricmc/loader/impl/game/ + minecraft/src/.../game/minecraft/"
+role = "Game abstraction — the loader core knows nothing about Minecraft"
+source_keys = ["game-provider", "mc-provider", "mc-version-lookup"]
+description = """
+GameProvider is a ServiceLoader SPI: locateGame/initialize/launch plus metadata (id, version,
+launch args). MinecraftGameProvider implements it using LibClassifier to find the game jar in
+arbitrary launch environments, unpacks Mojang's Bundler format for modern servers
+(BundlerProcessor), fingerprints the version without a manifest (McVersionLookup), and applies
+minimal boot patches (entrypoint injection, branding) via the game-patch mechanism. The split
+means the loader core is literally game-agnostic — the same core could boot other games, and the
+Minecraft-specific surface that must chase Mojang each update is small and isolated."""
+
+[[components]]
+name = "Mod discovery"
+path = "src/main/java/net/fabricmc/loader/impl/discovery/ModDiscoverer.java"
+role = "Builds the candidate mod set from folders, classpath, args, and nested JARs"
+source_keys = ["discoverer", "candidate-finders"]
+description = """
+ModCandidateFinder implementations feed ModDiscoverer: DirectoryModCandidateFinder (the mods/
+folder), ClasspathModCandidateFinder (dev environments), ArgumentModCandidateFinder
+(--fabric.addMods). The discoverer parses fabric.mod.json straight out of directories or ZIP
+entries and recursively scans declared nested JARs (jar-in-jar), so libraries ship inside the
+mods that need them and the solver picks one winning version globally."""
+
+[[components]]
+name = "Metadata system (fabric.mod.json)"
+path = "src/main/java/net/fabricmc/loader/impl/metadata/"
+role = "Schema-versioned mod manifest parsing and validation"
+source_keys = ["metadata-parser", "v1-parser", "metadata-verifier"]
+description = """
+ModMetadataParser peeks 'schemaVersion' and dispatches to V0 (legacy) or V1 parsers — schema
+evolution with permanent backwards compatibility. V1 covers id/version, entrypoints (with
+optional language adapter per entry), five dependency kinds (depends/recommends/suggests/
+breaks/conflicts), nested 'jars', 'mixins', 'accessWidener', 'environment', people, contact,
+licenses, icons, and free-form 'custom' values for ecosystem extension. MetadataVerifier
+enforces id/version rules after parse and routes soft problems into structured warnings."""
+
+[[components]]
+name = "Dependency resolution (SAT)"
+path = "src/main/java/net/fabricmc/loader/impl/discovery/ModResolver.java"
+role = "Selects the winning mod set by pseudo-boolean SAT solving"
+source_keys = ["resolver", "solver", "result-analyzer"]
+description = """
+ModResolver feeds candidates (including all nested-JAR-provided versions) to ModSolver, which
+encodes presence/absence and version constraints as a pseudo-boolean problem for the relocated
+sat4j solver — an actual constraint solver, not ad-hoc iteration, so semantics stay correct in
+deep transitive webs. On failure, ResultAnalyzer converts the unsat core into precise, mod-author
+-quality error text ('X requires Y 2.x, but 1.4 is present via Z'). This error UX is a large part
+of Fabric's reputation and is a direct adopt target for OmniLoader."""
+
+[[components]]
+name = "Entrypoint system"
+path = "src/main/java/net/fabricmc/loader/impl/entrypoint/EntrypointStorage.java"
+role = "Typed, lazily-instantiated mod initialization hooks via language adapters"
+source_keys = ["entrypoint-storage", "api-facade"]
+description = """
+Mods declare entrypoints per key ('main', 'client', 'server', or any custom key) in
+fabric.mod.json; EntrypointStorage instantiates them lazily through the declared
+LanguageAdapter, which is how Kotlin/Scala/Groovy mods plug in without loader changes. Custom
+keys make the mechanism an open extension bus — Fabric API itself registers additional keys.
+The public API facade (FabricLoader) stays tiny: containers, entrypoints, environment, paths."""
+
+[[components]]
+name = "Mixin integration"
+path = "src/main/java/net/fabricmc/loader/impl/launch/FabricMixinBootstrap.java"
+role = "Boots SpongePowered Mixin (Fabric fork) inside Knot"
+source_keys = ["mixin-bootstrap", "mixin-service", "mixin-versions"]
+description = """
+FabricMixinBootstrap initializes Mixin exactly once, registers every mod's declared mixin
+configs, and pins per-config compatibility levels keyed to the mod's declared loader version
+(FabricMixinVersions), so old mods keep old Mixin behavior. MixinServiceKnot implements Mixin's
+service SPI over the Knot class loader — bytecode, class metadata, and transformation all flow
+through the same delegate pipeline. The loader ships a pinned Mixin fork (0.8.7 line at this
+commit) rather than floating upstream."""
+
+[[components]]
+name = "Runtime remapping (intermediary)"
+path = "src/main/java/net/fabricmc/loader/impl/launch/MappingConfiguration.java"
+role = "Stable cross-version names: mods ship intermediary, runtime maps to reality"
+source_keys = ["mapping-config", "runtime-remapper", "build-gradle"]
+description = """
+Fabric's core trick for cross-version binary stability: obfuscated game names are mapped to
+stable 'intermediary' names; mods compile against human-readable Yarn but are released remapped
+to intermediary. At runtime MappingConfiguration loads the mapping table (mappingio) and, in dev
+environments, RuntimeModRemapper rewrites production mods to the dev namespace with relocated
+tinyremapper. Result: a mod built for 1.21 usually runs on 1.21.1 unchanged because intermediary
+names survive Mojang's re-obfuscation."""
+
+[[components]]
+name = "Class transformation (non-Mixin)"
+path = "src/main/java/net/fabricmc/loader/impl/transformer/"
+role = "Loader-owned lightweight bytecode passes"
+source_keys = ["transformer", "env-strip"]
+description = """
+FabricTransformer applies the loader's own passes ahead of Mixin output: EnvironmentStrippingData
+removes @Environment(CLIENT/SERVER)-annotated members on the wrong side (making accidental
+client-class references a fast, clear crash instead of a runtime mystery), and PackageAccessFixer
+widens package-private access where transformation requires it. Deliberately minimal — everything
+heavier is Mixin's job."""
+
+# ── Feature inventory ───────────────────────────────────────────────────────
+
+[[features]]
+name = "Minimal-core loader philosophy"
+category = "architecture"
+description = "Loader ships zero gameplay API; all convenience APIs live in separate, independently versioned mods (Fabric API). Update surface on a Minecraft release is tiny."
+maturity = "core"
+future_proofing = 5
+omni_relevance = "adopt"
+notes = "The single most important architectural lesson for OmniLoader: day-one game-update support comes from keeping the loader small, not from heroics."
+source_keys = ["wiki-loader", "loader-impl", "api-facade"]
+
+[[features]]
+name = "GameProvider abstraction"
+category = "architecture"
+description = "ServiceLoader SPI isolates every game-specific concern (jar location, version detection, boot patches) behind one interface; the loader core is game-agnostic."
+maturity = "core"
+future_proofing = 5
+omni_relevance = "adopt"
+notes = "OmniLoader should keep the same seam — it also gives compat layers a natural mount point."
+source_keys = ["game-provider", "mc-provider"]
+
+[[features]]
+name = "SAT-based dependency resolution"
+category = "dependency-resolution"
+description = "Mod set selection is encoded as pseudo-boolean SAT (relocated sat4j) over five dependency kinds and nested-JAR-provided versions."
+maturity = "core"
+future_proofing = 5
+omni_relevance = "adopt"
+notes = "Correct-by-construction resolution; Omni will face a strictly harder problem (multi-ecosystem) and needs a real solver from day one."
+source_keys = ["solver", "resolver", "build-gradle"]
+
+[[features]]
+name = "Human-quality resolution errors"
+category = "dev-experience"
+description = "ResultAnalyzer translates solver unsat cores into precise, actionable messages naming the exact mods and version ranges in conflict."
+maturity = "core"
+future_proofing = 4
+omni_relevance = "adopt"
+notes = "Error UX is an adoption feature. Budget real engineering for it."
+source_keys = ["result-analyzer"]
+
+[[features]]
+name = "Nested JARs (jar-in-jar)"
+category = "distribution"
+description = "Mods declare bundled JARs in metadata; discovery recurses into them and the solver dedupes to one winning version per library."
+maturity = "core"
+future_proofing = 4
+omni_relevance = "adopt"
+notes = "Solves library shipping without a central repo. NeoForge adopted the same idea — table stakes for Omni."
+source_keys = ["discoverer", "v1-parser"]
+
+[[features]]
+name = "Intermediary mapping layer"
+category = "compat"
+description = "Stable obfuscation-independent names let mod binaries survive Minecraft updates; runtime/dev remapping via bundled mappingio + tinyremapper."
+maturity = "core"
+future_proofing = 5
+omni_relevance = "adapt"
+notes = "Omni must pick a mapping strategy (intermediary vs Mojang official mappings a la NeoForge) — decisive for cross-loader compat layers. Phase 3 ADR required."
+source_keys = ["mapping-config", "runtime-remapper"]
+
+[[features]]
+name = "Schema-versioned mod metadata"
+category = "metadata"
+description = "fabric.mod.json carries schemaVersion; V0 legacy parses forever alongside V1. Custom values give ecosystem extensibility without schema churn."
+maturity = "core"
+future_proofing = 5
+omni_relevance = "adopt"
+notes = "omni.mod.json must be schema-versioned from v0 — this is how you avoid a metadata big-bang later."
+source_keys = ["metadata-parser", "v1-parser", "wiki-fmj"]
+
+[[features]]
+name = "Entrypoints + language adapters"
+category = "extension"
+description = "Typed, lazily-instantiated init hooks with per-entry language adapters; custom entrypoint keys form an open extension bus."
+maturity = "core"
+future_proofing = 4
+omni_relevance = "adopt"
+notes = "Lazy instantiation + open keys beats Forge-style annotation scanning for startup cost and clarity."
+source_keys = ["entrypoint-storage", "v1-parser"]
+
+[[features]]
+name = "Environment stripping"
+category = "bytecode"
+description = "@Environment-annotated members are stripped on the wrong dist at class load, turning client/server violations into immediate clear failures."
+maturity = "stable"
+future_proofing = 4
+omni_relevance = "adopt"
+source_keys = ["env-strip", "transformer"]
+
+[[features]]
+name = "Pinned Mixin fork with per-mod compat levels"
+category = "bytecode"
+description = "Loader bundles a pinned Mixin fork; each mod's mixin configs run at a compat level derived from the loader version it declared."
+maturity = "core"
+future_proofing = 4
+omni_relevance = "adapt"
+notes = "Omni must ship Mixin (ecosystem standard) but should own the fork/pin decision; per-mod compat levels are the right stability mechanism."
+source_keys = ["mixin-bootstrap", "mixin-versions", "gradle-props"]
+
+[[features]]
+name = "Vendored, relocated dependencies"
+category = "distribution"
+description = "gson, sat4j, tinyremapper, mappingio are shaded and package-relocated under impl.lib, so loader deps can never conflict with mod deps."
+maturity = "stable"
+future_proofing = 3
+omni_relevance = "adapt"
+notes = "Right instinct; Omni (Java 21) can consider module isolation instead, but relocation remains the pragmatic floor."
+source_keys = ["build-gradle"]
+
+[[features]]
+name = "Bundler-format server support"
+category = "bootstrap"
+description = "Modern Mojang server jars (Bundler) are unpacked/booted correctly by the Minecraft provider without user intervention."
+maturity = "stable"
+future_proofing = 4
+omni_relevance = "adopt"
+source_keys = ["mc-provider"]
+
+[[features]]
+name = "Jar fingerprint version detection"
+category = "bootstrap"
+description = "McVersionLookup identifies the game version from jar contents even without version.json — robust in exotic launch environments."
+maturity = "stable"
+future_proofing = 3
+omni_relevance = "observe"
+notes = "Useful defensive trick; Omni's launcher+loader pairing makes it less critical since the launcher knows the version authoritatively."
+source_keys = ["mc-version-lookup"]
+
+# ── File formats ────────────────────────────────────────────────────────────
+
+[[file_formats]]
+name = "fabric.mod.json"
+format_kind = "json"
+path_pattern = "<mod jar root>/fabric.mod.json"
+source_keys = ["v1-parser", "wiki-fmj", "metadata-verifier"]
+description = """
+The mod manifest (schemaVersion 1): identity (id, version, name, description, authors, contact,
+license, icon), entrypoints (per-key lists, optional adapter), 'jars' (nested JAR paths),
+'mixins' (config files, optional environment), 'accessWidener', 'environment' (*/client/server),
+dependency blocks (depends/recommends/suggests/breaks/conflicts mapping id -> version predicates
+like '>=1.2.0', '1.21.x'), 'provides' (virtual ids), and 'custom' (namespaced free-form values).
+Validated post-parse by MetadataVerifier. OmniLoader's native manifest should be a superset."""
+
+[[file_formats]]
+name = "Access widener (.accesswidener)"
+format_kind = "text (line-based DSL)"
+path_pattern = "path declared by 'accessWidener' in fabric.mod.json"
+source_keys = ["wiki-fmj", "v1-parser"]
+description = """
+Line-based access-escalation format (accessible/extendable per class/method/field) applied at
+class load, replacing most trivial 'make it public' Mixins. Parsing lives in the separate
+FabricMC access-widener library consumed by the loader; the manifest references the file."""
+
+# ── Analysis notes ──────────────────────────────────────────────────────────
+
+[[notes]]
+title = "Update-speed causality"
+body = """
+Fabric's day-one Minecraft updates are a structural outcome: intermediary absorbs renames, the
+loader has no gameplay API to port, and the game-specific surface is one provider class family.
+NeoForge, by contrast, ports a large API each cycle. OmniLoader inherits the Fabric structure:
+tiny core, provider seam, mapping layer, APIs as separately-versioned modules."""
+source_keys = ["wiki-loader", "game-provider", "mapping-config"]
+
+[[notes]]
+title = "Compat-layer implications (ADR-0003)"
+body = """
+Everything a Fabric-mod compat layer must emulate is now enumerated: fabric.mod.json semantics
+(incl. nested jars + five dependency kinds), entrypoint keys + language adapters, Mixin config
+registration with compat levels, intermediary-named class references, access wideners, and
+@Environment stripping semantics. The KnotClassDelegate single-pipeline design is the template
+for how OmniLoader can host multiple ecosystems in one transforming loader."""
+source_keys = ["knot-delegate", "v1-parser", "mixin-bootstrap", "runtime-remapper"]
+
+[[notes]]
+title = "Version/tooling facts at pin"
+body = """
+Loader version 0.17.3; bundled Mixin fork 0.17.3+mixin.0.8.7; sat4j 2.3.6 relocated; gson
+vendored under impl/lib; core targets Java 8 with multi-release (mrj) extensions so one loader
+binary spans ancient to current Minecraft. Checkstyle enforced (checkstyle.xml); proguard config
+present for size."""
+source_keys = ["gradle-props", "build-gradle"]
