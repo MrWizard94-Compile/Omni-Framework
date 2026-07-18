@@ -20,12 +20,12 @@ Every subject gets: pinned-commit corpus fetch, structured analysis (components,
 | Quilt Loader | loader | open-source deep | ✅ 2026-07-18 |
 | NeoForge (FancyModLoader) | loader | open-source deep | ✅ 2026-07-18 |
 | MinecraftForge (legacy baseline) | loader | open-source deep | ⬜ |
-| SpongePowered Mixin | subsystem | open-source deep | ⬜ |
+| SpongePowered Mixin | subsystem | open-source deep | ✅ 2026-07-18 |
 | Sinytra Connector | compat layer | open-source deep | ✅ 2026-07-18 |
-| MultiMC | launcher | open-source deep | ⬜ |
+| MultiMC | launcher | open-source deep | ✅ 2026-07-18 (comparative baseline) |
 | ATLauncher | launcher | open-source deep | ⬜ |
 | HMCL | launcher | open-source deep | ⬜ |
-| Modrinth App | launcher | open-source deep | ⬜ |
+| Modrinth App | launcher | open-source deep | ✅ 2026-07-18 (incl. daedalus meta + labrinth API notes) |
 | GDLauncher | launcher | open-source deep | ⬜ |
 | CurseForge App | launcher | **black-box only** (ADR-0002) | ⬜ |
 | Official Minecraft Launcher | launcher | **black-box only** (ADR-0002) | ⬜ |
