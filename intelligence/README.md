@@ -31,6 +31,7 @@ Runtime code is stdlib-only; the venv exists solely for the QA toolchain (pytest
 .venv\Scripts\python tools\ingest.py --all       # fetch corpus at pinned commits
 .venv\Scripts\python tools\analyze.py --all      # rebuild omni_intel.db + print stats
 .venv\Scripts\python tools\dossier.py --all      # regenerate dossiers/*.md
+.venv\Scripts\python tools\matrix.py             # regenerate matrix.md (Phase 2 artifact)
 
 .venv\Scripts\python -m pytest                   # must be green
 .venv\Scripts\python -m ruff check .             # must be silent

@@ -188,6 +188,24 @@ def test_dossier_rendering_is_pure_and_complete(tmp_path: Path) -> None:
     assert out.read_text(encoding="utf-8") == first
 
 
+def test_matrix_rendering_is_pure_and_complete(tmp_path: Path) -> None:
+    from intel_lib import render_matrix, write_matrix
+
+    analysis = parse_analysis(write_fixture(tmp_path))
+    first = render_matrix([analysis])
+    assert first == render_matrix([analysis]), "matrix rendering must be deterministic"
+    for expected in (
+        "# Omni-Framework Feature Matrix (Phase 2)",
+        "## mod-discovery",
+        "| example-loader | Mod discovery | core | 4/5 | **adopt** |",
+        "## Adopt shortlist (by future-proofing)",
+        "| 4/5 | Mod discovery | example-loader | mod-discovery |",
+    ):
+        assert expected in first, f"matrix missing: {expected}"
+    out = write_matrix([analysis], out_path=tmp_path / "matrix.md")
+    assert out.read_text(encoding="utf-8") == first
+
+
 def test_repo_analyses_are_valid_and_complete() -> None:
     """Integration gate: the real analysis corpus must always validate."""
     analyses = load_all_analyses(ANALYSIS_DIR)
