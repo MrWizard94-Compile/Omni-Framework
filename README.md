@@ -49,7 +49,7 @@ Omni_Framework/
 
 ## Status
 
-**Phase 0 — Foundation** ✅ · **Phase 1 — Vivisection Corpus** ✅ (14/14 subjects, 2026-07-18) · **Phase 2 — Feature Synthesis** ▶ next (director cherry-pick session required).
+**Phase 0 — Foundation** ✅ · **Phase 1 — Vivisection Corpus** ✅ (14/14) · **Phase 2 — Feature Synthesis** ✅ (2026-07-18, [`docs/REQUIREMENTS.md`](docs/REQUIREMENTS.md) now binding) · **Phase 3 — Architecture Design** ▶ next.
 
 ## Legal
 

@@ -51,3 +51,33 @@ Append-only log. Every entry: context → decision → consequences. Never delet
 **Decision.** Canonical name everywhere: **Omni-Framework** (`Omni_Framework` for the folder, `MrWizard94-Compile/Omni-Framework` for the repo). GitHub repo renamed 2026-07-18 (GitHub redirects the old URL). Local folder rename is blocked while a session process holds the directory handle; executed as the final action of the founding session or by the director immediately after.
 
 **Consequences.** Zero tolerance for the old spelling in all content going forward; ADRs and this entry are the only sanctioned historical mentions. Verification gate: repo-wide grep for the typo must return only rename-history notes.
+
+---
+
+## ADR-0006 — OmniLoader core architecture · 2026-07-18 · Accepted
+
+**Context.** Phase 2 cherry-pick session over the completed 14-subject corpus; loader decisions D1–D4 (see docs/REQUIREMENTS.md §1 for the session record and §2 for the binding requirements).
+
+**Decision.** Cached AOT transformation with per-class audit log; Mojang official names as the native namespace; single transforming class loader with logical partitions (no mandatory JPMS); extensible SAT resolution with ordering constraints and cross-ecosystem dedupe.
+
+**Consequences.** Startup cost scales with cache hits rather than mod count; every hosted ecosystem needs a remapping step to official names (intermediary→official proven by Sinytra); compat layers mount as resolver/transform plugins. Corpus evidence cited per-requirement in REQUIREMENTS.md §2.
+
+---
+
+## ADR-0007 — OmniLauncher architecture · 2026-07-18 · Accepted
+
+**Context.** Cherry-pick decisions D5–D8 (REQUIREMENTS.md §4–5).
+
+**Decision.** Component-stack instances persisted in SQLite (mods as entities); Omni-owned static meta service from day one; all four migration importers in MVP; **full server-instance support in MVP** (director override — recommendation was to phase it; MrWizard94 chose MVP inclusion accepting the scope cost).
+
+**Consequences.** Phase 4 scope includes server process management, server EULA flow, and console UX. The meta generator becomes a Phase 3/4 deliverable alongside the launcher. File formats of other launchers become import/export surfaces only.
+
+---
+
+## ADR-0008 — Target version, compat order, compliance posture · 2026-07-18 · Accepted
+
+**Context.** Cherry-pick decisions D9–D12 (REQUIREMENTS.md §1, §6–8).
+
+**Decision.** Minecraft 1.21.1 first with a version-agnostic core; Fabric-family compat layer before NeoForge-family; the six corpus avoid-items are binding MUST NOTs; offline play via a cached-entitlement window only.
+
+**Consequences.** The corpus's 26.x-freshest evidence (FML, Sinytra) is applied through the version-agnostic requirement (TGT-2) rather than by moving the target; the compat SPI is validated on the cheap (metadata-level) case first; COMPLIANCE.md gains the entitlement-window mechanism as its offline policy (details in a Phase 3 ADR).

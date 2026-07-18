@@ -32,9 +32,9 @@ Every subject gets: pinned-commit corpus fetch, structured analysis (components,
 
 Exit criteria: all subjects ingested; dossiers complete; comparative queries answer "who does X best?" for every major capability.
 
-## Phase 2 — Feature Synthesis ⬜
+## Phase 2 — Feature Synthesis ✅ (2026-07-18)
 
-Comparative feature matrix generated from the DB; future-proofing scores; **director cherry-pick session** (user input is a hard requirement here) → `docs/REQUIREMENTS.md` (Omni-Framework Requirements Spec).
+Comparative feature matrix generated (`intelligence/matrix.md`, `tools/matrix.py`); director cherry-pick session held 2026-07-18 — 12 decisions (D1–D12) recorded in **`docs/REQUIREMENTS.md`** (the binding Omni-Framework Requirements Spec) and ADRs 0006–0008. Notable director override: **full server-instance support moved into the Phase 4 MVP**.
 
 ## Phase 3 — Architecture Design ⬜
 
@@ -42,8 +42,10 @@ Full ADR set. OmniLoader: bootstrap chain, mod discovery, metadata format, trans
 
 ## Phase 4 — MVP Implementation ⬜
 
-- OmniLauncher (Tauri) launches vanilla 1.21.1 end-to-end with real MSA login.
+Scope per REQUIREMENTS.md (D7/D8 expanded it):
+- OmniLauncher (Tauri) launches vanilla 1.21.1 end-to-end with real MSA login; **client and server instances**; all four migration importers (CurseForge App, Prism/MultiMC, Modrinth/.mrpack, official profiles).
 - OmniLoader boots 1.21.1 and loads: one native Omni test mod, one Fabric mod via compat layer, one NeoForge mod via compat layer.
+- Omni meta service generator + CDN deployment (SVC-1).
 
 ## Phase 5 — Stabilization ⬜
 
