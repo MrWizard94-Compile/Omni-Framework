@@ -1,0 +1,205 @@
+# Black-box study: Official Minecraft Launcher — ADR-0002 compliant.
+# Sources: Mojang/Microsoft public documentation and community-documented public metadata
+# endpoints (the same endpoints every compliant launcher consumes). No decompilation.
+
+[subject]
+slug = "official-launcher"
+name = "Official Minecraft Launcher"
+kind = "launcher"
+method = "black-box"
+repo_url = ""
+license = "Proprietary (Mojang/Microsoft)"
+pinned_commit = ""
+language = "Proprietary (bootstrap + launcher; not analyzed)"
+analyzed_at = "2026-07-18"
+summary = """
+Mojang's own launcher matters to Omni less as a design source than as the **defining
+authority of the public contract** every compliant launcher implements: its metadata
+endpoints, file formats, and directory layout ARE the specification, exhaustively documented
+by the community (minecraft.wiki) and already consumed by every open-source subject in this
+corpus. This black-box study records that contract: the version manifest pipeline
+(piston-meta), client.json semantics, the asset-index/objects store, the Java runtime
+manifest system, launcher_profiles.json, and the .minecraft layout. Omni consumes these
+surfaces identically to Prism/Modrinth/HMCL — through its own meta layer per the
+launcher-owned-meta pattern.
+
+As a product, the launcher is a unified multi-title hub (Java, Bedrock for Windows, Dungeons/
+Legends historically) distributed via Microsoft Store/MSIX with a bootstrap+launcher split
+and bundled per-version Java runtimes. Its feature set is deliberately minimal (profiles,
+not instances; no mod management) — the gap that created the entire third-party launcher
+market this corpus documents. Auth is the canonical MSA chain; ownership verification
+gates play — the EULA baseline Omni holds itself to."""
+
+[[sources]]
+key = "wiki-dotminecraft"
+kind = "url"
+ref = "https://minecraft.wiki/w/.minecraft"
+note = "Community documentation of the .minecraft directory layout"
+retrieved = "2026-07-18"
+
+[[sources]]
+key = "wiki-version-manifest"
+kind = "url"
+ref = "https://minecraft.wiki/w/Version_manifest.json"
+note = "version_manifest_v2.json format at piston-meta.mojang.com"
+retrieved = "2026-07-18"
+
+[[sources]]
+key = "wiki-clientjson"
+kind = "url"
+ref = "https://minecraft.wiki/w/Client.json"
+note = "Per-version client.json: libraries, rules, arguments, assetIndex, downloads, javaVersion"
+retrieved = "2026-07-18"
+
+[[sources]]
+key = "wiki-launcher-profiles"
+kind = "url"
+ref = "https://minecraft.wiki/w/Launcher_profiles.json"
+note = "launcher_profiles.json format (profiles, not instances)"
+retrieved = "2026-07-18"
+
+[[sources]]
+key = "help-launcher"
+kind = "url"
+ref = "https://help.minecraft.net/hc/en-us/categories/4409286858252-Minecraft-Launcher"
+note = "Official launcher help: distribution, accounts, multi-title scope"
+retrieved = "2026-07-18"
+
+[[sources]]
+key = "eula"
+kind = "url"
+ref = "https://www.minecraft.net/en-us/eula"
+note = "The EULA — the compliance baseline COMPLIANCE.md implements"
+retrieved = "2026-07-18"
+
+[[components]]
+name = "Public metadata pipeline (the contract)"
+path = "piston-meta.mojang.com -> client.json -> libraries/assets/java-runtime manifests"
+role = "The authoritative version/asset/library/runtime metadata surface all launchers consume"
+source_keys = ["wiki-version-manifest", "wiki-clientjson"]
+description = """
+version_manifest_v2.json lists all versions with per-version metadata URLs and sha1s;
+client.json declares main class, rule-gated arguments and libraries (OS/arch/feature rules,
+natives), the assetIndex reference, download artifacts with hashes, logging config, and the
+required javaVersion component; asset indexes map logical names to hashed objects served from
+resources.download.minecraft.net; java-runtime manifests describe per-platform bundled JVMs.
+Every subject in this corpus implements exactly this pipeline (verified in source in the
+prism/modrinth/hmcl dossiers); Omni consumes it through its own normalized meta service per
+the corpus-consensus pattern."""
+
+[[components]]
+name = "Profile model + .minecraft layout"
+path = ".minecraft/ (launcher_profiles.json, versions/, libraries/, assets/, saves/…)"
+role = "Shared-directory profiles — the anti-pattern that created the instance-launcher market"
+source_keys = ["wiki-launcher-profiles", "wiki-dotminecraft"]
+description = """
+The official launcher runs profiles (version + JVM args + game dir) over one shared
+.minecraft by default: mods, saves, and configs collide across profiles unless users manage
+game directories manually. The entire MultiMC lineage exists to fix this. Omni's importer
+must still read launcher_profiles.json and shared .minecraft layouts to migrate users in —
+the largest single migration source by user count."""
+
+[[auth_flows]]
+name = "Microsoft account login (the canonical chain)"
+description = """
+The launcher is the reference implementation of the MSA chain: Microsoft OAuth in Microsoft
+surfaces, Xbox/XSTS, Minecraft services token, entitlement + profile gate before play.
+Documented publicly; verified against open-source implementations in the prism-launcher
+dossier (which records the exact endpoints Omni implements). Ownership verification gating
+play is the EULA baseline COMPLIANCE.md holds Omni to."""
+steps = """
+1. Microsoft OAuth (official surfaces) -> 2. XBL/XSTS -> 3. api.minecraftservices.com token ->
+4. entitlement + profile verification -> play (see prism-launcher dossier for source-verified
+endpoint detail)"""
+source_keys = ["help-launcher", "eula"]
+
+[[features]]
+name = "Authoritative metadata endpoints"
+category = "instance-model"
+description = "piston-meta version manifests, client.json, asset objects, java-runtime manifests — the spec by existence."
+maturity = "core"
+future_proofing = 5
+omni_relevance = "adopt"
+notes = "Omni consumes these exact surfaces (via its own meta layer). Any format drift here is upstream weather all launchers share; the meta layer is the umbrella."
+source_keys = ["wiki-version-manifest", "wiki-clientjson"]
+
+[[features]]
+name = "Bundled per-version Java runtimes"
+category = "java"
+description = "The launcher installs the exact JVM each version declares via runtime manifests."
+maturity = "core"
+future_proofing = 5
+omni_relevance = "adopt"
+notes = "The same manifests power Prism's auto-Java (source-verified); Omni does likewise."
+source_keys = ["wiki-clientjson", "help-launcher"]
+
+[[features]]
+name = "Profiles over shared directory"
+category = "instance-model"
+description = "Profiles share one .minecraft by default; isolation is manual."
+maturity = "core"
+future_proofing = 1
+omni_relevance = "avoid"
+notes = "The founding anti-pattern of this market. Omni is instance-first like the whole third-party corpus."
+source_keys = ["wiki-launcher-profiles", "wiki-dotminecraft"]
+
+[[features]]
+name = "Ownership-gated play"
+category = "auth"
+description = "Entitlement verification precedes launch; no unverified play paths."
+maturity = "core"
+future_proofing = 5
+omni_relevance = "adopt"
+notes = "The compliance baseline. Omni's offline semantics (cached entitlement window, per the prism dossier note) must stay within it."
+source_keys = ["eula", "help-launcher"]
+
+[[features]]
+name = "Multi-title hub distribution (Store/MSIX)"
+category = "distribution"
+description = "One launcher fronts multiple titles, distributed and updated through the Microsoft Store."
+maturity = "core"
+future_proofing = 3
+omni_relevance = "observe"
+notes = "Store distribution reduces install friction; worth evaluating for OmniLauncher alongside direct download in Phase 5 release engineering."
+source_keys = ["help-launcher"]
+
+[[file_formats]]
+name = "launcher_profiles.json"
+format_kind = "json"
+path_pattern = ".minecraft/launcher_profiles.json"
+source_keys = ["wiki-launcher-profiles"]
+description = """
+Documented profile store: profiles keyed by id (name, type, lastVersionId, gameDir, javaArgs,
+icon, timestamps) plus launcher settings. Omni's migration importer reads it to reconstruct
+profiles as proper instances."""
+
+[[file_formats]]
+name = "client.json (per-version metadata)"
+format_kind = "json"
+path_pattern = ".minecraft/versions/<id>/<id>.json (served from piston-meta)"
+source_keys = ["wiki-clientjson"]
+description = """
+The per-version contract: mainClass, arguments (rule-gated), libraries (maven coords,
+downloads with sha1/size, OS rules, natives classifiers), assetIndex, downloads
+(client/server jars), javaVersion component, logging. The single most load-bearing format in
+the entire domain — every loader and launcher in this corpus builds on it."""
+
+[[protocols]]
+name = "Mojang public metadata + content endpoints"
+endpoint = "piston-meta.mojang.com, resources.download.minecraft.net, libraries.minecraft.net, api.minecraftservices.com"
+source_keys = ["wiki-version-manifest", "wiki-clientjson", "help-launcher"]
+description = """
+The complete public surface: version metadata (piston-meta), hashed asset objects
+(resources), library artifacts (libraries), and account/entitlement services
+(minecraftservices). All consumption is hash-verified and documented; COMPLIANCE.md §1
+requires Omni fetch game content only from these official surfaces."""
+
+[[notes]]
+title = "ADR-0002 boundary statement"
+body = """
+This study uses only public documentation and the community-documented public endpoints that
+every launcher (including this corpus's open-source subjects) consumes by design. The
+launcher binaries themselves were not inspected. The public contract recorded here is
+complete for Omni's purposes: the launcher's proprietary internals are irrelevant when the
+entire integration surface is public and better documented than most open standards."""
+source_keys = ["wiki-clientjson", "help-launcher"]

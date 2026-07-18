@@ -1,0 +1,186 @@
+# Black-box study: CurseForge App — ADR-0002 compliant.
+# Sources: public documentation, published API surfaces, and on-disk layout of our own
+# legitimate installation. No decompilation, no binary analysis.
+
+[subject]
+slug = "curseforge-app"
+name = "CurseForge App"
+kind = "launcher"
+method = "black-box"
+repo_url = ""
+license = "Proprietary (Overwolf)"
+pinned_commit = ""
+language = "Electron (per public statements; not verified against binaries)"
+analyzed_at = "2026-07-18"
+summary = """
+The CurseForge App is the highest-market-share third-party launcher, owned by Overwolf, and
+proprietary — studied strictly black-box per ADR-0002: its published Core API, its documented
+modpack formats, its author-facing policies, and the on-disk layout of our own legitimate
+installation. Three things make it strategically important to Omni beyond market share.
+First, its **content platform policies** are load-bearing constraints for Phase 6/7: the Core
+API requires issued keys, mod authors can opt out of third-party API distribution per project,
+and author monetization (points from downloads) means Omni must route downloads through the
+official API so authors keep earning — all of which COMPLIANCE.md §5 already encodes. Second,
+its **formats are de-facto standards**: the manifest.json modpack format and per-instance
+minecraftinstance.json are what hundreds of thousands of packs and instances exist in — Omni's
+importers must read both flawlessly (our own machine's install provides legitimate samples).
+Third, its **auth posture** is the compliance reference the director explicitly named: login
+is the standard Microsoft OAuth chain — the same documented chain specified in COMPLIANCE.md
+§2 and verified in open source in the prism-launcher dossier."""
+
+[[sources]]
+key = "cf-api-docs"
+kind = "url"
+ref = "https://docs.curseforge.com/"
+note = "CurseForge for Studios (Core API) documentation: endpoints, auth keys, fingerprints"
+retrieved = "2026-07-18"
+
+[[sources]]
+key = "cf-support"
+kind = "url"
+ref = "https://support.curseforge.com/en/support/home"
+note = "Official support portal: app behavior, instance management, author distribution toggle"
+retrieved = "2026-07-18"
+
+[[sources]]
+key = "cf-3rd-party"
+kind = "url"
+ref = "https://support.curseforge.com/en/support/solutions/articles/9000197321-mod-distribution"
+note = "Author-facing third-party distribution policy (per-project API opt-out)"
+retrieved = "2026-07-18"
+
+[[sources]]
+key = "local-install"
+kind = "doc"
+ref = "On-disk observation of our own legitimate installation: %USERPROFILE%/curseforge/minecraft/Instances/<name>/ (instance folders with minecraftinstance.json, mods/, standard .minecraft-style content)"
+note = "Legitimate local layout observation per ADR-0002; e.g. the 'Astral Sorcery Port' and 'Base wars' instances on the director's machine"
+retrieved = "2026-07-18"
+
+[[sources]]
+key = "cf-eternal"
+kind = "url"
+ref = "https://www.curseforge.com/minecraft"
+note = "Public content platform surface (categories, projects, files)"
+retrieved = "2026-07-18"
+
+[[components]]
+name = "Instance store (observed layout)"
+path = "%USERPROFILE%/curseforge/minecraft/Instances/<instance>/"
+role = "Self-contained instance folders with a JSON descriptor over .minecraft-style content"
+source_keys = ["local-install", "cf-support"]
+description = """
+Each instance is a folder containing minecraftinstance.json (instance descriptor: game
+version, modloader coordinates, installed addon list with project/file IDs) beside standard
+game content (mods/, config/, saves/…). Functionally the same self-contained-instance model
+MultiMC pioneered, with platform identity (project/file IDs) embedded per mod — the same
+mod-as-entity grain ATLauncher models. Omni's importer reads these folders in place; the IDs
+make re-resolution against the Core API straightforward."""
+
+[[components]]
+name = "Core API platform surface"
+path = "api.curseforge.com (documented at docs.curseforge.com)"
+role = "The published content API: search, files, fingerprints, categories — key-gated"
+source_keys = ["cf-api-docs"]
+description = """
+Documented REST surface requiring an issued API key: game/category browsing, mod search,
+file metadata with hashes and dependencies, and MurmurHash2 fingerprint matching (the hash
+family behind 'identify this local jar' — the counterpart of the mechanism the prism dossier
+documents). Rate limits and key terms apply; per-project distribution opt-outs are enforced
+at this API (files of opted-out projects are not served to third parties). Omni's Phase 6
+census client must implement key management, honor opt-outs, and never circumvent via
+scraping (COMPLIANCE.md §5)."""
+
+[[auth_flows]]
+name = "Microsoft account login (documented posture)"
+description = """
+Public documentation describes standard Microsoft account sign-in for Minecraft — the same
+OAuth chain COMPLIANCE.md §2 specifies and the prism-launcher dossier verifies in source.
+No password handling by the app; consent in Microsoft's surfaces. This is the 'handle login
+the same way CurseForge does' reference the director set: implement the documented MSA chain,
+nothing more."""
+steps = """
+1. Microsoft OAuth (documented consumer flow) -> 2. Xbox Live/XSTS -> 3. Minecraft services
+token + entitlement/profile (documented chain; see prism-launcher dossier for the
+source-verified step detail Omni implements)"""
+source_keys = ["cf-support", "cf-api-docs"]
+
+[[features]]
+name = "Per-project third-party distribution opt-out"
+category = "mod-platforms"
+description = "Authors control whether their files are served to third-party apps via the Core API."
+maturity = "core"
+future_proofing = 4
+omni_relevance = "adopt"
+notes = "A hard legal/ethical constraint on Phase 6/7: the census marks opted-out projects; Omni surfaces 'get it in the official app' paths instead of circumventing."
+source_keys = ["cf-3rd-party", "cf-api-docs"]
+
+[[features]]
+name = "Author monetization via download points"
+category = "mod-platforms"
+description = "Downloads through official channels earn authors revenue points."
+maturity = "core"
+future_proofing = 4
+omni_relevance = "adopt"
+notes = "Omni routes all CurseForge downloads through the official API so author earnings are preserved — already encoded in COMPLIANCE.md §5; the census should track this as part of author-relations posture for Phase 7 outreach."
+source_keys = ["cf-support", "cf-eternal"]
+
+[[features]]
+name = "manifest.json modpack format"
+category = "instance-model"
+description = "The platform's pack interchange: manifest with modloader + file ID list + overrides folder."
+maturity = "core"
+future_proofing = 4
+omni_relevance = "adopt"
+notes = "One of the three modpack lingua francas (with .mrpack and mmc-pack); importer required."
+source_keys = ["cf-api-docs", "cf-support"]
+
+[[features]]
+name = "Fingerprint-based local file identification"
+category = "mod-platforms"
+description = "MurmurHash2 fingerprints resolve unknown local jars to platform identities via the API."
+maturity = "core"
+future_proofing = 4
+omni_relevance = "adopt"
+notes = "Converges with the prism hash-recovery finding; Omni's census bootstraps user libraries with both platforms' hash APIs."
+source_keys = ["cf-api-docs"]
+
+[[file_formats]]
+name = "minecraftinstance.json"
+format_kind = "json"
+path_pattern = "%USERPROFILE%/curseforge/minecraft/Instances/<name>/minecraftinstance.json"
+source_keys = ["local-install"]
+description = """
+Per-instance descriptor observed in our legitimate install: game version, modloader
+identity/version, and the installed addon list with platform project/file IDs and metadata.
+Omni's importer treats it as authoritative for re-resolving the instance against the Core
+API (exact field semantics to be captured from our own instances during importer work,
+Phase 4/5 — legitimately, from our own data)."""
+
+[[file_formats]]
+name = "CurseForge modpack manifest.json"
+format_kind = "zip+json"
+path_pattern = "<pack>.zip: manifest.json + overrides/"
+source_keys = ["cf-api-docs", "cf-support"]
+description = """
+Documented pack format: manifest (manifestVersion, minecraft.version + modLoaders list,
+name/author, files[] as projectID/fileID pairs with required flags) plus an overrides/ tree
+copied into the instance. Importer required for Phase 4/5; export support decides later."""
+
+[[protocols]]
+name = "CurseForge Core API"
+endpoint = "https://api.curseforge.com (documented at docs.curseforge.com)"
+source_keys = ["cf-api-docs"]
+description = """
+Key-gated REST API: games/categories, mod search, mod/file metadata (hashes, dependencies,
+download URLs where permitted), and fingerprint matching. The Phase 6 census consumes it
+within its terms: issued key, rate limits, opt-out honoring, no scraping."""
+
+[[notes]]
+title = "ADR-0002 boundary statement"
+body = """
+Everything above derives from public documentation, published API surfaces, and the layout of
+our own legitimate installation. No decompilation, no traffic interception, no binary
+inspection was performed or will be. Where field-level format semantics are needed (e.g.
+minecraftinstance.json), they will be captured from our own instances' files — data we own —
+during importer development."""
+source_keys = ["cf-api-docs", "local-install"]
