@@ -1,0 +1,367 @@
+# Vivisection: Modrinth App — hand-audited against the pinned commit below.
+# The Tauri-launcher precedent for ADR-0001: same stack Omni chose.
+
+[subject]
+slug = "modrinth-app"
+name = "Modrinth App"
+kind = "launcher"
+method = "open-source-deep"
+repo_url = "https://github.com/modrinth/code.git"
+license = "GPL-3.0-only (app + app-frontend; monorepo siblings under their own licenses, branding excluded)"
+pinned_commit = "543cb422101e303478ed6d9046bc6904fb7bfdcc"
+language = "Rust (core + Tauri shell) + TypeScript/Vue (frontend)"
+analyzed_at = "2026-07-18"
+summary = """
+The Modrinth App is the production proof of the exact stack Omni chose in ADR-0001: a Tauri
+shell (apps/app) over a Rust core library (packages/app-lib, the former 'theseus' project) with
+a Vue/Vite/Tailwind web frontend (apps/app-frontend). It lives inside the modrinth/code
+monorepo alongside the entire Modrinth platform — labrinth (the Rust API backend), the website
+frontend, and daedalus (their launcher-metadata generator + client) — making this one subject a
+three-for-one: launcher architecture, platform API surface, and a second meta-service design to
+compare against Prism's.
+
+The architecture splits cleanly: **app-lib** owns all real logic — SQLite-backed state via sqlx
+(instances, settings, auth, process tracking, java installs, worlds, friends, Discord RPC),
+Minecraft MSA auth (minecraft_auth), an install pipeline with diagnostics and crash recovery
+(install/), launch argument assembly + version/asset download (launcher/), and a typed event
+bus (event/) emitted across the Tauri boundary. **apps/app** is a thin Tauri shell exposing
+app-lib as commands and managing windows/updates; the frontend consumes commands + events like
+any web app. State-in-SQLite (not JSON files) and typed core/UI separation are the two
+architectural decisions Omni should copy most directly."""
+
+# ── Source register ─────────────────────────────────────────────────────────
+
+[[sources]]
+key = "monorepo-root"
+kind = "code"
+ref = "Cargo.toml + pnpm-workspace.yaml + apps/ + packages/ (workspace layout)"
+note = "Monorepo: app, app-frontend, labrinth, daedalus, app-lib, api-client, …"
+
+[[sources]]
+key = "tauri-shell"
+kind = "code"
+ref = "apps/app/ (tauri.conf.json, Cargo.toml, src/, capabilities/)"
+note = "Tauri shell: window/config/capabilities, command registration, packaging (nsis/dmg)"
+
+[[sources]]
+key = "frontend"
+kind = "code"
+ref = "apps/app-frontend/ (vite.config.ts, tailwind.config.ts, src/)"
+note = "Vue + Vite + Tailwind UI consuming Tauri commands/events"
+
+[[sources]]
+key = "app-lib-root"
+kind = "code"
+ref = "packages/app-lib/src/ (lib.rs, api/, state/, launcher/, install/, event/, util/)"
+note = "The Rust core (theseus lineage): all launcher logic lives here"
+
+[[sources]]
+key = "state-db"
+kind = "code"
+ref = "packages/app-lib/src/state/db.rs + db_backup.rs + Cargo.toml (sqlx 'sqlite' feature)"
+note = "SQLite-backed application state via sqlx, with backup support"
+
+[[sources]]
+key = "state-instances"
+kind = "code"
+ref = "packages/app-lib/src/state/instances + instance_types.rs + legacy_converter.rs"
+note = "Instance model in the DB + migration from legacy on-disk formats"
+
+[[sources]]
+key = "mc-auth"
+kind = "code"
+ref = "packages/app-lib/src/state/minecraft_auth.rs + api/minecraft_auth.rs"
+note = "Microsoft/Minecraft auth chain state + command surface"
+
+[[sources]]
+key = "mr-auth"
+kind = "code"
+ref = "packages/app-lib/src/state/mr_auth.rs + api/mr_auth.rs"
+note = "Separate Modrinth-platform account auth (distinct from game auth)"
+
+[[sources]]
+key = "install-pipeline"
+kind = "code"
+ref = "packages/app-lib/src/install/ (runner.rs, diagnostics.rs, recovery.rs, store.rs, model.rs, events.rs)"
+note = "Instance install/repair pipeline with diagnostics and crash recovery"
+
+[[sources]]
+key = "launcher-core"
+kind = "code"
+ref = "packages/app-lib/src/launcher/ (args.rs, download.rs, quick_play_version.rs)"
+note = "JVM argument assembly, version/asset/library download, Quick Play support"
+
+[[sources]]
+key = "event-bus"
+kind = "code"
+ref = "packages/app-lib/src/event/ (emit.rs)"
+note = "Typed events emitted from core to UI across the Tauri boundary"
+
+[[sources]]
+key = "api-surface"
+kind = "code"
+ref = "packages/app-lib/src/api/ (instance.rs, jre.rs, process.rs, pack/, worlds.rs, settings.rs, tags.rs, logs.rs, cache.rs, friends.rs, minecraft_skins.rs, server_address.rs, metadata.rs, handler.rs)"
+note = "The complete command-surface inventory of a production launcher core"
+
+[[sources]]
+key = "jre-mgmt"
+kind = "code"
+ref = "packages/app-lib/src/api/jre.rs + state/java_globals.rs"
+note = "Java runtime discovery/installation management"
+
+[[sources]]
+key = "process-mgmt"
+kind = "code"
+ref = "packages/app-lib/src/api/process.rs + state/process.rs + state/server_join_log.rs"
+note = "Game process supervision and play-session tracking"
+
+[[sources]]
+key = "daedalus"
+kind = "code"
+ref = "packages/daedalus + apps/daedalus_client"
+note = "Modrinth's launcher-metadata generator + consuming client (their meta service)"
+
+[[sources]]
+key = "labrinth"
+kind = "code"
+ref = "apps/labrinth/"
+note = "The Modrinth platform API backend (Rust) — the API the app consumes"
+
+[[sources]]
+key = "licenses"
+kind = "code"
+ref = "COPYING.md + apps/app/COPYING.md"
+note = "Per-package licensing; app is GPL-3.0-only; branding explicitly excluded"
+
+[[sources]]
+key = "modrinth-docs"
+kind = "url"
+ref = "https://docs.modrinth.com/"
+note = "Platform API documentation"
+retrieved = "2026-07-18"
+
+# ── Architecture components ─────────────────────────────────────────────────
+
+[[components]]
+name = "Three-layer Tauri architecture"
+path = "packages/app-lib (core) / apps/app (shell) / apps/app-frontend (UI)"
+role = "All logic in a Rust library; Tauri as a thin command/event bridge; web UI"
+source_keys = ["app-lib-root", "tauri-shell", "frontend"]
+description = """
+app-lib is a standalone Rust crate with no UI knowledge; apps/app registers its functions as
+Tauri commands, declares capabilities, and handles packaging/updates; the Vue frontend calls
+commands and subscribes to events. Because the core is UI-free, it is testable headless and
+reusable (Modrinth exercises app-lib beyond the app). This is the reference shape for
+OmniLauncher: omni-core crate first, Tauri shell second, UI third — matching SOUL's
+dependency-first doctrine at the architecture level."""
+
+[[components]]
+name = "SQLite state store"
+path = "packages/app-lib/src/state/"
+role = "All launcher state (instances, auth, settings, processes, java) in one sqlx DB"
+source_keys = ["state-db", "state-instances"]
+description = """
+Instead of the config-file sprawl of the C++ launcher family (instance.cfg, mmc-pack.json,
+accounts.json…), everything lives in a SQLite database accessed through sqlx with migrations
+and backup (db_backup.rs); legacy_converter.rs imports the old on-disk formats. Transactional
+state, queryability, and schema evolution — Omni adopts this wholesale (and it mirrors the
+intelligence DB philosophy already in this repo: SQL as the state backbone)."""
+
+[[components]]
+name = "Dual auth domains"
+path = "packages/app-lib/src/state/minecraft_auth.rs + mr_auth.rs"
+role = "Game-account auth (MSA chain) and platform-account auth kept strictly separate"
+source_keys = ["mc-auth", "mr-auth"]
+description = """
+minecraft_auth implements the standard Microsoft chain (same protocol family verified in the
+prism-launcher dossier) in Rust; mr_auth separately authenticates the user's Modrinth platform
+account (for follows, collections, uploads). The separation is the right model for Omni:
+game identity (Mojang/Microsoft, EULA-bound) and platform identity (Omni/W.P.AI Studio
+services) must never share tokens or lifecycles (COMPLIANCE.md §2)."""
+
+[[components]]
+name = "Install pipeline with diagnostics and recovery"
+path = "packages/app-lib/src/install/"
+role = "Instance materialization as a resumable, self-diagnosing process"
+source_keys = ["install-pipeline"]
+description = """
+The install module is built as a store-backed runner with explicit models, progress events,
+diagnostics.rs (detect what is broken/missing) and recovery.rs (resume/repair after crashes
+or interrupted downloads). Where Prism has task-graph updates, Modrinth adds the recovery
+posture: installations survive process death and self-heal. With Omni's 50k-mod ambitions,
+resumable + self-diagnosing install is the correct baseline, not a nice-to-have."""
+
+[[components]]
+name = "Launch core + process supervision"
+path = "packages/app-lib/src/launcher/ + api/process.rs"
+role = "Argument assembly, delta downloads, Quick Play, session tracking"
+source_keys = ["launcher-core", "process-mgmt"]
+description = """
+launcher/ assembles JVM/game arguments from version metadata (rules, natives, memory), performs
+hash-verified downloads, and supports Quick Play (direct-join worlds/servers per version
+capabilities — quick_play_version.rs). Process state tracks running instances with
+server_join_log capturing play sessions. Functionally equivalent to Prism's launch chain,
+reimplemented in Rust — a direct implementation reference for OmniLauncher's core."""
+
+[[components]]
+name = "Daedalus meta service"
+path = "packages/daedalus + apps/daedalus_client"
+role = "Modrinth's normalized launcher-metadata generator and client"
+source_keys = ["daedalus"]
+description = """
+Daedalus generates normalized version/loader metadata consumed by the app — Modrinth's answer
+to Prism's meta.prismlauncher.org, with generator and client code in the same monorepo as the
+launcher. Two independent launcher teams building the same component (normalized self-owned
+meta) elevates the pattern from 'Prism idea' to 'industry consensus'; Omni's meta service is
+hereby double-confirmed, and daedalus is the Rust implementation to study when building it."""
+
+[[components]]
+name = "Platform integration (labrinth + api-client)"
+path = "apps/labrinth + packages/api-client"
+role = "The launcher consumes the same public API the whole platform runs on"
+source_keys = ["labrinth", "api-surface", "modrinth-docs"]
+description = """
+Because the API backend lives in-repo, the app's platform features (search, install, updates,
+tags via api/tags.rs, cached metadata via api/cache.rs + metadata.rs) bind to a typed client of
+labrinth's public API — no privileged private endpoints. For Omni this is both an integration
+target (Phase 6 census consumes the same public API respectfully) and an architecture pattern
+(typed API client package shared between products)."""
+
+# ── Feature inventory ───────────────────────────────────────────────────────
+
+[[features]]
+name = "Rust-core / Tauri-shell / web-UI separation"
+category = "architecture"
+description = "All logic in a UI-free Rust crate; Tauri only bridges commands/events; frontend is a plain web app."
+maturity = "core"
+future_proofing = 5
+omni_relevance = "adopt"
+notes = "The ADR-0001 stack, production-proven. OmniLauncher mirrors the layering exactly (omni-core crate first)."
+source_keys = ["app-lib-root", "tauri-shell"]
+
+[[features]]
+name = "SQLite application state"
+category = "architecture"
+description = "Instances, auth, settings, processes in one sqlx-managed SQLite DB with migrations, backup, and legacy import."
+maturity = "core"
+future_proofing = 5
+omni_relevance = "adopt"
+notes = "Transactional, queryable, schema-versioned launcher state. Omni adopts; the mmc-pack/instance.cfg family becomes import-only compatibility."
+source_keys = ["state-db", "state-instances"]
+
+[[features]]
+name = "Resumable install with diagnostics/recovery"
+category = "launch"
+description = "Installations are store-backed processes that survive crashes, self-diagnose gaps, and repair."
+maturity = "core"
+future_proofing = 5
+omni_relevance = "adopt"
+source_keys = ["install-pipeline"]
+
+[[features]]
+name = "Typed event bus across the UI boundary"
+category = "architecture"
+description = "Core emits typed progress/state events; the UI is a pure subscriber."
+maturity = "core"
+future_proofing = 4
+omni_relevance = "adopt"
+notes = "The Tauri-idiomatic answer to Qt signals; keeps the UI stateless relative to core truth."
+source_keys = ["event-bus"]
+
+[[features]]
+name = "Separated game vs platform identity"
+category = "auth"
+description = "Microsoft game auth and Modrinth platform auth are independent modules with independent lifecycles."
+maturity = "core"
+future_proofing = 5
+omni_relevance = "adopt"
+notes = "Compliance-critical separation; Omni's future platform accounts must never entangle with EULA-bound game tokens."
+source_keys = ["mc-auth", "mr-auth"]
+
+[[features]]
+name = "In-house meta service (daedalus)"
+category = "instance-model"
+description = "Normalized version/loader metadata generated and served by the project itself, client in-repo."
+maturity = "core"
+future_proofing = 5
+omni_relevance = "adopt"
+notes = "Second independent confirmation of the launcher-owned-meta pattern (with Prism). Rust reference implementation for Omni's own service."
+source_keys = ["daedalus"]
+
+[[features]]
+name = "Quick Play / direct-join"
+category = "launch"
+description = "Version-aware direct join into worlds/servers at launch (modern Quick Play with legacy fallbacks)."
+maturity = "stable"
+future_proofing = 4
+omni_relevance = "adopt"
+source_keys = ["launcher-core"]
+
+[[features]]
+name = "Play-session tracking"
+category = "dev-experience"
+description = "Process supervision records sessions and server joins for playtime/history features."
+maturity = "stable"
+future_proofing = 3
+omni_relevance = "observe"
+notes = "Nice engagement surface; privacy posture must be explicit if Omni adopts (local-only by default)."
+source_keys = ["process-mgmt"]
+
+[[features]]
+name = "Monorepo with shared typed API client"
+category = "architecture"
+description = "Launcher, backend, website, and meta tooling share one repo, one API client package, one release discipline."
+maturity = "core"
+future_proofing = 4
+omni_relevance = "adopt"
+notes = "Validates Omni's existing monorepo decision; the shared api-client package is the pattern to copy when Omni services appear."
+source_keys = ["monorepo-root", "labrinth"]
+
+# ── File formats ────────────────────────────────────────────────────────────
+
+[[file_formats]]
+name = "app-lib SQLite schema"
+format_kind = "sqlite"
+path_pattern = "app data dir / app.db (sqlx migrations in packages/app-lib)"
+source_keys = ["state-db"]
+description = """
+The launcher's entire mutable state: instances (typed model with loader/version fields),
+settings, java installs, accounts (both auth domains), process/session records, world
+attachments, cached platform metadata. Migrated by sqlx at startup; legacy JSON/cfg formats
+imported once by legacy_converter.rs. The schema-with-migrations posture is the adoption
+target for OmniLauncher."""
+
+[[file_formats]]
+name = "Modrinth .mrpack (modpack format)"
+format_kind = "zip+json"
+path_pattern = "*.mrpack (index.json + overrides/)"
+source_keys = ["api-surface", "modrinth-docs"]
+description = """
+Platform modpack interchange handled by api/pack/: a zip with modrinth.index.json (format
+version, dependencies incl. loader versions, file list with hashes + download URLs + env
+sides) and overrides/ folders. Omni's importer set must read .mrpack alongside mmc-pack.json
+and CurseForge manifests — the three modpack lingua francas."""
+
+# ── Analysis notes ──────────────────────────────────────────────────────────
+
+[[notes]]
+title = "What the Tauri precedent proves (and does not)"
+body = """
+Proven by this subject: the ADR-0001 stack carries a full-featured launcher in production —
+auth chain in Rust, GL game processes spawned/supervised, deep OS integration (protocol
+handlers, updates, Discord RPC), small footprint. Not covered by the precedent: Omni's
+loader-side integration (Modrinth app manages loaders as metadata, it does not ship one) and
+multi-platform content APIs (Modrinth app is single-platform by design; Prism's ResourceAPI
+remains the multi-platform reference). Omni = Modrinth's architecture + Prism's breadth +
+OmniLoader's compat depth."""
+source_keys = ["tauri-shell", "app-lib-root"]
+
+[[notes]]
+title = "Version/licensing facts at pin"
+body = """
+Monorepo modrinth/code at pinned commit; app + app-frontend GPL-3.0-only with branding
+explicitly excluded from the license grant (apps/app/COPYING.md); rust-toolchain.toml pins the
+toolchain; pnpm + turbo drive the JS side. GPL applies to Modrinth's code — Omni copies
+architecture patterns, never code, per ADR-0002 discipline (and Omni's proprietary licensing
+would be GPL-incompatible anyway)."""
+source_keys = ["licenses", "monorepo-root"]
