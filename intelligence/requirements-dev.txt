@@ -1,0 +1,15 @@
+# Dev-only QA toolchain — exact pins (SOUL §22). Runtime code is stdlib-only.
+# Regenerate after intentional upgrades with: .venv\Scripts\python -m pip freeze
+ast_serialize==0.6.0
+colorama==0.4.6
+iniconfig==2.3.0
+librt==0.13.0
+mypy==2.3.0
+mypy_extensions==1.1.0
+packaging==26.2
+pathspec==1.1.1
+pluggy==1.6.0
+Pygments==2.20.0
+pytest==9.1.1
+ruff==0.15.22
+typing_extensions==4.16.0
