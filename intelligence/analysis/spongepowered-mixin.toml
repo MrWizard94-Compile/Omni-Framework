@@ -1,0 +1,296 @@
+# Vivisection: SpongePowered Mixin — hand-audited against the pinned commit below.
+
+[subject]
+slug = "spongepowered-mixin"
+name = "SpongePowered Mixin"
+kind = "subsystem"
+method = "open-source-deep"
+repo_url = "https://github.com/SpongePowered/Mixin.git"
+license = "MIT"
+pinned_commit = "4053421aa10aaac6127d969028a29c94fe3054f6"
+language = "Java"
+analyzed_at = "2026-07-18"
+summary = """
+Mixin (buildVersion 0.8.7 at the pinned commit) is the bytecode-patching standard of the entire
+modding ecosystem: both loader families ship it (Fabric bundles a pinned fork, FML integrates it
+via an advice provider — see those dossiers), and tens of thousands of mods depend on its
+semantics. It lets mods declare bytecode changes as annotated Java classes — @Mixin targets a
+class; @Shadow/@Final/@Mutable mirror members; @Overwrite replaces; the injector family
+(@Inject, @Redirect, @ModifyArg/@ModifyArgs, @ModifyVariable, @ModifyConstant) surgically
+patches method bodies at declarative injection points (@At + @Slice selectors) — and merges
+those changes into target classes at load time through a transformer pipeline.
+
+Three architectural properties matter most for OmniLoader. First, the **service abstraction**
+(IMixinService + a dozen sibling SPIs): Mixin does not know what loader hosts it — bytecode
+access, class trees, transformer chaining, logging, and even an audit trail are all injected by
+the host. This is precisely the seam OmniLoader implements to host Mixin natively. Second,
+**reference maps** (refmaps): injector target strings are written against dev-time names and
+remapped to runtime names via generated JSON — the mechanism that couples every Mixin-using mod
+to its ecosystem's mapping universe, and thus a hard input to Omni's cross-ecosystem remapping
+(Sinytra's pipeline exists partly to rewrite these). Third, **environment/compatibility
+levels**: configs declare minimum Mixin versions and JVM compat levels, letting one runtime
+serve a decade of mods — the versioning discipline Omni's own transformation SPI must match."""
+
+# ── Source register ─────────────────────────────────────────────────────────
+
+[[sources]]
+key = "annotations"
+kind = "code"
+ref = "src/main/java/org/spongepowered/asm/mixin/ (Mixin.java, Shadow.java, Overwrite.java, Unique.java, Final.java, Mutable.java, …)"
+note = "Core annotation set defining the mixin declaration model"
+
+[[sources]]
+key = "injectors"
+kind = "code"
+ref = "src/main/java/org/spongepowered/asm/mixin/injection/ (Inject.java, Redirect.java, ModifyArg.java, ModifyArgs.java, ModifyVariable.java, ModifyConstant.java, At.java, Slice.java, Desc.java)"
+note = "Injector annotations + declarative target selection (@At points, slices, descriptors)"
+
+[[sources]]
+key = "injection-points"
+kind = "code"
+ref = "src/main/java/org/spongepowered/asm/mixin/injection/points/"
+note = "Built-in injection point implementations (HEAD, RETURN, INVOKE, FIELD, …)"
+
+[[sources]]
+key = "transformer"
+kind = "code"
+ref = "src/main/java/org/spongepowered/asm/mixin/transformer/ (MixinApplicatorStandard.java, MixinConfig.java, ClassInfo.java, MixinCoprocessor.java, …)"
+note = "Application pipeline: config selection, class metadata model, applicators, coprocessors"
+
+[[sources]]
+key = "service-spi"
+kind = "code"
+ref = "src/main/java/org/spongepowered/asm/service/ (IMixinService.java, IClassBytecodeProvider.java, ITransformerProvider.java, IMixinAuditTrail.java, …)"
+note = "Host-loader service abstraction — everything environment-specific is injected"
+
+[[sources]]
+key = "refmap"
+kind = "code"
+ref = "src/main/java/org/spongepowered/asm/mixin/refmap/ (ReferenceMapper.java, RemappingReferenceMapper.java, IMixinContext.java)"
+note = "Reference map loading and runtime remapping of injector target strings"
+
+[[sources]]
+key = "environment"
+kind = "code"
+ref = "src/main/java/org/spongepowered/asm/mixin/MixinEnvironment.java"
+note = "Phases, sides, options, and JVM compatibility levels"
+
+[[sources]]
+key = "extensibility"
+kind = "code"
+ref = "src/main/java/org/spongepowered/asm/mixin/extensibility/"
+note = "Plugin hooks: IMixinConfigPlugin (per-config programmatic control)"
+
+[[sources]]
+key = "gen"
+kind = "code"
+ref = "src/main/java/org/spongepowered/asm/mixin/gen/"
+note = "@Accessor/@Invoker synthetic member generation"
+
+[[sources]]
+key = "gradle-props"
+kind = "code"
+ref = "gradle.properties"
+note = "buildVersion=0.8.7"
+
+[[sources]]
+key = "mixin-wiki"
+kind = "url"
+ref = "https://github.com/SpongePowered/Mixin/wiki"
+note = "Official documentation: introduction, injection points, refmaps"
+retrieved = "2026-07-18"
+
+# ── Architecture components ─────────────────────────────────────────────────
+
+[[components]]
+name = "Declaration model (annotations)"
+path = "src/main/java/org/spongepowered/asm/mixin/ + gen/"
+role = "Bytecode patches expressed as annotated Java classes"
+source_keys = ["annotations", "gen"]
+description = """
+A mixin class @Mixin-targets one or more classes (including by string for non-public targets
+and @Pseudo for possibly-absent ones). @Shadow mirrors existing members for compile-time-safe
+references; @Overwrite documents whole-method replacement; @Unique namespaces added members;
+@Accessor/@Invoker generate synthetic bridges to private members. Because patches are ordinary
+Java, they get IDE/type safety — the property that made Mixin the ecosystem standard over raw
+ASM, and the bar any Omni-native patching story must clear."""
+
+[[components]]
+name = "Injector framework"
+path = "src/main/java/org/spongepowered/asm/mixin/injection/ + points/"
+role = "Surgical method-body patching at declarative injection points"
+source_keys = ["injectors", "injection-points"]
+description = """
+Injectors bind handler methods into target method bodies: @Inject (callbacks with cancellation
+support at HEAD/RETURN/INVOKE/FIELD/etc.), @Redirect (replace a call/field access), @ModifyArg,
+@ModifyArgs, @ModifyVariable, @ModifyConstant. @At selectors with @Slice ranges and @Desc
+descriptors locate targets; InjectionPoint is itself extensible for custom point types. The
+injector semantics — especially multi-mod stacking on one target and priority ordering — are
+the de-facto contract OmniLoader must preserve bit-for-bit for hosted mods."""
+
+[[components]]
+name = "Transformer/application pipeline"
+path = "src/main/java/org/spongepowered/asm/mixin/transformer/"
+role = "Selects applicable mixins per class and merges them at load time"
+source_keys = ["transformer", "environment"]
+description = """
+MixinConfig models each mixins.json (targets, priority, plugin, refmap, compat level);
+ClassInfo maintains a metadata model of the class hierarchy without loading classes;
+MixinApplicatorStandard merges members, applies injectors, and validates; coprocessors
+(e.g. accessor support) run alongside. MixinEnvironment sequences phases (preinit/init/default)
+and sides. Application is priority-ordered across all configs targeting a class — the
+multi-mod-stacking behavior at the heart of ecosystem compatibility."""
+
+[[components]]
+name = "Service abstraction (host SPI)"
+path = "src/main/java/org/spongepowered/asm/service/"
+role = "Everything loader-specific is injected: bytecode access, transformers, audit, logging"
+source_keys = ["service-spi"]
+description = """
+IMixinService + siblings (IClassBytecodeProvider, ITransformerProvider, IClassTracker,
+IGlobalPropertyService, IMixinAuditTrail…) define what a host loader must provide. Fabric's
+MixinServiceKnot and FML's advice-provider integration (see those dossiers) are both
+implementations of this SPI. For OmniLoader the conclusion is direct: implement one
+MixinServiceOmni over the native transformation pipeline and every hosted ecosystem's mixins
+run through one audited path."""
+
+[[components]]
+name = "Reference maps (refmaps)"
+path = "src/main/java/org/spongepowered/asm/mixin/refmap/"
+role = "Remap injector target strings from dev names to runtime names"
+source_keys = ["refmap"]
+description = """
+Injector targets are strings resolved against a generated refmap JSON per environment;
+RemappingReferenceMapper applies the active mapping context at runtime. This is where mods
+bind to their ecosystem's namespace (intermediary for Fabric, official for NeoForge) — and
+therefore exactly what cross-ecosystem translation must rewrite (Sinytra's transformer does).
+Omni's compat pipeline must translate refmaps per hosted ecosystem as a first-class step."""
+
+[[components]]
+name = "Config plugins (extensibility)"
+path = "src/main/java/org/spongepowered/asm/mixin/extensibility/"
+role = "Programmatic per-config control at application time"
+source_keys = ["extensibility"]
+description = """
+IMixinConfigPlugin lets a mod filter/augment its own mixins at runtime (shouldApplyMixin,
+target list manipulation, post-apply hooks) — widely used for conditional compat patches.
+Any hosted-Mixin implementation must run these plugins faithfully; they execute arbitrary
+mod code during transformation, which is also a sandboxing consideration for OmniLoader."""
+
+# ── Feature inventory ───────────────────────────────────────────────────────
+
+[[features]]
+name = "Loader-agnostic service SPI"
+category = "architecture"
+description = "All environment specifics (bytecode access, transformer chain, audit, logging) are injected via IMixinService implementations."
+maturity = "core"
+future_proofing = 5
+omni_relevance = "adopt"
+notes = "OmniLoader ships MixinServiceOmni over its native pipeline — one integration point, every ecosystem's mixins."
+source_keys = ["service-spi"]
+
+[[features]]
+name = "Declarative injector model"
+category = "bytecode"
+description = "Method-body patches as annotations with extensible injection points, priority stacking, and cancellation semantics."
+maturity = "core"
+future_proofing = 5
+omni_relevance = "adopt"
+notes = "The ecosystem contract. Omni preserves semantics exactly; native Omni mods get the same tool rather than a competing invention."
+source_keys = ["injectors", "injection-points"]
+
+[[features]]
+name = "Refmap-based target remapping"
+category = "compat"
+description = "Injector target strings resolve through generated per-environment reference maps at runtime."
+maturity = "core"
+future_proofing = 4
+omni_relevance = "adopt"
+notes = "Hard dependency for hosting: Omni's per-ecosystem translation must rewrite or re-resolve refmaps (Sinytra precedent)."
+source_keys = ["refmap"]
+
+[[features]]
+name = "Audit trail SPI"
+category = "dev-experience"
+description = "Hosts can receive a structured record of every mixin application decision (IMixinAuditTrail)."
+maturity = "stable"
+future_proofing = 4
+omni_relevance = "adopt"
+notes = "Wire it into the same audit store as FML-style class-transform logs: one queryable 'who changed this class' story (SOUL §16)."
+source_keys = ["service-spi"]
+
+[[features]]
+name = "Compatibility levels + phased environment"
+category = "compat"
+description = "Configs pin minimum versions and JVM compat levels; application is phased (preinit/init/default) and side-aware."
+maturity = "core"
+future_proofing = 4
+omni_relevance = "adopt"
+notes = "How one runtime serves a decade of mods. Omni's transformation SPI adopts the same explicit versioning discipline."
+source_keys = ["environment", "transformer"]
+
+[[features]]
+name = "Config plugins (runtime mod hooks)"
+category = "extension"
+description = "Mods programmatically filter/augment their mixins at application time via IMixinConfigPlugin."
+maturity = "core"
+future_proofing = 3
+omni_relevance = "adopt"
+notes = "Must-support for compat; note it executes mod code inside the transformer — sandbox/observability accordingly."
+source_keys = ["extensibility"]
+
+[[features]]
+name = "Hierarchy metadata without classloading (ClassInfo)"
+category = "bytecode"
+description = "A parallel class-metadata model answers hierarchy/member queries without triggering class loads."
+maturity = "core"
+future_proofing = 4
+omni_relevance = "adapt"
+notes = "The load-order-safety trick every transformation pipeline eventually needs; Omni's pipeline should build this once, centrally."
+source_keys = ["transformer"]
+
+# ── File formats ────────────────────────────────────────────────────────────
+
+[[file_formats]]
+name = "mixins.json (mixin config)"
+format_kind = "json"
+path_pattern = "<mod jar>/<name>.mixins.json (declared in the mod's manifest)"
+source_keys = ["transformer", "mixin-wiki"]
+description = """
+Per-mod config: 'package' root, mixin class lists split by side (mixins/client/server),
+'required', 'priority' and 'mixinPriority', 'plugin' (IMixinConfigPlugin class), 'refmap',
+'minVersion', 'compatibilityLevel', injector defaults (maxShiftBy etc.), and 'overwrites'
+policy. Both loader families reference these from their own manifests (fabric.mod.json
+'mixins' / FML advice provider) — Omni's canonical mod model needs a shared mixin-config slot."""
+
+[[file_formats]]
+name = "Reference map (refmap JSON)"
+format_kind = "json"
+path_pattern = "<mod jar>/<config>-refmap.json (generated at build time)"
+source_keys = ["refmap", "mixin-wiki"]
+description = """
+Generated mapping: per-mixin-class dictionaries from source-form target strings to
+runtime-namespace descriptors, with per-environment sections ('mappings' plus named 'data'
+variants). The binding between a compiled mod and its ecosystem's name universe — the object
+of translation in any cross-ecosystem host."""
+
+# ── Analysis notes ──────────────────────────────────────────────────────────
+
+[[notes]]
+title = "Mixin is infrastructure, not a dependency"
+body = """
+Every corpus loader ships and integrates Mixin rather than treating it as an ordinary library:
+Fabric pins a fork (0.8.7 line — matching this repo's buildVersion), Quilt inherits that
+integration, FML wires it through advice providers into the ClassProcessor pipeline. OmniLoader
+therefore treats Mixin as core infrastructure: one bundled, pinned runtime + MixinServiceOmni +
+audit integration, serving native mods and all hosted ecosystems uniformly. The fork/pin
+decision flagged in the fabric-loader dossier is confirmed as a Phase 3 ADR item."""
+source_keys = ["service-spi", "gradle-props"]
+
+[[notes]]
+title = "Version note at pin"
+body = """
+buildVersion=0.8.7 (gradle.properties) — the same 0.8.7 line the ecosystem ships. Upstream
+SpongePowered releases move slowly; the ecosystem's practical HEAD lives in loader forks
+(Fabric's 0.17.3+mixin.0.8.7). MIT-licensed, in-repo docs/ and wiki are comprehensive."""
+source_keys = ["gradle-props", "mixin-wiki"]
