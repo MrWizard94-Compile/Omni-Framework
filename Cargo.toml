@@ -42,6 +42,8 @@ rusqlite = { version = "0.40", features = ["bundled", "backup", "serde_json"] }
 keyring = "4"
 # CSPRNG for PKCE verifiers (RFC 7636). Already in-tree transitively via rustls.
 getrandom = "0.4"
+# .mrpack import (D7): mrpacks are ZIP archives. Stable 8.x line, not the 9.0 pre.
+zip = { version = "8", default-features = false, features = ["deflate"] }
 tempfile = "3.20"
 
 # Zero-warning policy (SOUL §2): clippy::all + clippy::pedantic are the gate that

@@ -23,6 +23,10 @@
 //! - [`auth`] (Phase 4 brick 4) — the COMPLIANCE §2 Microsoft chain with the
 //!   XSTS error taxonomy, OS-vault token storage, the ADR-0011 entitlement
 //!   window, and the CPL-2 launch gate.
+//! - [`install`] / [`launch`] / [`platform`] (brick 5) — meta-resolved,
+//!   hash-verified, resumable installs and the gated launch chain.
+//! - [`import`] (brick 6) — the four migration surfaces (LNC-7, D7), read-only
+//!   parsers that map foreign instances into the canonical store.
 //!
 //! Threading model: synchronous API over one mutex-guarded connection; callers
 //! (the Tauri shell, job worker threads) invoke from whatever thread suits
@@ -34,6 +38,7 @@ pub mod clock;
 pub mod db;
 pub mod error;
 pub mod events;
+pub mod import;
 pub mod install;
 pub mod jobs;
 pub mod launch;

@@ -41,6 +41,17 @@ Landed so far (brick order in `../docs/ROADMAP.md` Phase 4):
   logs + process rows, and the D8 server variant behind an explicit, recorded EULA
   acceptance. Version-scope note: extract-era natives are post-MVP (TGT-1 is 1.21.1,
   where natives ride the classpath), documented in `launch`.
+- **`omni-core::import`** (2026-07-19, brick 6) — all four MVP migration surfaces
+  (LNC-7, D7) behind one `Importer` trait (`detect → enumerate → import`): CurseForge
+  App (`minecraftinstance.json`), Prism/MultiMC (`mmc-pack.json` + `instance.cfg`),
+  Modrinth `.mrpack`, and official-launcher profiles. Foreign formats stay read-only
+  surfaces — parsed leniently, mapped into instances-as-component-stacks and
+  mods-as-entities, never written back. Every import returns a typed `ImportReport`
+  (what mapped, what didn't, why). Hash recovery scans jars for sha1/sha512 plus the
+  CurseForge murmur2 fingerprint and sniffs each jar's ecosystem from its manifests.
+  **Validated against the director's real 324-mod ATM10 instance: all 324 mods mapped,
+  0 skipped, and all 319 on-disk jars' murmur2 fingerprints matched CurseForge's own
+  recorded values byte-for-byte.**
 
 ## What it will be
 
