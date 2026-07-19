@@ -20,12 +20,16 @@
 //! - [`events`] — the typed event stream foundation (LNC-1): state changes and
 //!   progress emit [`events::CoreEvent`]s through an [`events::EventSink`];
 //!   the UI holds no truth.
+//! - [`auth`] (Phase 4 brick 4) — the COMPLIANCE §2 Microsoft chain with the
+//!   XSTS error taxonomy, OS-vault token storage, the ADR-0011 entitlement
+//!   window, and the CPL-2 launch gate.
 //!
 //! Threading model: synchronous API over one mutex-guarded connection; callers
 //! (the Tauri shell, job worker threads) invoke from whatever thread suits
 //! them. WAL keeps readers cheap; the coarse lock is deliberate simplicity for
 //! the MVP and is documented in ADR-0015.
 
+pub mod auth;
 pub mod clock;
 pub mod db;
 pub mod error;

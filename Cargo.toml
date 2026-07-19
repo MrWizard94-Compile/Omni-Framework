@@ -32,10 +32,15 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 sha1 = "0.10"
 sha2 = "0.10"
-ureq = "2.12"
+ureq = { version = "2.12", features = ["json"] }
 # bundled: SQLite compiled in — zero system dependency, reproducible offline
 # builds (SOUL §21). backup: online-backup API for LNC-2's DB backup duty.
 rusqlite = { version = "0.40", features = ["bundled", "backup", "serde_json"] }
+# OS credential vault for auth tokens (SOUL §36 / COMPLIANCE §2). v4 ships all
+# platform-native backends by default (Windows Credential Manager here).
+keyring = "4"
+# CSPRNG for PKCE verifiers (RFC 7636). Already in-tree transitively via rustls.
+getrandom = "0.4"
 tempfile = "3.20"
 
 # Zero-warning policy (SOUL §2): clippy::all + clippy::pedantic are the gate that

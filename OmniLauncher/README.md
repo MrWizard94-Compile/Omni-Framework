@@ -19,6 +19,17 @@ Landed so far (brick order in `../docs/ROADMAP.md` Phase 4):
   completion" property from ARCHITECTURE §8 is a test that runs for every interrupt
   point; the typed event stream foundation (`CoreEvent`/`EventSink`). Auth, installs,
   and importers (bricks 4–6) build on these primitives.
+- **`omni-core::auth`** (2026-07-19, brick 4) — the COMPLIANCE §2 chain exactly:
+  device-code + PKCE-loopback Microsoft OAuth (consumers authority), XBL → XSTS with
+  the full `XErr` taxonomy as typed, remedy-bearing errors, Minecraft-services login /
+  entitlement / profile. Tokens live only in the OS credential vault (`keyring`,
+  trait-abstracted; in-memory vault for tests); the ADR-0011 14-day entitlement window
+  is stamped in the vault record AND the accounts row on every verification and slides
+  on silent renewal; `AuthService::launch_gate` is the single CPL-2 authority (online
+  verify → offline-within-window → hard stop; auth refusals never open the offline
+  path). Fixture-driven tests cover the whole chain; `examples/auth_probe.rs` is the
+  live-endpoint probe / dev sign-in CLI (validated against the real device-code
+  endpoint with the ADR-0016 client ID).
 
 ## What it will be
 

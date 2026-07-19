@@ -86,6 +86,11 @@ impl Db {
         &self.path
     }
 
+    /// The clock every subsystem shares (injected at open; SOUL §21).
+    pub fn clock(&self) -> &dyn Clock {
+        self.clock.as_ref()
+    }
+
     /// Runs `body` against the typed store. The connection lock is held for
     /// the duration — keep bodies short (single logical operation).
     ///
