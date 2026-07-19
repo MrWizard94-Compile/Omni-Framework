@@ -59,7 +59,7 @@ Delivery bricks (dependency-first; each lands complete, tested, zero-warning):
 | 6 | Importers ×4 + fingerprinting/hash recovery | ⬜ |
 | 7 | Tauri shell + UI surfaces | ⬜ |
 | 8 | OmniLoader Gradle multi-project: loader-model (`omni.mod.json` v0) upward per ARCHITECTURE §2 | ⬜ |
-| 9 | Meta CDN deployment (R2; needs director domain confirmation, ADR-0012) | ⬜ |
+| 9 | Meta CDN deployment tooling (target live: `omnimeta.wpaistudio.net`, ADR-0016) | ⬜ |
 
 ## Phase 5 — Stabilization ⬜
 
@@ -77,5 +77,6 @@ Per-mod port queue for top tiers: license check → (if restrictive) author outr
 
 | Item | Owner | Status |
 |---|---|---|
-| Azure app registration for MSA OAuth | MrWizard94 | ⏸ deferred until Phase 4 nears (director decision, 2026-07-18) |
-| Mojang approval of Azure client ID (form) | MrWizard94 | ⬜ blocked on above |
+| Azure app registration for MSA OAuth | MrWizard94 | ✅ 2026-07-19 — "OmniLauncher", client ID `ff86f866-0ef7-4208-aa66-c17d8124dcc3`, settings verified compliant (ADR-0016) |
+| Mojang approval of Azure client ID (form: aka.ms/mce-reviewappid) | MrWizard94 | ▶ submission status to confirm — gates live end-to-end login only |
+| Meta CDN hosting (R2 bucket `omni-meta` + `omnimeta.wpaistudio.net`) | MrWizard94 + AI | ✅ 2026-07-19 provisioned (ADR-0016); brick 9 ships the deploy tooling |

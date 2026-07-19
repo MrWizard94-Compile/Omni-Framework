@@ -32,7 +32,7 @@ Component uids at launch: `net.minecraft`, `org.omniframework.omniloader`, `org.
 
 ## Hosting (ADR-0012)
 
-Cloudflare: generator output → R2 bucket → CDN, domain `meta.omniframework.wpaistudio.net` (placeholder — director confirms the final domain at Phase 4 deploy; the URL is a launcher build-config value exactly like (prism-launcher)'s `Launcher_META_URL`, so it is changeable without code edits). No dynamic compute in the serving path — static files only, availability = CDN availability.
+Cloudflare: generator output → R2 bucket → CDN, domain **`omnimeta.wpaistudio.net`** (confirmed by director 2026-07-19, ADR-0016 — single-level subdomain so Universal SSL covers it; provisioned: bucket `omni-meta`, custom domain bound, min TLS 1.2). The URL is a launcher build-config value exactly like (prism-launcher)'s `Launcher_META_URL`, so it is changeable without code edits. No dynamic compute in the serving path — static files only, availability = CDN availability.
 
 ## Implementation (Phase 4 brick 1, 2026-07-18)
 

@@ -143,3 +143,13 @@ Append-only log. Every entry: context → decision → consequences. Never delet
 **Decision.** `rusqlite` 0.40 with the `bundled` SQLite (zero system dependency — reproducible, offline, SOUL §21/§33) plus `backup` and `serde_json` features. "sqlx-style" is implemented as the **pattern**: numbered SQL files embedded at compile time, applied forward-only in per-migration transactions, tracked in `schema_migrations`. The core stays **synchronous**: one mutex-guarded WAL connection; the Tauri shell and job workers call from their own threads (coarse lock revisited only on profiling evidence, SOUL §8). Conventions: timestamps INTEGER Unix seconds UTC; JSON documents in TEXT columns; every CHECK-constrained column mirrored by a typed Rust enum that rejects unknown values instead of defaulting. Job rows move only through a guarded state machine (`pending→running→{paused,failed,done}`, resume via `paused/failed→running`), which is what makes `resume_json` trustworthy.
 
 **Consequences.** No async contagion in omni-core; bundled SQLite pins the exact database version for every user; migration history is append-only like this file. Cost: a future need for async DB access requires wrapping (spawn-blocking) rather than native async queries — accepted for the MVP.
+
+---
+
+## ADR-0016 — Meta hostname confirmed: `omnimeta.wpaistudio.net`; auth client ID recorded · 2026-07-19 · Accepted
+
+**Context.** ADR-0012 left the meta hostname a placeholder (`meta.omniframework.wpaistudio.net`, two-level). During live setup (director + AI session, 2026-07-19) it surfaced that Cloudflare Universal SSL covers only one subdomain level — a two-level name would force Advanced Certificate Manager (~$10/month) for zero benefit.
+
+**Decision.** Meta service hostname: **`omnimeta.wpaistudio.net`** (director-selected). Provisioned same session: R2 subscription activated, bucket `omni-meta` (Standard, ENAM), custom domain bound (auto-CNAME + cert), minimum TLS 1.2. The Azure app registration for LNC-4 auth also exists and is compliant: **client ID `ff86f866-0ef7-4208-aa66-c17d8124dcc3`** ("OmniLauncher", personal-Microsoft-accounts audience, no client secret, public-client loopback redirect `http://127.0.0.1`, "Allow public client flows" enabled). The client ID is public-by-design (embedded in every launcher build) and is recorded here as the build-config source of truth until the launcher config file lands (brick 4).
+
+**Consequences.** Brick 9's deploy target exists; the hostname stays a build-config value (the ADR-0012 swap-friendliness is unchanged — this record supersedes only the placeholder detail). Live end-to-end login testing remains gated on Mojang's third-party-launcher approval of the client ID (ROADMAP external dependencies).
