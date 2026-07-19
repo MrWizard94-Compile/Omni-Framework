@@ -153,3 +153,19 @@ Append-only log. Every entry: context → decision → consequences. Never delet
 **Decision.** Meta service hostname: **`omnimeta.wpaistudio.net`** (director-selected). Provisioned same session: R2 subscription activated, bucket `omni-meta` (Standard, ENAM), custom domain bound (auto-CNAME + cert), minimum TLS 1.2. The Azure app registration for LNC-4 auth also exists and is compliant: **client ID `ff86f866-0ef7-4208-aa66-c17d8124dcc3`** ("OmniLauncher", personal-Microsoft-accounts audience, no client secret, public-client loopback redirect `http://127.0.0.1`, "Allow public client flows" enabled). The client ID is public-by-design (embedded in every launcher build) and is recorded here as the build-config source of truth until the launcher config file lands (brick 4).
 
 **Consequences.** Brick 9's deploy target exists; the hostname stays a build-config value (the ADR-0012 swap-friendliness is unchanged — this record supersedes only the placeholder detail). Live end-to-end login testing remains gated on Mojang's third-party-launcher approval of the client ID (ROADMAP external dependencies).
+
+---
+
+## ADR-0017 — OmniMC: original pure-Rust voxel game, parallel track · 2026-07-19 · Accepted
+
+**Context.** The director proposed rebuilding Minecraft in Rust (later framed as an engine plus a Java-mod-to-WASM translation layer). The compliance escalation (2026-07-19 session, COMPLIANCE §6) established: a reimplementation under any name reproduces Mojang content/behavior and endangers the Framework's EULA-clean posture and the pending launcher allowlist approval; and a Java-mod compat layer on a foreign engine silently re-imports the whole problem, because mods require Minecraft's API surface and behavioral semantics (plus research-grade technical risk — Mixin's runtime patching does not survive AOT-to-WASM; no working precedent exists).
+
+**Decision (director).** The original plan stands: OmniLauncher/OmniLoader serve real Minecraft and unify its ecosystem — Phases 4–7 remain the critical path, unchanged. In parallel, **OmniMC** is developed as a **pure native Rust, fully original voxel game**. Binding guardrails:
+
+1. **Original content only** — no Mojang assets, textures, sounds, music, or close clones of their expression; original name, world identity, and content.
+2. **Clean-room** — no vanilla source, decompiled output, or Mojang mappings as implementation reference (the ADR-0002 discipline extends to OmniMC).
+3. **Mod API**: first-class, sandboxed, language-agnostic **WASM modding** is the recommended native format; ecosystem growth runs through the ADR-0003 permission/outreach pipeline (authors port by consent).
+4. **Java-mod interop is out of scope** and may only enter through a future dedicated ADR with explicit legal review.
+5. **Branding** carries no Minecraft trademark and no compatibility claims; showcase materials present engine benchmarks and the open modding platform, never substitute-product claims.
+
+**Consequences.** OmniMC receives its own architecture phase (engine direction: wgpu rendering with multidraw indirect, decoupled simulation/render/IO loops) gated behind Phase 4 MVP completion for capacity; `OmniMC_Rust Edition/` is chartered by its README pointing here; the two products complement rather than endanger each other — real-Minecraft modding through the Framework, original modding through OmniMC.

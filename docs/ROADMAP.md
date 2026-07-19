@@ -73,6 +73,12 @@ Index Modrinth + CurseForge public APIs into the DB. Tier every 1.21.1-relevant 
 
 Per-mod port queue for top tiers: license check → (if restrictive) author outreach with template → port → verify in mod-test-suite → publish. Compat layers carry everything not (yet) ported. Hard "no" from an author permanently excludes native porting of that mod (ADR-0003).
 
+## Parallel Track — OmniMC (ADR-0017)
+
+An original pure-Rust voxel game (own code/assets/identity, WASM-native mod API,
+clean-room guardrails). **Not** part of Phases 4–7 and never their blocker; its own
+architecture phase begins after the Phase 4 MVP ships. Charter: `../OmniMC_Rust Edition/README.md`.
+
 ## External Dependencies (human action items)
 
 | Item | Owner | Status |

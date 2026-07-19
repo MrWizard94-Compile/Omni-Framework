@@ -6,7 +6,7 @@
 
 ## Identity & Branding
 
-- Project: **Omni-Framework** (components: **OmniLauncher**, **OmniLoader**).
+- Project: **Omni-Framework** (components: **OmniLauncher**, **OmniLoader**). Parallel track: **OmniMC** — an original pure-Rust voxel game (ADR-0017; NOT a Minecraft rebuild — original content only, clean-room, Java-mod interop out of scope; charter in `OmniMC_Rust Edition/README.md`).
 - Company: **Wizard Productions AI Studio** — wpaistudio.net. Director: **MrWizard94** (GitHub: MrWizard94-Compile).
 - Spelling: it is always "Framework". The historical "Framwork" typo was eradicated 2026-07-18 (repo renamed; see docs/DECISIONS.md ADR-0005). Never reintroduce it.
 
