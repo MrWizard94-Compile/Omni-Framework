@@ -1,6 +1,15 @@
 # OmniLauncher
 
-**Status: architecture specified — implementation begins Phase 4.** The binding design is **[`ARCHITECTURE.md`](ARCHITECTURE.md)** (Phase 3 output, 2026-07-18): crate layering, SQLite schema draft, auth module, job-runner install pipeline, importer set, server instances. This directory intentionally contains no code yet per SOUL §1. This README records the high-level constraints; the architecture doc governs.
+**Status: Phase 4 implementation in progress.** The binding design is **[`ARCHITECTURE.md`](ARCHITECTURE.md)** (Phase 3 output, 2026-07-18): crate layering, SQLite schema draft, auth module, job-runner install pipeline, importer set, server instances. This README records the high-level constraints; the architecture doc governs.
+
+Landed so far (brick order in `../docs/ROADMAP.md` Phase 4):
+
+- **`crates/omni-meta-client`** (2026-07-18) — the LNC-3 meta consumer: hash-chain-verified
+  fetch of the OmniMeta `/v1` tree, content-addressed self-healing cache, offline root
+  fallback with an explicit `Freshness` marker (SVC-2). Transport-abstracted
+  (`HttpSource` for the CDN, `DirSource` for local trees); synchronous by design —
+  `omni-core` wraps it in its async runtime's blocking facility. Tested against the
+  generator's committed golden tree, so both sides of the wire share one fixture.
 
 ## What it will be
 

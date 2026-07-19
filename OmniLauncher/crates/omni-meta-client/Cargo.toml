@@ -1,0 +1,21 @@
+[package]
+name = "omni-meta-client"
+description = "Typed OmniLauncher-side client of the Omni meta service: hash-verified fetch, content-addressed cache, offline fallback (LNC-3, SVC-2)"
+publish = false
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+
+[dependencies]
+omni-meta-format = { workspace = true }
+serde_json = { workspace = true }
+ureq = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }
+
+[lints]
+workspace = true

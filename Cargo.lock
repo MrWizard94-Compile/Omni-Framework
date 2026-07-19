@@ -317,6 +317,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "omni-meta-client"
+version = "0.1.0"
+dependencies = [
+ "omni-meta-format",
+ "serde_json",
+ "tempfile",
+ "ureq",
+]
+
+[[package]]
 name = "omni-meta-format"
 version = "0.1.0"
 dependencies = [
