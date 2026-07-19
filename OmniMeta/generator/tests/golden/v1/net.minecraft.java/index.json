@@ -1,0 +1,26 @@
+{
+  "uid": "net.minecraft.java",
+  "versions": [
+    {
+      "version": "21.0.3",
+      "releaseTime": "2024-04-16T12:00:00+00:00",
+      "type": "release",
+      "url": "net.minecraft.java/21.0.3.json",
+      "sha256": "bce448f397c0f31f47e642956ce815793c80225d3ced509abb3e92c98946242c"
+    },
+    {
+      "version": "8u402",
+      "releaseTime": "2024-01-16T12:00:00+00:00",
+      "type": "release",
+      "url": "net.minecraft.java/8u402.json",
+      "sha256": "09438b6c81d8b3629f00ed994fb3aadd81b539532963d0677f65cf9c404f4861"
+    },
+    {
+      "version": "17.0.8",
+      "releaseTime": "2023-08-23T12:00:00+00:00",
+      "type": "release",
+      "url": "net.minecraft.java/17.0.8.json",
+      "sha256": "ec9c0eb219d18b205cb1e0b5b3042446199ab5f9b1cb24850377f40f3b530452"
+    }
+  ]
+}

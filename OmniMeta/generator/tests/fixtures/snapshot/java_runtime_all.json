@@ -1,0 +1,62 @@
+{
+  "gamecore": {},
+  "linux": {
+    "java-runtime-delta": [
+      {
+        "availability": { "group": 9001, "progress": 100 },
+        "manifest": {
+          "sha1": "7070707070707070707070707070707070707070",
+          "size": 291404,
+          "url": "https://piston-meta.mojang.com/v1/packages/7070707070707070707070707070707070707070/manifest.json"
+        },
+        "version": { "name": "21.0.3", "released": "2024-04-16T12:00:00+00:00" }
+      }
+    ],
+    "jre-legacy": [
+      {
+        "availability": { "group": 9001, "progress": 100 },
+        "manifest": {
+          "sha1": "8080808080808080808080808080808080808080",
+          "size": 127909,
+          "url": "https://piston-meta.mojang.com/v1/packages/8080808080808080808080808080808080808080/manifest.json"
+        },
+        "version": { "name": "8u402", "released": "2024-01-16T12:00:00+00:00" }
+      }
+    ]
+  },
+  "windows-x64": {
+    "java-runtime-delta": [
+      {
+        "availability": { "group": 9001, "progress": 100 },
+        "manifest": {
+          "sha1": "9090909090909090909090909090909090909090",
+          "size": 305667,
+          "url": "https://piston-meta.mojang.com/v1/packages/9090909090909090909090909090909090909090/manifest.json"
+        },
+        "version": { "name": "21.0.3", "released": "2024-04-16T12:30:00+00:00" }
+      }
+    ],
+    "java-runtime-gamma": [
+      {
+        "availability": { "group": 9001, "progress": 100 },
+        "manifest": {
+          "sha1": "a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0",
+          "size": 301202,
+          "url": "https://piston-meta.mojang.com/v1/packages/a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0/manifest.json"
+        },
+        "version": { "name": "17.0.8", "released": "2023-08-23T12:00:00+00:00" }
+      }
+    ],
+    "jre-legacy": [
+      {
+        "availability": { "group": 9001, "progress": 100 },
+        "manifest": {
+          "sha1": "b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0",
+          "size": 129009,
+          "url": "https://piston-meta.mojang.com/v1/packages/b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0/manifest.json"
+        },
+        "version": { "name": "8u402", "released": "2024-01-16T12:30:00+00:00" }
+      }
+    ]
+  }
+}

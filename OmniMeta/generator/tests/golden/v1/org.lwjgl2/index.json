@@ -1,0 +1,12 @@
+{
+  "uid": "org.lwjgl2",
+  "versions": [
+    {
+      "version": "2.9.1",
+      "releaseTime": "2014-05-14T17:29:23+00:00",
+      "type": "release",
+      "url": "org.lwjgl2/2.9.1.json",
+      "sha256": "d8af4267061fd87b8491360079af650c27b630b25bd0ada6826cc55de24bee49"
+    }
+  ]
+}

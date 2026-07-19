@@ -1,0 +1,24 @@
+{
+  "uid": "org.omniframework.mappings-1.21.1",
+  "version": "1.21.1",
+  "releaseTime": "2024-08-08T12:24:45+00:00",
+  "type": "release",
+  "requires": [
+    {
+      "uid": "net.minecraft",
+      "range": "1.21.1"
+    }
+  ],
+  "data": {
+    "clientMappings": {
+      "sha1": "3333333333333333333333333333333333333333",
+      "size": 9541351,
+      "url": "https://piston-data.mojang.com/v1/objects/3333333333333333333333333333333333333333/client.txt"
+    },
+    "serverMappings": {
+      "sha1": "5555555555555555555555555555555555555555",
+      "size": 7327687,
+      "url": "https://piston-data.mojang.com/v1/objects/5555555555555555555555555555555555555555/server.txt"
+    }
+  }
+}

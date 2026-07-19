@@ -1,0 +1,12 @@
+{
+  "uid": "org.lwjgl3",
+  "versions": [
+    {
+      "version": "3.3.3",
+      "releaseTime": "2024-08-08T12:24:45+00:00",
+      "type": "release",
+      "url": "org.lwjgl3/3.3.3.json",
+      "sha256": "0466114e46c965bb255191e235f4439c72471b62bdc3311a3a71600c293ff38c"
+    }
+  ]
+}

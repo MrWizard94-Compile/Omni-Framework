@@ -1,0 +1,12 @@
+{
+  "uid": "org.omniframework.mappings-1.21.1",
+  "versions": [
+    {
+      "version": "1.21.1",
+      "releaseTime": "2024-08-08T12:24:45+00:00",
+      "type": "release",
+      "url": "org.omniframework.mappings-1.21.1/1.21.1.json",
+      "sha256": "c2fa197bb0cd6579cc2d2de14a12f28304491c4f7e7e25e6f44e01edd44e69d2"
+    }
+  ]
+}

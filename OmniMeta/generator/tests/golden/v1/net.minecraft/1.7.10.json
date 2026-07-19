@@ -1,0 +1,71 @@
+{
+  "uid": "net.minecraft",
+  "version": "1.7.10",
+  "releaseTime": "2014-05-14T17:29:23+00:00",
+  "type": "release",
+  "requires": [
+    {
+      "uid": "org.lwjgl2",
+      "range": "2.9.1"
+    }
+  ],
+  "mainClass": "net.minecraft.client.main.Main",
+  "legacyArguments": "--username ${auth_player_name} --version ${version_name} --gameDir ${game_directory} --assetsDir ${assets_root} --assetIndex ${assets_index_name} --uuid ${auth_uuid} --accessToken ${auth_access_token} --userProperties ${user_properties} --userType ${user_type}",
+  "libraries": [
+    {
+      "coord": "com.google.guava:guava:16.0",
+      "url": "https://libraries.minecraft.net/com/google/guava/guava/16.0/guava-16.0.jar",
+      "sha1": "ffffffffffffffffffffffffffffffffffffffff",
+      "size": 2189115
+    },
+    {
+      "coord": "net.java.jinput:jinput-platform:2.0.5:natives-linux",
+      "url": "https://libraries.minecraft.net/net/java/jinput/jinput-platform/2.0.5/jinput-platform-2.0.5-natives-linux.jar",
+      "sha1": "5050505050505050505050505050505050505050",
+      "size": 10362,
+      "rules": [
+        {
+          "action": "allow",
+          "os": {
+            "name": "linux"
+          }
+        }
+      ]
+    },
+    {
+      "coord": "net.java.jinput:jinput-platform:2.0.5:natives-windows",
+      "url": "https://libraries.minecraft.net/net/java/jinput/jinput-platform/2.0.5/jinput-platform-2.0.5-natives-windows.jar",
+      "sha1": "6060606060606060606060606060606060606060",
+      "size": 155179,
+      "rules": [
+        {
+          "action": "allow",
+          "os": {
+            "name": "windows"
+          }
+        }
+      ]
+    }
+  ],
+  "assetIndex": {
+    "id": "1.7.10",
+    "url": "https://piston-meta.mojang.com/v1/packages/cccccccccccccccccccccccccccccccccccccccc/1.7.10.json",
+    "sha1": "cccccccccccccccccccccccccccccccccccccccc",
+    "size": 74146,
+    "totalSize": 112396854
+  },
+  "data": {
+    "downloads": {
+      "client": {
+        "sha1": "dddddddddddddddddddddddddddddddddddddddd",
+        "size": 5256245,
+        "url": "https://piston-data.mojang.com/v1/objects/dddddddddddddddddddddddddddddddddddddddd/client.jar"
+      },
+      "server": {
+        "sha1": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "size": 9605030,
+        "url": "https://piston-data.mojang.com/v1/objects/eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee/server.jar"
+      }
+    }
+  }
+}

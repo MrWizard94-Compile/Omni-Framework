@@ -1,0 +1,28 @@
+{
+  "uid": "org.omniframework.omniloader",
+  "version": "0.1.0",
+  "releaseTime": "2026-07-18T00:00:00+00:00",
+  "type": "release",
+  "requires": [
+    {
+      "uid": "net.minecraft",
+      "range": "1.21.1"
+    },
+    {
+      "uid": "org.omniframework.mappings-1.21.1",
+      "range": "1.21.1"
+    }
+  ],
+  "mainClass": "org.omniframework.loader.launch.OmniClientMain",
+  "libraries": [
+    {
+      "coord": "org.omniframework:loader-core:0.1.0",
+      "url": "https://artifacts.omniframework.wpaistudio.net/maven/org/omniframework/loader-core/0.1.0/loader-core-0.1.0.jar",
+      "sha1": "c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1",
+      "size": 425984
+    }
+  ],
+  "data": {
+    "serverMainClass": "org.omniframework.loader.launch.OmniServerMain"
+  }
+}

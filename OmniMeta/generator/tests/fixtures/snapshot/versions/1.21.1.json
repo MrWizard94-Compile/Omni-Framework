@@ -1,0 +1,138 @@
+{
+  "id": "1.21.1",
+  "type": "release",
+  "time": "2024-08-08T12:31:31+00:00",
+  "releaseTime": "2024-08-08T12:24:45+00:00",
+  "mainClass": "net.minecraft.client.main.Main",
+  "complianceLevel": 1,
+  "assets": "17",
+  "assetIndex": {
+    "id": "17",
+    "sha1": "1111111111111111111111111111111111111111",
+    "size": 447033,
+    "totalSize": 799384816,
+    "url": "https://piston-meta.mojang.com/v1/packages/1111111111111111111111111111111111111111/17.json"
+  },
+  "javaVersion": { "component": "java-runtime-delta", "majorVersion": 21 },
+  "arguments": {
+    "game": [
+      "--username",
+      "${auth_player_name}",
+      "--version",
+      "${version_name}",
+      {
+        "rules": [ { "action": "allow", "features": { "is_demo_user": true } } ],
+        "value": "--demo"
+      },
+      {
+        "rules": [ { "action": "allow", "features": { "has_quick_plays_support": true } } ],
+        "value": [ "--quickPlayPath", "${quickPlayPath}" ]
+      }
+    ],
+    "jvm": [
+      {
+        "rules": [ { "action": "allow", "os": { "name": "windows" } } ],
+        "value": "-XX:HeapDumpPath=MojangTricksIntelDriversForPerformance_javaw.exe_minecraft.exe.heapdump"
+      },
+      {
+        "rules": [ { "action": "allow", "os": { "name": "linux", "arch": "x86" } } ],
+        "value": "-Xss1M"
+      },
+      "-Djava.library.path=${natives_directory}",
+      "-cp",
+      "${classpath}"
+    ]
+  },
+  "downloads": {
+    "client": {
+      "sha1": "2222222222222222222222222222222222222222",
+      "size": 26836080,
+      "url": "https://piston-data.mojang.com/v1/objects/2222222222222222222222222222222222222222/client.jar"
+    },
+    "client_mappings": {
+      "sha1": "3333333333333333333333333333333333333333",
+      "size": 9541351,
+      "url": "https://piston-data.mojang.com/v1/objects/3333333333333333333333333333333333333333/client.txt"
+    },
+    "server": {
+      "sha1": "4444444444444444444444444444444444444444",
+      "size": 51627615,
+      "url": "https://piston-data.mojang.com/v1/objects/4444444444444444444444444444444444444444/server.jar"
+    },
+    "server_mappings": {
+      "sha1": "5555555555555555555555555555555555555555",
+      "size": 7327687,
+      "url": "https://piston-data.mojang.com/v1/objects/5555555555555555555555555555555555555555/server.txt"
+    }
+  },
+  "logging": {
+    "client": {
+      "argument": "-Dlog4j.configurationFile=${path}",
+      "file": {
+        "id": "client-1.12.xml",
+        "sha1": "6666666666666666666666666666666666666666",
+        "size": 888,
+        "url": "https://piston-data.mojang.com/v1/objects/6666666666666666666666666666666666666666/client-1.12.xml"
+      },
+      "type": "log4j2-xml"
+    }
+  },
+  "libraries": [
+    {
+      "name": "com.mojang:brigadier:1.2.9",
+      "downloads": {
+        "artifact": {
+          "path": "com/mojang/brigadier/1.2.9/brigadier-1.2.9.jar",
+          "sha1": "7777777777777777777777777777777777777777",
+          "size": 77392,
+          "url": "https://libraries.minecraft.net/com/mojang/brigadier/1.2.9/brigadier-1.2.9.jar"
+        }
+      }
+    },
+    {
+      "name": "org.lwjgl:lwjgl:3.3.3",
+      "downloads": {
+        "artifact": {
+          "path": "org/lwjgl/lwjgl/3.3.3/lwjgl-3.3.3.jar",
+          "sha1": "8888888888888888888888888888888888888888",
+          "size": 786196,
+          "url": "https://libraries.minecraft.net/org/lwjgl/lwjgl/3.3.3/lwjgl-3.3.3.jar"
+        }
+      }
+    },
+    {
+      "name": "org.lwjgl:lwjgl:3.3.3:natives-windows",
+      "downloads": {
+        "artifact": {
+          "path": "org/lwjgl/lwjgl/3.3.3/lwjgl-3.3.3-natives-windows.jar",
+          "sha1": "9999999999999999999999999999999999999999",
+          "size": 401700,
+          "url": "https://libraries.minecraft.net/org/lwjgl/lwjgl/3.3.3/lwjgl-3.3.3-natives-windows.jar"
+        }
+      },
+      "rules": [ { "action": "allow", "os": { "name": "windows" } } ]
+    },
+    {
+      "name": "org.lwjgl:lwjgl-glfw:3.3.3",
+      "downloads": {
+        "artifact": {
+          "path": "org/lwjgl/lwjgl-glfw/3.3.3/lwjgl-glfw-3.3.3.jar",
+          "sha1": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "size": 133236,
+          "url": "https://libraries.minecraft.net/org/lwjgl/lwjgl-glfw/3.3.3/lwjgl-glfw-3.3.3.jar"
+        }
+      }
+    },
+    {
+      "name": "com.google.guava:guava:32.1.2-jre",
+      "downloads": {
+        "artifact": {
+          "path": "com/google/guava/guava/32.1.2-jre/guava-32.1.2-jre.jar",
+          "sha1": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "size": 3041591,
+          "url": "https://libraries.minecraft.net/com/google/guava/guava/32.1.2-jre/guava-32.1.2-jre.jar"
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "uid": "org.omniframework.omniloader",
+  "versions": [
+    {
+      "version": "0.1.0",
+      "releaseTime": "2026-07-18T00:00:00+00:00",
+      "type": "release",
+      "recommended": true,
+      "url": "org.omniframework.omniloader/0.1.0.json",
+      "sha256": "dc516d5d4fc79005b3351ec546f5d3b787e12c33d39cb80c4e91833c4a84eac0"
+    }
+  ]
+}

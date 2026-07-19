@@ -1,0 +1,135 @@
+{
+  "uid": "net.minecraft",
+  "version": "1.21.1",
+  "releaseTime": "2024-08-08T12:24:45+00:00",
+  "type": "release",
+  "requires": [
+    {
+      "uid": "org.lwjgl3",
+      "range": "3.3.3"
+    }
+  ],
+  "mainClass": "net.minecraft.client.main.Main",
+  "arguments": {
+    "game": [
+      "--username",
+      "${auth_player_name}",
+      "--version",
+      "${version_name}",
+      {
+        "rules": [
+          {
+            "action": "allow",
+            "features": {
+              "is_demo_user": true
+            }
+          }
+        ],
+        "value": "--demo"
+      },
+      {
+        "rules": [
+          {
+            "action": "allow",
+            "features": {
+              "has_quick_plays_support": true
+            }
+          }
+        ],
+        "value": [
+          "--quickPlayPath",
+          "${quickPlayPath}"
+        ]
+      }
+    ],
+    "jvm": [
+      {
+        "rules": [
+          {
+            "action": "allow",
+            "os": {
+              "name": "windows"
+            }
+          }
+        ],
+        "value": "-XX:HeapDumpPath=MojangTricksIntelDriversForPerformance_javaw.exe_minecraft.exe.heapdump"
+      },
+      {
+        "rules": [
+          {
+            "action": "allow",
+            "os": {
+              "name": "linux",
+              "arch": "x86"
+            }
+          }
+        ],
+        "value": "-Xss1M"
+      },
+      "-Djava.library.path=${natives_directory}",
+      "-cp",
+      "${classpath}"
+    ]
+  },
+  "libraries": [
+    {
+      "coord": "com.mojang:brigadier:1.2.9",
+      "url": "https://libraries.minecraft.net/com/mojang/brigadier/1.2.9/brigadier-1.2.9.jar",
+      "sha1": "7777777777777777777777777777777777777777",
+      "size": 77392
+    },
+    {
+      "coord": "com.google.guava:guava:32.1.2-jre",
+      "url": "https://libraries.minecraft.net/com/google/guava/guava/32.1.2-jre/guava-32.1.2-jre.jar",
+      "sha1": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "size": 3041591
+    }
+  ],
+  "assetIndex": {
+    "id": "17",
+    "url": "https://piston-meta.mojang.com/v1/packages/1111111111111111111111111111111111111111/17.json",
+    "sha1": "1111111111111111111111111111111111111111",
+    "size": 447033,
+    "totalSize": 799384816
+  },
+  "javaVersion": {
+    "component": "java-runtime-delta",
+    "majorVersion": 21
+  },
+  "data": {
+    "downloads": {
+      "client": {
+        "sha1": "2222222222222222222222222222222222222222",
+        "size": 26836080,
+        "url": "https://piston-data.mojang.com/v1/objects/2222222222222222222222222222222222222222/client.jar"
+      },
+      "client_mappings": {
+        "sha1": "3333333333333333333333333333333333333333",
+        "size": 9541351,
+        "url": "https://piston-data.mojang.com/v1/objects/3333333333333333333333333333333333333333/client.txt"
+      },
+      "server": {
+        "sha1": "4444444444444444444444444444444444444444",
+        "size": 51627615,
+        "url": "https://piston-data.mojang.com/v1/objects/4444444444444444444444444444444444444444/server.jar"
+      },
+      "server_mappings": {
+        "sha1": "5555555555555555555555555555555555555555",
+        "size": 7327687,
+        "url": "https://piston-data.mojang.com/v1/objects/5555555555555555555555555555555555555555/server.txt"
+      }
+    },
+    "logging": {
+      "client": {
+        "argument": "-Dlog4j.configurationFile=${path}",
+        "file": {
+          "id": "client-1.12.xml",
+          "sha1": "6666666666666666666666666666666666666666",
+          "size": 888,
+          "url": "https://piston-data.mojang.com/v1/objects/6666666666666666666666666666666666666666/client-1.12.xml"
+        },
+        "type": "log4j2-xml"
+      }
+    }
+  }
+}

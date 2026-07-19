@@ -1,0 +1,12 @@
+{
+  "retrievedAtUnix": 1789000000,
+  "manifestUrl": "https://piston-meta.mojang.com/mc/game/version_manifest_v2.json",
+  "javaRuntimeUrl": "https://launchermeta.mojang.com/v1/products/java-runtime/2ec0cc96c44e5a76b9c8b7c39df7210883d12871/all.json",
+  "entries": [
+    {
+      "path": "version_manifest_v2.json",
+      "url": "https://piston-meta.mojang.com/mc/game/version_manifest_v2.json",
+      "sha256": "synthetic-fixture-not-a-real-capture"
+    }
+  ]
+}

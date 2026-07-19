@@ -1,0 +1,6 @@
+{
+  "recommended": {
+    "net.minecraft": [ "1.21.1" ],
+    "org.omniframework.omniloader": [ "0.1.0" ]
+  }
+}

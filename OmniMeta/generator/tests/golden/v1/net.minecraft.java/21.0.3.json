@@ -1,0 +1,30 @@
+{
+  "uid": "net.minecraft.java",
+  "version": "21.0.3",
+  "releaseTime": "2024-04-16T12:00:00+00:00",
+  "type": "release",
+  "data": {
+    "platforms": {
+      "linux": {
+        "java-runtime-delta": {
+          "manifest": {
+            "sha1": "7070707070707070707070707070707070707070",
+            "size": 291404,
+            "url": "https://piston-meta.mojang.com/v1/packages/7070707070707070707070707070707070707070/manifest.json"
+          },
+          "released": "2024-04-16T12:00:00+00:00"
+        }
+      },
+      "windows-x64": {
+        "java-runtime-delta": {
+          "manifest": {
+            "sha1": "9090909090909090909090909090909090909090",
+            "size": 305667,
+            "url": "https://piston-meta.mojang.com/v1/packages/9090909090909090909090909090909090909090/manifest.json"
+          },
+          "released": "2024-04-16T12:30:00+00:00"
+        }
+      }
+    }
+  }
+}

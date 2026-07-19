@@ -1,0 +1,53 @@
+# Omni-Framework Rust workspace.
+#
+# Members (Phase 4, growing per docs/ROADMAP.md):
+#   OmniMeta/format      omni-meta-format  — index format v1 typed model (shared by
+#                                            the generator and OmniLauncher's meta client)
+#   OmniMeta/generator   omni-meta-gen     — the OmniMeta static-tree generator (SVC-1)
+#
+# OmniLauncher crates (crates/omni-core, crates/omni-meta-client, crates/omni-platform,
+# apps/launcher-shell) join this workspace as they land — one lockfile, one lint policy.
+
+[workspace]
+resolver = "3"
+members = [
+    "OmniMeta/format",
+    "OmniMeta/generator",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.96"
+license = "LicenseRef-Proprietary"          # see /LICENSE — all rights reserved
+authors = ["Wizard Productions AI Studio (wpaistudio.net)"]
+repository = "https://github.com/MrWizard94-Compile/Omni-Framework"
+
+[workspace.dependencies]
+omni-meta-format = { path = "OmniMeta/format" }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+sha1 = "0.10"
+sha2 = "0.10"
+ureq = "2.12"
+tempfile = "3.20"
+
+# Zero-warning policy (SOUL §2): clippy::all + clippy::pedantic are the gate that
+# `cargo clippy --workspace --all-targets` must pass silently before any delivery.
+[workspace.lints.rust]
+unsafe_code = "deny"
+missing_docs = "warn"
+
+[workspace.lints.clippy]
+all = { level = "warn", priority = -1 }
+pedantic = { level = "warn", priority = -1 }
+# Deliberate, documented relaxations (SOUL §2 requires justification):
+# - module_name_repetitions: our public names repeat module stems by design
+#   (e.g. `format::FormatError`) because they are re-exported at crate root.
+# - must_use_candidate: blanket #[must_use] on every getter adds noise, not safety;
+#   Result-returning APIs already carry the compiler's unused-Result lint.
+module_name_repetitions = "allow"
+must_use_candidate = "allow"
+
+[profile.release]
+lto = "thin"

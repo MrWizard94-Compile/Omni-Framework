@@ -1,0 +1,34 @@
+{
+  "uid": "org.lwjgl3",
+  "version": "3.3.3",
+  "releaseTime": "2024-08-08T12:24:45+00:00",
+  "type": "release",
+  "libraries": [
+    {
+      "coord": "org.lwjgl:lwjgl-glfw:3.3.3",
+      "url": "https://libraries.minecraft.net/org/lwjgl/lwjgl-glfw/3.3.3/lwjgl-glfw-3.3.3.jar",
+      "sha1": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "size": 133236
+    },
+    {
+      "coord": "org.lwjgl:lwjgl:3.3.3",
+      "url": "https://libraries.minecraft.net/org/lwjgl/lwjgl/3.3.3/lwjgl-3.3.3.jar",
+      "sha1": "8888888888888888888888888888888888888888",
+      "size": 786196
+    },
+    {
+      "coord": "org.lwjgl:lwjgl:3.3.3:natives-windows",
+      "url": "https://libraries.minecraft.net/org/lwjgl/lwjgl/3.3.3/lwjgl-3.3.3-natives-windows.jar",
+      "sha1": "9999999999999999999999999999999999999999",
+      "size": 401700,
+      "rules": [
+        {
+          "action": "allow",
+          "os": {
+            "name": "windows"
+          }
+        }
+      ]
+    }
+  ]
+}

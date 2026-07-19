@@ -1,0 +1,24 @@
+[package]
+name = "omni-meta-gen"
+description = "OmniMeta static-tree generator: Mojang upstreams + Omni component definitions -> deterministic /v1 index tree (SVC-1)"
+publish = false
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+
+[dependencies]
+omni-meta-format = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+sha1 = { workspace = true }
+sha2 = { workspace = true }
+ureq = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }
+
+[lints]
+workspace = true

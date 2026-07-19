@@ -40,12 +40,26 @@ Comparative feature matrix generated (`intelligence/matrix.md`, `tools/matrix.py
 
 Delivered: **`OmniLoader/ARCHITECTURE.md`** (module map, boot sequence, `omni.mod.json` v0, transform cache, compat SPI, Mixin integration), **`OmniLauncher/ARCHITECTURE.md`** (crate layering, SQLite schema v1 draft, auth, job runner, importers, servers), **`OmniMeta/README.md`** (meta service + index format v1), and ADRs 0009–0014 resolving the REQUIREMENTS §9 deferred list. Remaining §9 item deferred by design: SRG/legacy-Forge support awaits Phase 6 census data.
 
-## Phase 4 — MVP Implementation ⬜
+## Phase 4 — MVP Implementation ▶ (started 2026-07-18)
 
 Scope per REQUIREMENTS.md (D7/D8 expanded it):
 - OmniLauncher (Tauri) launches vanilla 1.21.1 end-to-end with real MSA login; **client and server instances**; all four migration importers (CurseForge App, Prism/MultiMC, Modrinth/.mrpack, official profiles).
 - OmniLoader boots 1.21.1 and loads: one native Omni test mod, one Fabric mod via compat layer, one NeoForge mod via compat layer.
 - Omni meta service generator + CDN deployment (SVC-1).
+
+Delivery bricks (dependency-first; each lands complete, tested, zero-warning):
+
+| # | Brick | Status |
+|---|---|---|
+| 1 | OmniMeta generator + `omni-meta-format` crate (snapshot/generate/verify, golden-tested, live-validated on real 1.21.1) | ✅ 2026-07-18 |
+| 2 | `omni-meta-client` crate (launcher-side typed consumer, hash-verified, offline-tolerant) | ⬜ |
+| 3 | `omni-core` foundations: SQLite schema v1 + migrations, job runner | ⬜ |
+| 4 | Auth module (MSA chain per COMPLIANCE §2, device-code dev flow) + vault storage | ⬜ |
+| 5 | Install/launch pipeline (client, then server variant + EULA flow) | ⬜ |
+| 6 | Importers ×4 + fingerprinting/hash recovery | ⬜ |
+| 7 | Tauri shell + UI surfaces | ⬜ |
+| 8 | OmniLoader Gradle multi-project: loader-model (`omni.mod.json` v0) upward per ARCHITECTURE §2 | ⬜ |
+| 9 | Meta CDN deployment (R2; needs director domain confirmation, ADR-0012) | ⬜ |
 
 ## Phase 5 — Stabilization ⬜
 

@@ -1,0 +1,35 @@
+{
+  "formatVersion": 1,
+  "components": [
+    {
+      "uid": "net.minecraft",
+      "versionsUrl": "net.minecraft/index.json",
+      "sha256": "c99657bbe49c41980d91f937f4fddd4c94de11b08730108bc3ac1e7e5e20fc0c"
+    },
+    {
+      "uid": "net.minecraft.java",
+      "versionsUrl": "net.minecraft.java/index.json",
+      "sha256": "ec53c0540c8e49133f035d52b16e7be1ac9c23f3fce1e9b8d45b34fb72868352"
+    },
+    {
+      "uid": "org.lwjgl2",
+      "versionsUrl": "org.lwjgl2/index.json",
+      "sha256": "fb770263aa16316bc518fca615edd9b8a46f8ac23610c4ee13f4a44a6b999704"
+    },
+    {
+      "uid": "org.lwjgl3",
+      "versionsUrl": "org.lwjgl3/index.json",
+      "sha256": "1e41ba16345766386bb50e028daed3ae376f5d812487e4061199d57bc5f2fed2"
+    },
+    {
+      "uid": "org.omniframework.mappings-1.21.1",
+      "versionsUrl": "org.omniframework.mappings-1.21.1/index.json",
+      "sha256": "66a0f136fda4c2c2a9e483a1a99050d3c373742baae01bd9690909510b3bd9fa"
+    },
+    {
+      "uid": "org.omniframework.omniloader",
+      "versionsUrl": "org.omniframework.omniloader/index.json",
+      "sha256": "a3b64280b2836b9de9897e44b8d38aee49773c4bb0db70d479d89cd96aa48468"
+    }
+  ]
+}

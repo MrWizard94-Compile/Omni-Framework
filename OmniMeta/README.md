@@ -1,6 +1,6 @@
 # OmniMeta — the Omni Metadata Service
 
-**Status**: Phase 3 design — implementation lands with Phase 4 (SVC-1 requires it before OmniLauncher ships).
+**Status**: Phase 3 design; **generator implemented 2026-07-18** (Phase 4 brick 1 — see §Implementation below). Hosting deploy (ADR-0012) pending director domain confirmation.
 **Authority chain**: SOUL v2.0.0 → `../docs/REQUIREMENTS.md` (SVC-1/SVC-2, D6) → this spec.
 **Pattern provenance**: three-way corpus consensus — meta.multimc.org (multimc), meta.prismlauncher.org (prism-launcher), daedalus (modrinth-app, the Rust reference implementation).
 
@@ -33,6 +33,47 @@ Component uids at launch: `net.minecraft`, `org.omniframework.omniloader`, `org.
 ## Hosting (ADR-0012)
 
 Cloudflare: generator output → R2 bucket → CDN, domain `meta.omniframework.wpaistudio.net` (placeholder — director confirms the final domain at Phase 4 deploy; the URL is a launcher build-config value exactly like (prism-launcher)'s `Launcher_META_URL`, so it is changeable without code edits). No dynamic compute in the serving path — static files only, availability = CDN availability.
+
+## Implementation (Phase 4 brick 1, 2026-07-18)
+
+Two Rust crates in the root Cargo workspace:
+
+- **`OmniMeta/format`** (`omni-meta-format`) — the typed index-format-v1 model, canonical
+  JSON serialization, sha256 hashing, and tree-path rules. Shared with OmniLauncher's
+  `omni-meta-client` so generator and consumer agree on one dialect by construction.
+- **`OmniMeta/generator`** (`omni-meta-gen`) — the three-stage pipeline:
+
+```powershell
+# 1. Capture upstreams into a pinned snapshot (the only networked stage; sha1-verified):
+cargo run -p omni-meta-gen -- snapshot --out <dir> [--versions 1.21.1,...]
+# 2. Deterministically emit the /v1 tree (pure function of the snapshot; self-verifies):
+cargo run -p omni-meta-gen -- generate --snapshot <dir> --out <dir> `
+    [--definitions <dir>] [--policy <file>] [--versions IDS] [--force]
+# 3. Audit any emitted tree (the publish gate):
+cargo run -p omni-meta-gen -- verify --tree <dir>
+```
+
+Omni components (OmniLoader, compat layers) enter the tree as **definition files**
+(`<dir>/<uid>/<version>.json`, full component payloads) passed via `--definitions`;
+loader CI will emit these per release. Recommended versions come from a **policy file**
+(`{"recommended": {"<uid>": ["<version>"]}}`); with no policy, the manifest's
+`latest.release` is recommended.
+
+Format details v1 pinned by the implementation (documented in `format/src/lib.rs`):
+
+- `requires[].range` dialect: absent = any version, present = exact version string.
+- Payloads also carry `releaseTime`/`type` (self-describing when cached standalone).
+- Version strings are sanitized into file stems (Mojang has shipped ids with spaces);
+  the explicit `url` fields in the indexes are the only sanctioned file locator.
+- `net.minecraft` extras ride in `data`: `downloads` (client/server jars + official
+  mappings, upstream key dialect) and `logging` (log4j config passthrough).
+- LWJGL is split into `org.lwjgl3`/`org.lwjgl2` components with exact-version
+  `requires` edges from each game version (enables ARM/platform substitution).
+
+Determinism is enforced by tests (`generator/tests/pipeline.rs`): a committed golden
+tree (`generator/tests/golden/`, regeneration command in the test header) must be
+reproduced byte-for-byte, and double-runs must be identical. QA gates:
+`cargo test --workspace` and `cargo clippy --workspace --all-targets` (zero warnings).
 
 ## Non-goals
 
