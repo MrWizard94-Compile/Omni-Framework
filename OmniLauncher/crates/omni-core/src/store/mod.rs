@@ -32,4 +32,9 @@ impl<'a> Store<'a> {
     pub(crate) fn new(conn: &'a mut Connection, clock: &'a dyn Clock) -> Self {
         Self { conn, clock }
     }
+
+    /// The store's current time (the injected clock — SOUL §21).
+    pub fn clock_now(&self) -> i64 {
+        self.clock.now_unix()
+    }
 }

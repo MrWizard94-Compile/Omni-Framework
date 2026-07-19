@@ -34,7 +34,10 @@ pub mod clock;
 pub mod db;
 pub mod error;
 pub mod events;
+pub mod install;
 pub mod jobs;
+pub mod launch;
+pub mod platform;
 pub mod store;
 
 pub use clock::{Clock, SystemClock};

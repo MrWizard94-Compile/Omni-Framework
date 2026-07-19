@@ -55,7 +55,7 @@ Delivery bricks (dependency-first; each lands complete, tested, zero-warning):
 | 2 | `omni-meta-client` crate (launcher-side typed consumer, hash-verified, offline-tolerant) | ✅ 2026-07-18 |
 | 3 | `omni-core` foundations: SQLite schema v1 + migrations, job runner (ADR-0015) | ✅ 2026-07-19 |
 | 4 | Auth module (MSA chain per COMPLIANCE §2, device-code dev flow) + vault storage | ✅ 2026-07-19 |
-| 5 | Install/launch pipeline (client, then server variant + EULA flow) | ⬜ |
+| 5 | Install/launch pipeline (client, then server variant + EULA flow) | ✅ 2026-07-19 |
 | 6 | Importers ×4 + fingerprinting/hash recovery | ⬜ |
 | 7 | Tauri shell + UI surfaces | ⬜ |
 | 8 | OmniLoader Gradle multi-project: loader-model (`omni.mod.json` v0) upward per ARCHITECTURE §2 | ⬜ |

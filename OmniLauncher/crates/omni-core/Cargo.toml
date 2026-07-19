@@ -12,9 +12,12 @@ repository.workspace = true
 [dependencies]
 getrandom = { workspace = true }
 keyring = { workspace = true }
+omni-meta-client = { workspace = true }
+omni-meta-format = { workspace = true }
 rusqlite = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
+sha1 = { workspace = true }
 sha2 = { workspace = true }
 ureq = { workspace = true }
 

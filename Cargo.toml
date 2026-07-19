@@ -27,6 +27,7 @@ authors = ["Wizard Productions AI Studio (wpaistudio.net)"]
 repository = "https://github.com/MrWizard94-Compile/Omni-Framework"
 
 [workspace.dependencies]
+omni-meta-client = { path = "OmniLauncher/crates/omni-meta-client" }
 omni-meta-format = { path = "OmniMeta/format" }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"

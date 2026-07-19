@@ -30,6 +30,17 @@ Landed so far (brick order in `../docs/ROADMAP.md` Phase 4):
   path). Fixture-driven tests cover the whole chain; `examples/auth_probe.rs` is the
   live-endpoint probe / dev sign-in CLI (validated against the real device-code
   endpoint with the ADR-0016 client ID).
+- **`omni-core::{install, launch, platform}`** (2026-07-19, brick 5) — the LNC-5/6
+  pipeline: shared content-addressed sha1 blob cache with self-healing verification
+  (hmcl cross-instance lesson), meta-resolved install plans (client.json rule
+  evaluation, LWJGL requires-closure, official asset layout, auto-Java from the
+  `net.minecraft.java` component with runtime registration), and installs as resumable
+  jobs whose batched phases make a re-run a free repair pass (modrinth-app lesson).
+  Launch: argument assembly for both argument eras with feature flags, classpath over
+  the immutable cache (per-instance game dirs — MUST NOT #4), gated spawn with session
+  logs + process rows, and the D8 server variant behind an explicit, recorded EULA
+  acceptance. Version-scope note: extract-era natives are post-MVP (TGT-1 is 1.21.1,
+  where natives ride the classpath), documented in `launch`.
 
 ## What it will be
 
