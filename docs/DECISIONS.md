@@ -133,3 +133,13 @@ Append-only log. Every entry: context → decision → consequences. Never delet
 **Decision.** Instance/pack export ships in Phase 5: `.mrpack` and CurseForge `manifest.json` writers (the two platform lingua francas), plus Omni's native format. Import remains the MVP surface (D7); export completes the bidirectional-migration trust posture (atlauncher finding; MUST NOT #6 rationale).
 
 **Consequences.** Phase 5 scope includes format-writer golden tests; the MUST-NOT-restrictive posture gains its concrete mechanism.
+
+---
+
+## ADR-0015 — omni-core persistence: rusqlite (bundled), sync core, migration pattern · 2026-07-19 · Accepted
+
+**Context.** LNC-2 mandates one SQLite database with "sqlx-style migrations". sqlx the *crate* brings an async runtime, macro-driven query checking, and heavy compile costs into the foundation crate; the architecture's actual requirements are versioned migrations, typed access, and testability.
+
+**Decision.** `rusqlite` 0.40 with the `bundled` SQLite (zero system dependency — reproducible, offline, SOUL §21/§33) plus `backup` and `serde_json` features. "sqlx-style" is implemented as the **pattern**: numbered SQL files embedded at compile time, applied forward-only in per-migration transactions, tracked in `schema_migrations`. The core stays **synchronous**: one mutex-guarded WAL connection; the Tauri shell and job workers call from their own threads (coarse lock revisited only on profiling evidence, SOUL §8). Conventions: timestamps INTEGER Unix seconds UTC; JSON documents in TEXT columns; every CHECK-constrained column mirrored by a typed Rust enum that rejects unknown values instead of defaulting. Job rows move only through a guarded state machine (`pending→running→{paused,failed,done}`, resume via `paused/failed→running`), which is what makes `resume_json` trustworthy.
+
+**Consequences.** No async contagion in omni-core; bundled SQLite pins the exact database version for every user; migration history is append-only like this file. Cost: a future need for async DB access requires wrapping (spawn-blocking) rather than native async queries — accepted for the MVP.

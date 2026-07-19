@@ -1,0 +1,17 @@
+# Workspace clippy configuration.
+# doc-valid-idents: product/technology names that are legitimate prose, not
+# code identifiers — ".." keeps clippy's built-in default list.
+doc-valid-idents = [
+    "..",
+    "SQLite",
+    "NeoForge",
+    "OmniLoader",
+    "OmniLauncher",
+    "OmniMeta",
+    "MultiMC",
+    "CurseForge",
+    "Modrinth",
+    "ATLauncher",
+    "GDLauncher",
+    "OneSix",
+]

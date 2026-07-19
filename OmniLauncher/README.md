@@ -10,6 +10,15 @@ Landed so far (brick order in `../docs/ROADMAP.md` Phase 4):
   (`HttpSource` for the CDN, `DirSource` for local trees); synchronous by design —
   `omni-core` wraps it in its async runtime's blocking facility. Tested against the
   generator's committed golden tree, so both sides of the wire share one fixture.
+- **`crates/omni-core`** (2026-07-19, foundations) — the headless core (LNC-1/LNC-2/D5,
+  ADR-0015): bundled-SQLite database with WAL + forward-only embedded migrations
+  (schema v1: instances as component stacks, mods as entities, accounts holding vault
+  refs only, java runtimes, process sessions, settings, jobs); typed repositories whose
+  enums mirror every CHECK constraint; the resumable job runner with a guarded state
+  machine and a persisted resume point after every step — the "any prefix resumes to
+  completion" property from ARCHITECTURE §8 is a test that runs for every interrupt
+  point; the typed event stream foundation (`CoreEvent`/`EventSink`). Auth, installs,
+  and importers (bricks 4–6) build on these primitives.
 
 ## What it will be
 
