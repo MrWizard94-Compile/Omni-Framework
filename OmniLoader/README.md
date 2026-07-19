@@ -1,6 +1,6 @@
 # OmniLoader
 
-**Status: design target — implementation begins Phase 4** (see `../docs/ROADMAP.md`). This directory intentionally contains no code yet; per SOUL §1, code lands only as complete, tested, zero-warning bricks, and the loader's architecture is an *output* of Phases 1–3. This README records the locked design constraints so far.
+**Status: architecture specified — implementation begins Phase 4.** The binding design is **[`ARCHITECTURE.md`](ARCHITECTURE.md)** (Phase 3 output, 2026-07-18): module map, boot sequence, `omni.mod.json` v0 spec, transform cache, compat-layer SPI, Mixin integration. This directory intentionally contains no code yet per SOUL §1. This README records the high-level constraints; the architecture doc governs.
 
 ## What it will be
 

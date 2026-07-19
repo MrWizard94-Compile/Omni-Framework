@@ -1,6 +1,6 @@
 # OmniLauncher
 
-**Status: design target — implementation begins Phase 4** (see `../docs/ROADMAP.md`). This directory intentionally contains no code yet; per SOUL §1, code lands only as complete, tested, zero-warning bricks, and the launcher's requirements are an *output* of Phases 1–3 (vivisection → synthesis → architecture). This README records the locked design constraints so far.
+**Status: architecture specified — implementation begins Phase 4.** The binding design is **[`ARCHITECTURE.md`](ARCHITECTURE.md)** (Phase 3 output, 2026-07-18): crate layering, SQLite schema draft, auth module, job-runner install pipeline, importer set, server instances. This directory intentionally contains no code yet per SOUL §1. This README records the high-level constraints; the architecture doc governs.
 
 ## What it will be
 
