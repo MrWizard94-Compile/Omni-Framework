@@ -78,5 +78,5 @@ Per-mod port queue for top tiers: license check → (if restrictive) author outr
 | Item | Owner | Status |
 |---|---|---|
 | Azure app registration for MSA OAuth | MrWizard94 | ✅ 2026-07-19 — "OmniLauncher", client ID `ff86f866-0ef7-4208-aa66-c17d8124dcc3`, settings verified compliant (ADR-0016) |
-| Mojang approval of Azure client ID (form: aka.ms/mce-reviewappid) | MrWizard94 | ▶ submission status to confirm — gates live end-to-end login only |
+| Mojang approval of Azure client ID (form: aka.ms/mce-reviewappid) | MrWizard94 | ▶ **submitted 2026-07-19** (AppID + tenant + justification; reviews processed weekly) — approval gates live end-to-end login only |
 | Meta CDN hosting (R2 bucket `omni-meta` + `omnimeta.wpaistudio.net`) | MrWizard94 + AI | ✅ 2026-07-19 provisioned (ADR-0016); brick 9 ships the deploy tooling |
