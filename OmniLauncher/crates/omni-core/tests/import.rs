@@ -283,6 +283,60 @@ fn official_launcher_imports_pinned_profiles_and_rejects_dynamic() {
     assert!(err.to_string().contains("dynamic version"), "actionable message: {err}");
 }
 
+/// NeoForge version ids carry no Minecraft version (`neoforge-21.1.221`), so
+/// the vanilla version comes from the installed version JSON's `inheritsFrom`.
+/// Without it, importing must REFUSE rather than store a bogus `game_version`
+/// that could never resolve against the meta service.
+#[test]
+fn official_launcher_resolves_neoforge_via_inherits_from() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let root = dir.path().join(".minecraft");
+    write(
+        &root.join("launcher_profiles.json"),
+        &json!({
+            "profiles": {
+                "neo": { "name": "NeoForge", "lastVersionId": "neoforge-21.1.221" },
+                "forge": { "name": "Forge", "lastVersionId": "1.20.1-forge-47.3.0" }
+            }
+        })
+        .to_string(),
+    );
+    let db = fresh_db();
+    let candidates = OfficialImporter.enumerate(&root).expect("enumerate");
+    let neo = candidates.iter().find(|c| c.name == "NeoForge").expect("neo");
+
+    // No version JSON on disk yet: refuse with an actionable message.
+    let err = OfficialImporter.import(&db, neo).expect_err("must refuse without inheritsFrom");
+    let message = err.to_string();
+    assert!(message.contains("neoforge-21.1.221"), "names the profile: {message}");
+    assert!(message.contains("inheritsFrom"), "explains the cause: {message}");
+
+    // With the version JSON present, inheritsFrom is authoritative.
+    write(
+        &root.join("versions/neoforge-21.1.221/neoforge-21.1.221.json"),
+        &json!({ "id": "neoforge-21.1.221", "inheritsFrom": "1.21.1" }).to_string(),
+    );
+    let report = OfficialImporter.import(&db, neo).expect("import with inheritsFrom");
+    let instance = db
+        .with_store(|store| store.instance(report.instance_id))
+        .expect("query")
+        .expect("instance");
+    assert_eq!(instance.game_version, "1.21.1", "vanilla version from inheritsFrom");
+    assert_eq!(instance.settings["importedLoader"]["kind"], "neoforge");
+    assert_eq!(instance.settings["importedLoader"]["version"], "21.1.221");
+
+    // Forge ids embed the Minecraft version, so shape parsing suffices offline.
+    let forge = candidates.iter().find(|c| c.name == "Forge").expect("forge");
+    let report = OfficialImporter.import(&db, forge).expect("import forge");
+    let instance = db
+        .with_store(|store| store.instance(report.instance_id))
+        .expect("query")
+        .expect("instance");
+    assert_eq!(instance.game_version, "1.20.1");
+    assert_eq!(instance.settings["importedLoader"]["kind"], "forge");
+    assert_eq!(instance.settings["importedLoader"]["version"], "47.3.0");
+}
+
 // -------------------------------------------------------------- shared bits
 
 #[test]

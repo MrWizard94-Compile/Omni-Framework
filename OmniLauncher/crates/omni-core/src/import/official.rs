@@ -100,9 +100,7 @@ impl Importer for OfficialImporter {
                 )),
             });
         }
-        // Modded version ids (e.g. fabric-loader-0.16.9-1.21.1) are recorded
-        // whole; the vanilla core version is the trailing MC-version segment.
-        let (game_version, loader) = split_version_id(&version);
+        let (game_version, loader) = resolve_version(&candidate.root, &version)?;
         if let Some((kind, loader_version)) = &loader {
             notes.push(format!("loader {kind} {loader_version} recorded in settings"));
         }
@@ -161,22 +159,88 @@ impl Importer for OfficialImporter {
     }
 }
 
-/// Splits a `lastVersionId` into (vanilla version, optional loader record):
-/// `1.21.1` → plain; `fabric-loader-0.16.9-1.21.1` / `neoforge-21.1.221` →
-/// loader + trailing/embedded MC version where derivable.
-fn split_version_id(version_id: &str) -> (String, Option<(String, String)>) {
+/// The vanilla version a modded version JSON extends (`inheritsFrom`) — the
+/// authoritative answer the official launcher itself uses. `None` when the
+/// version JSON is absent or carries no `inheritsFrom` (vanilla profiles).
+fn inherits_from(root: &Path, version_id: &str) -> Option<String> {
+    let path = root.join("versions").join(version_id).join(format!("{version_id}.json"));
+    let bytes = std::fs::read(path).ok()?;
+    let value: serde_json::Value = serde_json::from_slice(&bytes).ok()?;
+    value
+        .get("inheritsFrom")
+        .and_then(|inherits| inherits.as_str())
+        .filter(|inherits| !inherits.is_empty())
+        .map(str::to_owned)
+}
+
+/// The loader recorded by a `lastVersionId`, when its shape names one.
+/// Recognized shapes (all four are launcher-installer conventions):
+/// `fabric-loader-<ver>-<mc>`, `quilt-loader-<ver>-<mc>`, `neoforge-<ver>`,
+/// `<mc>-forge-<ver>`.
+fn loader_from_version_id(version_id: &str) -> Option<(String, String)> {
     for (prefix, kind) in [("fabric-loader-", "fabric"), ("quilt-loader-", "quilt")] {
         if let Some(rest) = version_id.strip_prefix(prefix)
-            && let Some((loader_version, mc)) = rest.rsplit_once('-')
+            && let Some((loader_version, _mc)) = rest.rsplit_once('-')
         {
-            return (mc.to_owned(), Some((kind.to_owned(), loader_version.to_owned())));
+            return Some((kind.to_owned(), loader_version.to_owned()));
         }
     }
     if let Some(rest) = version_id.strip_prefix("neoforge-") {
-        // NeoForge ids carry no MC version; 21.x maps to 1.21.x by convention,
-        // but the mapping is left to the loader record (the vanilla version
-        // cannot be derived reliably here).
-        return (version_id.to_owned(), Some(("neoforge".into(), rest.to_owned())));
+        return Some(("neoforge".to_owned(), rest.to_owned()));
     }
-    (version_id.to_owned(), None)
+    if let Some((_mc, loader_version)) = version_id.split_once("-forge-") {
+        return Some(("forge".to_owned(), loader_version.to_owned()));
+    }
+    None
+}
+
+/// The vanilla version a `lastVersionId` implies **by shape alone**, used only
+/// when no version JSON is available. Deliberately conservative: shapes that
+/// do not embed the game version (NeoForge) yield `None` rather than a guess,
+/// because a wrong `game_version` produces an instance that can never resolve
+/// against the meta service.
+fn game_version_from_shape(version_id: &str) -> Option<String> {
+    for prefix in ["fabric-loader-", "quilt-loader-"] {
+        if let Some(rest) = version_id.strip_prefix(prefix)
+            && let Some((_loader_version, mc)) = rest.rsplit_once('-')
+        {
+            return Some(mc.to_owned());
+        }
+    }
+    if let Some((mc, _)) = version_id.split_once("-forge-") {
+        return Some(mc.to_owned());
+    }
+    if loader_from_version_id(version_id).is_none() {
+        // A plain vanilla profile: the id *is* the version.
+        return Some(version_id.to_owned());
+    }
+    None
+}
+
+/// Resolves a profile's `lastVersionId` into (vanilla version, loader record).
+/// `inheritsFrom` from the installed version JSON wins; shape parsing is the
+/// offline fallback.
+///
+/// # Errors
+///
+/// [`CoreError::Json`] with an actionable message when the vanilla version
+/// cannot be determined — importing a bogus `game_version` would create an
+/// instance that can never install or launch.
+fn resolve_version(
+    root: &Path,
+    version_id: &str,
+) -> Result<(String, Option<(String, String)>), CoreError> {
+    let loader = loader_from_version_id(version_id);
+    let game_version = inherits_from(root, version_id)
+        .or_else(|| game_version_from_shape(version_id))
+        .ok_or_else(|| CoreError::Json {
+            context: "launcher_profiles.json",
+            source: serde::de::Error::custom(format!(
+                "cannot determine the Minecraft version behind {version_id:?}: its \
+                 version JSON (versions/{version_id}/{version_id}.json) is missing or \
+                 has no inheritsFrom. Create a new Omni instance and pick the version \
+                 explicitly instead."
+            )),
+        })?;
+    Ok((game_version, loader))
 }

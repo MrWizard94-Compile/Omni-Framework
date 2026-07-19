@@ -26,7 +26,7 @@ use omni_core::launch::{
     spawn_recorded, wait_and_record,
 };
 use omni_core::platform::Platform;
-use omni_core::store::{ComponentSource, InstanceKind, NewInstance};
+use omni_core::store::{ComponentSource, InstanceKind, JobState, NewInstance};
 use omni_core::{CoreError, Db, NullSink};
 use omni_meta_client::{DirSource, MetaClient};
 
@@ -252,31 +252,75 @@ fn client_install_completes_and_places_everything() {
     );
 }
 
+/// Wraps a blob source and trips a cancel token once `limit` fetches have
+/// happened — a genuine mid-install interrupt: the in-flight step still
+/// completes and persists its resume point, then the runner pauses at the
+/// step boundary (exactly what a user-pause or a crash-then-recover looks
+/// like to the executor).
+struct CancelAfter<'a> {
+    inner: &'a MapBlobSource,
+    token: CancelToken,
+    limit: usize,
+    seen: Mutex<usize>,
+}
+
+impl BlobSource for CancelAfter<'_> {
+    fn fetch(&self, url: &str) -> Result<Vec<u8>, BlobError> {
+        let bytes = self.inner.fetch(url)?;
+        let mut seen = self.seen.lock().expect("seen");
+        *seen += 1;
+        if *seen >= self.limit {
+            self.token.cancel();
+        }
+        Ok(bytes)
+    }
+}
+
+/// Baseline: how many fetches a clean, uninterrupted install performs.
+fn clean_install_fetch_count() -> usize {
+    let (db, paths, _root) = fresh_env();
+    let (stack, blobs) = synthetic_world();
+    let id = make_instance(&db, InstanceKind::Client);
+    let outcome =
+        run_install(&db, &paths, &blobs, InstallSpec { instance_id: id, server: false, stack });
+    assert_eq!(outcome, RunOutcome::Completed);
+    blobs.fetch_count()
+}
+
 #[test]
 fn interrupted_install_resumes_without_refetching() {
+    let baseline = clean_install_fetch_count();
+    assert!(baseline > 3, "the fixture must need several fetches to be worth interrupting");
+
     let (db, paths, _root) = fresh_env();
     let (stack, blobs) = synthetic_world();
     let id = make_instance(&db, InstanceKind::Client);
     let job = db.with_store(|store| store.create_job("install", Some(id))).expect("job");
 
-    // Interrupt after the first step.
+    // Phase 1: interrupt partway through, after real work has been persisted.
     let token = CancelToken::new();
-    let (stack2, _) = synthetic_world();
+    let interrupting =
+        CancelAfter { inner: &blobs, token: token.clone(), limit: 3, seen: Mutex::new(0) };
     let mut executor = InstallExecutor::new(
         &db,
         &paths,
-        &blobs,
+        &interrupting,
         InstallSpec { instance_id: id, server: false, stack },
     );
-    // Cancel immediately after the first step by pre-arming: run one step via
-    // the runner with a token cancelled from a progress side effect is complex;
-    // simplest deterministic interrupt: cancel before run -> paused at zero,
-    // then run to completion and assert single-fetch behavior via the cache.
-    token.cancel();
     let outcome = run(&db, job.id, &mut executor, &NullSink, &token).expect("run");
     assert_eq!(outcome, RunOutcome::Paused);
-    let fetched_before = blobs.fetch_count();
 
+    let paused = db.with_store(|store| store.job(job.id)).expect("query").expect("job");
+    assert_eq!(paused.state, JobState::Paused);
+    let resume = paused.resume.expect("a paused install carries its resume point");
+    let phase = resume["phase"].as_str().expect("phase recorded");
+    assert_ne!(phase, "game-files", "the interrupt must land past the first phase: {resume}");
+    let fetched_before = blobs.fetch_count();
+    assert!(fetched_before >= 3, "real downloads happened before the interrupt");
+    assert!(fetched_before < baseline, "the install is genuinely incomplete");
+
+    // Phase 2: a fresh executor (new-process semantics) resumes to completion.
+    let (stack2, _) = synthetic_world();
     let mut executor = InstallExecutor::new(
         &db,
         &paths,
@@ -286,10 +330,13 @@ fn interrupted_install_resumes_without_refetching() {
     let outcome =
         run(&db, job.id, &mut executor, &NullSink, &CancelToken::new()).expect("resume");
     assert_eq!(outcome, RunOutcome::Completed);
-    let fetched_after_first = blobs.fetch_count();
-    assert!(fetched_after_first > fetched_before);
+    assert_eq!(
+        blobs.fetch_count(),
+        baseline,
+        "interrupt + resume must fetch each artifact exactly once — no refetching"
+    );
 
-    // Second full run (repair pass): everything verified locally, zero fetches.
+    // A third full run (repair pass): everything verifies locally, zero fetches.
     let job2 = db.with_store(|store| store.create_job("install", Some(id))).expect("job2");
     let (stack3, _) = synthetic_world();
     let mut executor = InstallExecutor::new(
@@ -301,7 +348,7 @@ fn interrupted_install_resumes_without_refetching() {
     let outcome =
         run(&db, job2.id, &mut executor, &NullSink, &CancelToken::new()).expect("repair");
     assert_eq!(outcome, RunOutcome::Completed);
-    assert_eq!(blobs.fetch_count(), fetched_after_first, "repair pass must be all cache hits");
+    assert_eq!(blobs.fetch_count(), baseline, "repair pass must be all cache hits");
 }
 
 #[test]
