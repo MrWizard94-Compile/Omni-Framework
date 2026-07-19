@@ -36,9 +36,9 @@ Exit criteria: all subjects ingested; dossiers complete; comparative queries ans
 
 Comparative feature matrix generated (`intelligence/matrix.md`, `tools/matrix.py`); director cherry-pick session held 2026-07-18 — 12 decisions (D1–D12) recorded in **`docs/REQUIREMENTS.md`** (the binding Omni-Framework Requirements Spec) and ADRs 0006–0008. Notable director override: **full server-instance support moved into the Phase 4 MVP**.
 
-## Phase 3 — Architecture Design ⬜
+## Phase 3 — Architecture Design ✅ (2026-07-18)
 
-Full ADR set. OmniLoader: bootstrap chain, mod discovery, metadata format, transformation pipeline, compat-layer SPI. OmniLauncher: instance model, MSA auth, version/asset pipeline, Java runtime management, mod-platform clients. Protocol and file-format specs written before code (SOUL §7, §24).
+Delivered: **`OmniLoader/ARCHITECTURE.md`** (module map, boot sequence, `omni.mod.json` v0, transform cache, compat SPI, Mixin integration), **`OmniLauncher/ARCHITECTURE.md`** (crate layering, SQLite schema v1 draft, auth, job runner, importers, servers), **`OmniMeta/README.md`** (meta service + index format v1), and ADRs 0009–0014 resolving the REQUIREMENTS §9 deferred list. Remaining §9 item deferred by design: SRG/legacy-Forge support awaits Phase 6 census data.
 
 ## Phase 4 — MVP Implementation ⬜
 

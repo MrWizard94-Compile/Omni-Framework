@@ -43,13 +43,14 @@ Omni_Framework/
 │   ├── dossiers/          # Generated per-subject reports (committed, reviewable)
 │   ├── tools/             # ingest / analyze / dossier pipeline (Python 3.14)
 │   └── corpus/            # Shallow clones of subjects (git-ignored, rebuilt on demand)
-├── OmniLauncher/          # Tauri desktop launcher (implementation begins Phase 4)
-└── OmniLoader/            # JVM mod loader (implementation begins Phase 4)
+├── OmniLauncher/          # Tauri desktop launcher (ARCHITECTURE.md; code lands Phase 4)
+├── OmniLoader/            # JVM mod loader (ARCHITECTURE.md; code lands Phase 4)
+└── OmniMeta/              # Omni metadata service: generator + index format spec
 ```
 
 ## Status
 
-**Phase 0 — Foundation** ✅ · **Phase 1 — Vivisection Corpus** ✅ (14/14) · **Phase 2 — Feature Synthesis** ✅ (2026-07-18, [`docs/REQUIREMENTS.md`](docs/REQUIREMENTS.md) now binding) · **Phase 3 — Architecture Design** ▶ next.
+**Phase 0 — Foundation** ✅ · **Phase 1 — Vivisection Corpus** ✅ (14/14) · **Phase 2 — Feature Synthesis** ✅ ([`docs/REQUIREMENTS.md`](docs/REQUIREMENTS.md) binding) · **Phase 3 — Architecture Design** ✅ (2026-07-18, architecture specs + ADRs 0009–0014) · **Phase 4 — MVP Implementation** ▶ next (first code).
 
 ## Legal
 

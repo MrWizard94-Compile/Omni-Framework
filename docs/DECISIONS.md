@@ -81,3 +81,55 @@ Append-only log. Every entry: context → decision → consequences. Never delet
 **Decision.** Minecraft 1.21.1 first with a version-agnostic core; Fabric-family compat layer before NeoForge-family; the six corpus avoid-items are binding MUST NOTs; offline play via a cached-entitlement window only.
 
 **Consequences.** The corpus's 26.x-freshest evidence (FML, Sinytra) is applied through the version-agnostic requirement (TGT-2) rather than by moving the target; the compat SPI is validated on the cheap (metadata-level) case first; COMPLIANCE.md gains the entitlement-window mechanism as its offline policy (details in a Phase 3 ADR).
+
+---
+
+## ADR-0009 — Mixin distribution: pinned upstream 0.8.7-line build · 2026-07-18 · Accepted
+
+**Context.** LDR-8 requires one bundled Mixin runtime. Options: track upstream SpongePowered (slow releases), adopt Fabric's fork (couples us to their cadence), or maintain an Omni build.
+
+**Decision.** Bundle a pinned build of upstream SpongePowered Mixin (0.8.7 line, the ecosystem-wide baseline per the spongepowered-mixin dossier). Any patches Omni needs are maintained as a rebased patch set in-monorepo. Version bumps require a dedicated ADR with a compat-level impact assessment; per-config compat levels preserve old-mod behavior across bumps.
+
+**Consequences.** No dependency on another loader's fork cadence; patch-set maintenance is Omni's cost; `MixinServiceOmni` (OmniLoader/ARCHITECTURE.md §8) is the single integration point so a future runtime swap stays contained.
+
+---
+
+## ADR-0010 — Transform-cache key, layout, and mapping artifacts · 2026-07-18 · Accepted
+
+**Decision.** Cache key = SHA-256 over (jar bytes, mappings artifact id+hash, pipeline version, compat-layer version, config-relevant flags). Layout `<data>/transform-cache/<k[0:2]>/<key>/` with output jar + `audit.json` + `meta.json`; LRU + version-sweep GC; `--audit <class>` query surface. Mapping/translation data (official mappings per game version; intermediary→official for compat-fabric; SRG deferred) ship as versioned, hash-addressed artifacts through OmniMeta — never bundled into the loader jar.
+
+**Consequences.** Byte-identical inputs never re-transform; any input change invalidates precisely; audit answers "who changed this class" (SOUL §16). Full detail in OmniLoader/ARCHITECTURE.md §6.
+
+---
+
+## ADR-0011 — Entitlement window: 14 days, vault-anchored · 2026-07-18 · Accepted
+
+**Context.** CPL-2 requires offline play for verified owners within an explicit window.
+
+**Decision.** Window = **14 days** from last successful entitlement verification. The verification record (timestamp + account binding) lives beside the tokens in the OS credential vault; the DB stores only the expiry timestamp for scheduling. Every online launch re-verifies opportunistically and slides the window; expiry blocks launch until re-auth. No configuration to extend it beyond 14 days.
+
+**Consequences.** Flaky-connection owners play (SOUL §20 offline-first); revoked accounts age out within two weeks; the policy is auditable and defensible under COMPLIANCE §1. Directly implements the prism-launcher dossier's flagged gap with explicit semantics.
+
+---
+
+## ADR-0012 — Meta hosting: Cloudflare R2 + CDN, static-only · 2026-07-18 · Accepted
+
+**Decision.** OmniMeta generator output publishes to Cloudflare R2 behind the CDN; no compute in the serving path; domain is a build-config value (placeholder `meta.omniframework.wpaistudio.net`, director confirms at Phase 4 deploy). Roots short-TTL + hashed; payloads immutable.
+
+**Consequences.** Serving availability = CDN availability; costs near-zero at static scale; the (prism-launcher) `Launcher_META_URL` pattern keeps the URL swappable. Spec: OmniMeta/README.md.
+
+---
+
+## ADR-0013 — Native-mod SDK: in-monorepo Gradle plugin + template · 2026-07-18 · Accepted
+
+**Decision.** `omni-sdk/` (Phase 4/5): a Gradle plugin (toolchain pinning, `omni.mod.json` validation at build, refmap generation, run configs against a dev instance) plus a template mod. Versioned with the loader in this monorepo (minecraftforge MDK finding: loader and mod-dev tooling as one unit).
+
+**Consequences.** Native mod authors get a one-command start; manifest validation runs at mod-build time, catching errors before runtime; SDK releases ride the loader's cadence.
+
+---
+
+## ADR-0014 — Export scope: .mrpack + CurseForge manifest, Phase 5 · 2026-07-18 · Accepted
+
+**Decision.** Instance/pack export ships in Phase 5: `.mrpack` and CurseForge `manifest.json` writers (the two platform lingua francas), plus Omni's native format. Import remains the MVP surface (D7); export completes the bidirectional-migration trust posture (atlauncher finding; MUST NOT #6 rationale).
+
+**Consequences.** Phase 5 scope includes format-writer golden tests; the MUST-NOT-restrictive posture gains its concrete mechanism.

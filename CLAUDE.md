@@ -15,7 +15,8 @@
 - **Phase 0 (Foundation): complete** — repo, governance, intelligence pipeline.
 - **Phase 1 (Vivisection Corpus): complete (14/14, 2026-07-18)** — all subjects in the DB: 4 loader-family, 8 launchers (incl. 2 black-box per ADR-0002), Mixin, Sinytra Connector. 71 components, 103 scored features, 213 provenance sources.
 - **Phase 2 (Feature Synthesis): complete (2026-07-18)** — matrix generated (`intelligence/matrix.md`); director cherry-pick session held; **`docs/REQUIREMENTS.md` is now binding** (12 decisions D1–D12; ADRs 0006–0008). Director override: full server support in the Phase 4 MVP.
-- **Next: Phase 3 (Architecture Design)** — ADR set + subsystem specs per REQUIREMENTS.md §9's deferred list; re-verify 1.21.1 toolchain details (TGT-1/TGT-2).
+- **Phase 3 (Architecture Design): complete (2026-07-18)** — binding specs: `OmniLoader/ARCHITECTURE.md`, `OmniLauncher/ARCHITECTURE.md`, `OmniMeta/README.md`; ADRs 0009–0014. Changes to these require a superseding ADR.
+- **Next: Phase 4 (MVP Implementation)** — first code. Scope per ROADMAP Phase 4 (client+server instances, all 4 importers, meta generator). External unblock needed before real-login testing: Azure app registration (deferred by director; device-code dev flow until then).
 - Key Phase 3 input already banked: the compat-layer "bill of materials" (sinytra-connector dossier) and the two-strategy compat comparison (quilt-loader vs sinytra-connector notes). Flag for director: corpus HEAD is at MC 26.x — re-confirm the 1.21.1 launch target in Phase 3.
 - OmniLauncher/OmniLoader: design targets documented in their READMEs; **no code until Phase 4** by design (see docs/ROADMAP.md).
 
