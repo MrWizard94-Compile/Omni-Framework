@@ -1,0 +1,34 @@
+[package]
+name = "launcher-shell"
+description = "OmniLauncher Tauri shell: command registration, event bridge, window lifecycle. Contains no logic by design (ARCHITECTURE §1)."
+publish = false
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+
+[lib]
+# Tauri's mobile targets require the app entry point to live in a library;
+# `main.rs` is a two-line wrapper around `launcher_shell::run()`.
+name = "launcher_shell"
+crate-type = ["staticlib", "cdylib", "lib"]
+
+# The shipped executable is the product name, which also keeps its debug
+# symbols from colliding with the library's on Windows.
+[[bin]]
+name = "omnilauncher"
+path = "src/main.rs"
+
+[build-dependencies]
+tauri-build = { workspace = true }
+
+[dependencies]
+omni-core = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tauri = { workspace = true }
+
+[lints]
+workspace = true

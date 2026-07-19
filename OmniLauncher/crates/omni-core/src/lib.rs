@@ -33,6 +33,7 @@
 //! them. WAL keeps readers cheap; the coarse lock is deliberate simplicity for
 //! the MVP and is documented in ADR-0015.
 
+pub mod app;
 pub mod auth;
 pub mod clock;
 pub mod db;

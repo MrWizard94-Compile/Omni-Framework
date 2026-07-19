@@ -52,6 +52,18 @@ Landed so far (brick order in `../docs/ROADMAP.md` Phase 4):
   **Validated against the director's real 324-mod ATM10 instance: all 324 mods mapped,
   0 skipped, and all 319 on-disk jars' murmur2 fingerprints matched CurseForge's own
   recorded values byte-for-byte.**
+- **`omni-core::app` + `apps/`** (2026-07-19, brick 7) — the command API and both thin
+  layers above it. Per ARCHITECTURE §1 the API lives in `omni-core`, so the Tauri shell
+  (`apps/launcher-shell`) is pure wiring — one `#[tauri::command]` per service method,
+  a `WindowSink` that forwards `CoreEvent`s verbatim, least-privilege capabilities — and
+  the whole surface is tested headlessly (`tests/app.rs`, 20 tests) with no window,
+  WebView, network, or credentials. The web UI (`apps/launcher-ui`, Vue 3 + strict TS +
+  Tailwind) renders all six ARCHITECTURE §7 surfaces: instance grid/detail with
+  mods-as-entities and port-status badges, account manager with the device-code panel and
+  entitlement-window countdown, job center with live progress and resume, import wizard
+  with the honest skipped-items report, server console, and settings. The IPC contract is
+  documented in **[`COMMANDS.md`](COMMANDS.md)** and pinned by Rust tests on both the DTO
+  and event wire shapes.
 
 ## What it will be
 

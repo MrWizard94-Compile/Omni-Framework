@@ -1,0 +1,26 @@
+{
+  "name": "launcher-ui",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "OmniLauncher web UI — renders state the Rust core owns. No launcher logic lives here (ARCHITECTURE §1).",
+  "scripts": {
+    "dev": "vite",
+    "build": "vue-tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "typecheck": "vue-tsc --noEmit"
+  },
+  "dependencies": {
+    "@tauri-apps/api": "^2.9.0",
+    "vue": "^3.5.13"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^6.0.0",
+    "tailwindcss": "^3.4.17",
+    "autoprefixer": "^10.4.20",
+    "postcss": "^8.4.49",
+    "typescript": "^5.7.2",
+    "vite": "^7.0.0",
+    "vue-tsc": "^2.2.0"
+  }
+}

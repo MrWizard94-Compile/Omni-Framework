@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Least privilege for the launcher window: it may call the app's own commands and listen to the app's own event channel. No filesystem, shell, HTTP, or OS-integration permissions are granted — every privileged action the launcher performs happens in the Rust core behind a typed command, never in the web layer (SOUL §9).",
+  "windows": ["main"],
+  "permissions": ["core:default"]
+}

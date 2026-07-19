@@ -51,9 +51,10 @@ pub fn safe_rel_path(rel: &str) -> Result<(), SourceError> {
     Ok(())
 }
 
-/// A place tree files can be fetched from. Implementations must be safe to
-/// call from multiple threads (`&self`).
-pub trait MetaSource {
+/// A place tree files can be fetched from. `Send + Sync` is part of the
+/// contract, not an afterthought: the launcher resolves meta from background
+/// job threads, so a source that could not cross threads would be unusable.
+pub trait MetaSource: Send + Sync {
     /// Fetches the file at a tree-relative path (e.g. `net.minecraft/index.json`).
     ///
     /// # Errors
@@ -110,6 +111,29 @@ impl MetaSource for HttpSource {
 
     fn describe(&self) -> String {
         self.base_url.clone()
+    }
+}
+
+/// Erased sources delegate, so callers that must store a client without a
+/// generic parameter (the launcher's application service) can use
+/// `MetaClient<Arc<dyn MetaSource>>`.
+impl<T: MetaSource + ?Sized> MetaSource for std::sync::Arc<T> {
+    fn fetch(&self, rel_path: &str) -> Result<Vec<u8>, SourceError> {
+        (**self).fetch(rel_path)
+    }
+
+    fn describe(&self) -> String {
+        (**self).describe()
+    }
+}
+
+impl<T: MetaSource + ?Sized> MetaSource for Box<T> {
+    fn fetch(&self, rel_path: &str) -> Result<Vec<u8>, SourceError> {
+        (**self).fetch(rel_path)
+    }
+
+    fn describe(&self) -> String {
+        (**self).describe()
     }
 }
 

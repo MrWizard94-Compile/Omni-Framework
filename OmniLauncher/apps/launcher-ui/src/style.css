@@ -1,0 +1,56 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* The launcher runs beside a memory-hungry game JVM (ADR-0001), so the visual
+   layer stays deliberately cheap: no shadows-on-scroll, no blur filters, no
+   animation loops. Transitions are limited to discrete state changes. */
+@layer base {
+  html,
+  body,
+  #app {
+    height: 100%;
+  }
+
+  body {
+    @apply bg-slate-950 text-slate-100 antialiased;
+    font-family: ui-sans-serif, system-ui, "Segoe UI", sans-serif;
+  }
+
+  /* Keyboard focus must always be visible: the launcher is fully operable
+     without a mouse. */
+  :focus-visible {
+    @apply outline-none ring-2 ring-indigo-400 ring-offset-2 ring-offset-slate-950;
+  }
+}
+
+@layer components {
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-md px-3 py-1.5
+           text-sm font-medium transition-colors disabled:cursor-not-allowed
+           disabled:opacity-50;
+  }
+  .btn-primary {
+    @apply btn bg-indigo-600 text-white hover:bg-indigo-500;
+  }
+  .btn-ghost {
+    @apply btn bg-slate-800 text-slate-200 hover:bg-slate-700;
+  }
+  .btn-danger {
+    @apply btn bg-rose-700 text-white hover:bg-rose-600;
+  }
+  .card {
+    @apply rounded-lg border border-slate-800 bg-slate-900 p-4;
+  }
+  .input {
+    @apply w-full rounded-md border border-slate-700 bg-slate-950 px-3 py-1.5
+           text-sm text-slate-100 placeholder:text-slate-500
+           focus:border-indigo-500;
+  }
+  .badge {
+    @apply inline-flex items-center rounded px-1.5 py-0.5 text-[11px] font-medium;
+  }
+  .label {
+    @apply block text-xs font-medium uppercase tracking-wide text-slate-400;
+  }
+}

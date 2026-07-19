@@ -16,6 +16,7 @@ members = [
     "OmniMeta/generator",
     "OmniLauncher/crates/omni-meta-client",
     "OmniLauncher/crates/omni-core",
+    "OmniLauncher/apps/launcher-shell",
 ]
 
 [workspace.package]
@@ -27,8 +28,15 @@ authors = ["Wizard Productions AI Studio (wpaistudio.net)"]
 repository = "https://github.com/MrWizard94-Compile/Omni-Framework"
 
 [workspace.dependencies]
+omni-core = { path = "OmniLauncher/crates/omni-core" }
 omni-meta-client = { path = "OmniLauncher/crates/omni-meta-client" }
 omni-meta-format = { path = "OmniMeta/format" }
+# The desktop shell (ADR-0001). Pinned to the 2.x line; the shell is thin by
+# design, so a major Tauri bump touches wiring only, never logic.
+# No `protocol-asset`: the web layer never reads the filesystem directly. Every
+# privileged action goes through a typed command in the Rust core (SOUL §9).
+tauri = { version = "2" }
+tauri-build = { version = "2", features = [] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 sha1 = "0.10"

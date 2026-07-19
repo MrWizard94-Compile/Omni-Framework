@@ -108,6 +108,18 @@ impl<'a> AuthService<'a> {
         Ok(LiveSession { account, profile, mc_access_token: mc.access_token })
     }
 
+    /// Completes the chain from already-obtained Microsoft tokens — the entry
+    /// point for callers that drive the OAuth step themselves (the launcher's
+    /// background device-code poller, which must return its prompt to the UI
+    /// before the user has finished consenting).
+    ///
+    /// # Errors
+    ///
+    /// Any [`AuthError`] from XBL/XSTS/Minecraft-services or persistence.
+    pub fn complete_login(&self, db: &Db, msa_tokens: &MsaTokens) -> Result<LiveSession, AuthError> {
+        self.complete_chain(db, msa_tokens)
+    }
+
     /// Interactive sign-in via the device-code flow (the development path and
     /// the fallback path). `on_prompt` shows the code/URL to the user;
     /// `sleep` is the poll delay (std sleep in production, no-op in tests).

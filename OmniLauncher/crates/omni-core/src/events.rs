@@ -4,9 +4,15 @@
 
 use crate::store::JobState;
 
-/// Events the core emits. Grows with later bricks (auth, installs, processes);
-/// additive growth only — consumers must ignore variants they do not know.
-#[derive(Debug, Clone, PartialEq, Eq)]
+/// Events the core emits — **also the launcher's UI wire contract**: the
+/// Tauri shell serializes these verbatim onto its event channel, so the
+/// serde representation here is what the web UI receives (documented in
+/// `OmniLauncher/COMMANDS.md`). Additive growth only; consumers must ignore
+/// variants they do not know.
+///
+/// Serialization is externally tagged (`{"JobState": {...}}`), matching the
+/// contract document and the TypeScript union in the UI.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[non_exhaustive]
 pub enum CoreEvent {
     /// A job changed state (created, started, paused, failed, done).
@@ -25,6 +31,40 @@ pub enum CoreEvent {
         /// Job-kind-specific progress document (persisted verbatim in
         /// `jobs.progress_json`).
         progress: serde_json::Value,
+    },
+    /// A game/server process was launched and recorded.
+    ProcessStarted {
+        /// The instance that was launched.
+        instance_id: i64,
+        /// `processes` row id (the console/stop handle).
+        session_id: i64,
+        /// OS process id, when known.
+        pid: Option<i64>,
+    },
+    /// A recorded process ended.
+    ProcessExited {
+        /// The instance that was running.
+        instance_id: i64,
+        /// `processes` row id.
+        session_id: i64,
+        /// Exit code (`-1` when unavailable, e.g. killed by signal).
+        exit_code: i64,
+    },
+    /// An instance's persisted state changed (created, renamed, settings,
+    /// mods, stack, deleted) — the UI refetches rather than mirroring truth.
+    InstanceChanged {
+        /// The affected instance; `None` means "the list changed".
+        instance_id: Option<i64>,
+    },
+    /// The account set changed (login completed, sign-out, window re-stamped).
+    AccountsChanged,
+    /// A background sign-in finished (success or typed failure), so the UI can
+    /// close its device-code panel without polling.
+    LoginFinished {
+        /// Profile UUID on success.
+        uuid: Option<String>,
+        /// Human-actionable error text on failure.
+        error: Option<String>,
     },
 }
 

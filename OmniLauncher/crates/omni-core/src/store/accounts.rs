@@ -262,6 +262,19 @@ impl Store<'_> {
         Ok(())
     }
 
+    /// One process session by id (open or closed) — the console surface's
+    /// lookup.
+    ///
+    /// # Errors
+    ///
+    /// [`CoreError::Db`] on driver failure.
+    pub fn process_session(&mut self, id: i64) -> Result<Option<ProcessSession>, CoreError> {
+        self.conn
+            .query_row(&format!("{SELECT_PROCESS} WHERE id = ?1"), params![id], map_process)
+            .optional()
+            .map_err(CoreError::db("select process session"))
+    }
+
     /// Sessions with no recorded exit (running, or orphaned by a crash).
     ///
     /// # Errors

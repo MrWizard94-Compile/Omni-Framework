@@ -36,7 +36,8 @@ pub use manager::{AuthService, LaunchAuth, LiveSession};
 pub use minecraft::{EntitlementDoc, McProfile, McToken};
 pub use msa::{
     DeviceCodePrompt, MsaTokens, PkceChallenge, bind_loopback, build_authorize_url,
-    device_code_begin, exchange_code, new_pkce_challenge, wait_for_loopback_code,
+    device_code_begin, device_code_poll, exchange_code, new_pkce_challenge,
+    wait_for_loopback_code,
 };
 pub use vault::{EntitlementRecord, KeyringVault, MemoryVault, TokenSet, TokenVault};
 pub use xbox::{XblToken, XstsToken};
