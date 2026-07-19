@@ -38,6 +38,14 @@ cargo clippy --workspace --all-targets
 `tauri.conf.json` points `frontendDist` at `../launcher-ui/dist` — build the UI first, or
 the bundle step has nothing to embed.
 
+**Path gotcha worth knowing before you edit `tauri.conf.json`:** the two kinds of path in
+that file resolve against *different* directories. `frontendDist` and `devUrl` are relative
+to the **config file** (`apps/launcher-shell/`), while `beforeDevCommand` and
+`beforeBuildCommand` run in the **app directory** — the config directory's parent,
+`apps/`. That is why `frontendDist` is `../launcher-ui/dist` but the npm prefix is plain
+`launcher-ui`. Getting this wrong fails only at `cargo tauri build`, never at
+`cargo build`, so it is easy to miss.
+
 ## Layout
 
 ```

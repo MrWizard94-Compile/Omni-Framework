@@ -6,8 +6,8 @@
   "build": {
     "frontendDist": "../launcher-ui/dist",
     "devUrl": "http://localhost:5173",
-    "beforeDevCommand": "npm --prefix ../launcher-ui run dev",
-    "beforeBuildCommand": "npm --prefix ../launcher-ui run build"
+    "beforeDevCommand": "npm --prefix launcher-ui run dev",
+    "beforeBuildCommand": "npm --prefix launcher-ui run build"
   },
   "app": {
     "windows": [
