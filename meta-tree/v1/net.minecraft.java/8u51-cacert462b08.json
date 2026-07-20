@@ -1,0 +1,30 @@
+{
+  "uid": "net.minecraft.java",
+  "version": "8u51-cacert462b08",
+  "releaseTime": "2025-10-06T13:49:59+00:00",
+  "type": "release",
+  "data": {
+    "platforms": {
+      "windows-x64": {
+        "jre-legacy": {
+          "manifest": {
+            "sha1": "03828bb8455f3cef94869286a0d941dd16933239",
+            "size": 80031,
+            "url": "https://piston-meta.mojang.com/v1/packages/03828bb8455f3cef94869286a0d941dd16933239/manifest.json"
+          },
+          "released": "2025-10-06T13:49:59+00:00"
+        }
+      },
+      "windows-x86": {
+        "jre-legacy": {
+          "manifest": {
+            "sha1": "aa4b820bca217df2ff9bc9b5eaa03907461f5517",
+            "size": 81687,
+            "url": "https://piston-meta.mojang.com/v1/packages/aa4b820bca217df2ff9bc9b5eaa03907461f5517/manifest.json"
+          },
+          "released": "2025-10-06T14:01:29+00:00"
+        }
+      }
+    }
+  }
+}

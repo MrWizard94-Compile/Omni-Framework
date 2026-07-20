@@ -1,0 +1,96 @@
+{
+  "uid": "net.minecraft.java",
+  "versions": [
+    {
+      "version": "25.0.0",
+      "releaseTime": "2025-12-10T14:21:40+00:00",
+      "type": "release",
+      "url": "net.minecraft.java/25.0.0.json",
+      "sha256": "9621cb87a881c98fd8bcaf153502fb11337a2a8cd46d8b6ef7318cf768985d5b"
+    },
+    {
+      "version": "25.0.1",
+      "releaseTime": "2025-12-10T14:14:17+00:00",
+      "type": "release",
+      "url": "net.minecraft.java/25.0.1.json",
+      "sha256": "07ba2de0226309429dfe9d12fbfde341d8f3eebfc4d5f9bd64dd33f4c342af8a"
+    },
+    {
+      "version": "8u74-cacert462b08",
+      "releaseTime": "2025-10-07T07:43:14+00:00",
+      "type": "release",
+      "url": "net.minecraft.java/8u74-cacert462b08.json",
+      "sha256": "18c26d6fcccbbe28ee5eff3eed25184d052a99f115dd61594c88e4b07e9f4814"
+    },
+    {
+      "version": "8u51-cacert462b08",
+      "releaseTime": "2025-10-06T13:49:59+00:00",
+      "type": "release",
+      "url": "net.minecraft.java/8u51-cacert462b08.json",
+      "sha256": "edaf1ffb0aa4b9d8af5716650a293857566b02ffa6e62639e920348d6fe666b1"
+    },
+    {
+      "version": "21.0.7",
+      "releaseTime": "2025-05-19T08:30:12+00:00",
+      "type": "release",
+      "url": "net.minecraft.java/21.0.7.json",
+      "sha256": "a6c6d10a8a26fe889cfc2665ceabc54431347aaa2d04bf728e65e0f478f1f777"
+    },
+    {
+      "version": "17.0.15",
+      "releaseTime": "2025-05-19T08:10:49+00:00",
+      "type": "release",
+      "url": "net.minecraft.java/17.0.15.json",
+      "sha256": "228df8656a17acb3ed02e3f7ef8553c1aaf17262859e481a4f5805e3aec321a8"
+    },
+    {
+      "version": "17.0.8.1",
+      "releaseTime": "2023-09-06T12:10:08+00:00",
+      "type": "release",
+      "url": "net.minecraft.java/17.0.8.1.json",
+      "sha256": "a71f1e86d191b512dabf376e095f46644e643ecf65a2835a0284108404db87e6"
+    },
+    {
+      "version": "17.0.1.12.1",
+      "releaseTime": "2021-11-15T14:19:45+00:00",
+      "type": "release",
+      "url": "net.minecraft.java/17.0.1.12.1.json",
+      "sha256": "c8a567dbf0ed106baba7c500038e706d7e630c5dbc2f9cc5314f9cc4d2493e89"
+    },
+    {
+      "version": "16.0.1.9.1_3",
+      "releaseTime": "2021-05-11T15:03:25+00:00",
+      "type": "release",
+      "url": "net.minecraft.java/16.0.1.9.1_3.json",
+      "sha256": "2f0cef4c074356e6f1b7873af1efd22256dd9381a12a0e17d4be66327f224353"
+    },
+    {
+      "version": "16.0.1.9.1",
+      "releaseTime": "2021-05-10T16:43:02+00:00",
+      "type": "release",
+      "url": "net.minecraft.java/16.0.1.9.1.json",
+      "sha256": "bff6b9948ac7032b2a5e7d1143978f77e831603845181d9e98efd4c17cd09256"
+    },
+    {
+      "version": "14",
+      "releaseTime": "2021-03-25T22:47:03+00:00",
+      "type": "release",
+      "url": "net.minecraft.java/14.json",
+      "sha256": "ba3798aefd48fa2aa3ba019aa12da5774d22812a6c3d0f094dff429d9a042bc4"
+    },
+    {
+      "version": "12",
+      "releaseTime": "2021-03-25T22:47:02+00:00",
+      "type": "release",
+      "url": "net.minecraft.java/12.json",
+      "sha256": "370582179892c4b4baed83f1b112fe6fbc988b43498101250e539e56182e6969"
+    },
+    {
+      "version": "8u202",
+      "releaseTime": "2020-11-17T19:26:25+00:00",
+      "type": "release",
+      "url": "net.minecraft.java/8u202.json",
+      "sha256": "0917027d423690ddd7f9254f44faff2151e9c0329c4991afe69752edbb42af2a"
+    }
+  ]
+}

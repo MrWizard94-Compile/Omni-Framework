@@ -1,0 +1,25 @@
+{
+  "formatVersion": 1,
+  "components": [
+    {
+      "uid": "net.minecraft",
+      "versionsUrl": "net.minecraft/index.json",
+      "sha256": "1a6a3896fb023652a42e8b3209b9130eee5178111a776b123a3c1a27c0ad3180"
+    },
+    {
+      "uid": "net.minecraft.java",
+      "versionsUrl": "net.minecraft.java/index.json",
+      "sha256": "f9b020cfa7c60701b65309a5643aea3754cb0d0dd971c5a786c4a31ef2989e40"
+    },
+    {
+      "uid": "org.lwjgl3",
+      "versionsUrl": "org.lwjgl3/index.json",
+      "sha256": "482858d16f49a968dd632a1f3a8ca9e0154a372a9ae8118908150d74eebfb2b8"
+    },
+    {
+      "uid": "org.omniframework.mappings-1.21.1",
+      "versionsUrl": "org.omniframework.mappings-1.21.1/index.json",
+      "sha256": "1af14d8df20c5ca0bf3d7f34ad27e613a6d41cbf79bb769c92d88aeadad9be1a"
+    }
+  ]
+}

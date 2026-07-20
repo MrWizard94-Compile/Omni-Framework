@@ -1,0 +1,20 @@
+{
+  "uid": "net.minecraft.java",
+  "version": "12",
+  "releaseTime": "2021-03-25T22:47:02+00:00",
+  "type": "release",
+  "data": {
+    "platforms": {
+      "windows-x86": {
+        "minecraft-java-exe": {
+          "manifest": {
+            "sha1": "47718d230325c8381f33a371f060ce3149f8001a",
+            "size": 461,
+            "url": "https://piston-meta.mojang.com/v1/packages/47718d230325c8381f33a371f060ce3149f8001a/manifest.json"
+          },
+          "released": "2021-03-25T22:47:02+00:00"
+        }
+      }
+    }
+  }
+}

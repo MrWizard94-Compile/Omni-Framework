@@ -129,10 +129,14 @@ impl ResolvedStack {
     }
 }
 
-fn meta_err(err: &omni_meta_client::MetaError) -> CoreError {
+/// Wraps a meta-client failure with the context the user needs: what we were
+/// doing, and *which* service could not answer. Naming the source matters —
+/// "the meta service is unreachable" is far less useful without the URL that
+/// was actually tried.
+fn meta_err(source: &str, err: &omni_meta_client::MetaError) -> CoreError {
     CoreError::Io {
-        action: "resolve meta",
-        path: PathBuf::from("meta"),
+        action: "resolve this instance's components",
+        path: PathBuf::from(source),
         source: std::io::Error::other(err.to_string()),
     }
 }
@@ -148,7 +152,8 @@ pub fn resolve_stack<S: MetaSource>(
     meta: &MetaClient<S>,
     stack: &[StackEntry],
 ) -> Result<ResolvedStack, CoreError> {
-    let (root, _) = meta.root().map_err(|err| meta_err(&err))?;
+    let source = meta.describe_source();
+    let (root, _) = meta.root().map_err(|err| meta_err(&source, &err))?;
     let mut payloads: Vec<ComponentPayload> = Vec::new();
     let mut queue: Vec<(String, String)> = stack
         .iter()
@@ -159,8 +164,8 @@ pub fn resolve_stack<S: MetaSource>(
         if !seen.insert((uid.clone(), version.clone())) {
             continue;
         }
-        let index = meta.component_index(&root, &uid).map_err(|err| meta_err(&err))?;
-        let payload = meta.payload(&index, &version).map_err(|err| meta_err(&err))?;
+        let index = meta.component_index(&root, &uid).map_err(|err| meta_err(&source, &err))?;
+        let payload = meta.payload(&index, &version).map_err(|err| meta_err(&source, &err))?;
         for requirement in &payload.requires {
             // v1 range dialect: exact pins resolve; open ranges are satisfied
             // by the stack itself (validated at stack-build time).
@@ -171,10 +176,10 @@ pub fn resolve_stack<S: MetaSource>(
         payloads.push(payload);
     }
 
-    let java_index = meta.component_index(&root, "net.minecraft.java").map_err(|err| meta_err(&err))?;
+    let java_index = meta.component_index(&root, "net.minecraft.java").map_err(|err| meta_err(&source, &err))?;
     let mut java_payloads = Vec::new();
     for summary in &java_index.versions {
-        java_payloads.push(meta.payload(&java_index, &summary.version).map_err(|err| meta_err(&err))?);
+        java_payloads.push(meta.payload(&java_index, &summary.version).map_err(|err| meta_err(&source, &err))?);
     }
     Ok(ResolvedStack { payloads, java_payloads })
 }

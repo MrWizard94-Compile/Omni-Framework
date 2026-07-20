@@ -1,0 +1,30 @@
+{
+  "uid": "net.minecraft.java",
+  "version": "8u202",
+  "releaseTime": "2020-11-17T19:26:25+00:00",
+  "type": "release",
+  "data": {
+    "platforms": {
+      "linux": {
+        "jre-legacy": {
+          "manifest": {
+            "sha1": "c529f68a6febc042e71835a579f44d55a3717c46",
+            "size": 127111,
+            "url": "https://piston-meta.mojang.com/v1/packages/c529f68a6febc042e71835a579f44d55a3717c46/manifest.json"
+          },
+          "released": "2020-11-17T19:26:25+00:00"
+        }
+      },
+      "linux-i386": {
+        "jre-legacy": {
+          "manifest": {
+            "sha1": "6df5ff7142797f409ec41e0b94124e677927f8e2",
+            "size": 128040,
+            "url": "https://piston-meta.mojang.com/v1/packages/6df5ff7142797f409ec41e0b94124e677927f8e2/manifest.json"
+          },
+          "released": "2020-11-17T19:28:39+00:00"
+        }
+      }
+    }
+  }
+}

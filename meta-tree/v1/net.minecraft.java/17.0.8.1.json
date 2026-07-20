@@ -1,0 +1,28 @@
+{
+  "uid": "net.minecraft.java",
+  "version": "17.0.8.1",
+  "releaseTime": "2023-09-06T12:10:08+00:00",
+  "type": "release",
+  "data": {
+    "platforms": {
+      "windows-x86": {
+        "java-runtime-gamma": {
+          "manifest": {
+            "sha1": "5c9039c8f794a07a213b91fee846ed7376017731",
+            "size": 147399,
+            "url": "https://piston-meta.mojang.com/v1/packages/5c9039c8f794a07a213b91fee846ed7376017731/manifest.json"
+          },
+          "released": "2023-09-15T08:26:28+00:00"
+        },
+        "java-runtime-gamma-snapshot": {
+          "manifest": {
+            "sha1": "5c9039c8f794a07a213b91fee846ed7376017731",
+            "size": 147399,
+            "url": "https://piston-meta.mojang.com/v1/packages/5c9039c8f794a07a213b91fee846ed7376017731/manifest.json"
+          },
+          "released": "2023-09-06T12:10:08+00:00"
+        }
+      }
+    }
+  }
+}

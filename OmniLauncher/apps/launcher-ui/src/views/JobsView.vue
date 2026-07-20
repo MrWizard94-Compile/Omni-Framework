@@ -102,11 +102,12 @@ async function cancel(job: Job): Promise<void> {
 
           <div class="flex shrink-0 gap-2">
             <button v-if="job.running" class="btn-ghost" @click="cancel(job)">Pause</button>
-            <button
-              v-else-if="job.state === 'failed' || job.state === 'paused'"
-              class="btn-primary"
-              @click="retry(job)"
-            >
+            <!-- Anything not running and not finished is resumable, `pending`
+                 included: a job whose runner never started (the app was closed
+                 between creating it and spawning) is owned by nobody, and
+                 leaving it without a button makes it a dead row the user cannot
+                 act on. Only `done` is terminal. -->
+            <button v-else-if="job.state !== 'done'" class="btn-primary" @click="retry(job)">
               Resume
             </button>
           </div>

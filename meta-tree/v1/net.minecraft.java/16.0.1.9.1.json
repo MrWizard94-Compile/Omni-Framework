@@ -1,0 +1,40 @@
+{
+  "uid": "net.minecraft.java",
+  "version": "16.0.1.9.1",
+  "releaseTime": "2021-05-10T16:43:02+00:00",
+  "type": "release",
+  "data": {
+    "platforms": {
+      "linux": {
+        "java-runtime-alpha": {
+          "manifest": {
+            "sha1": "3bfc5fdcc28d8897aa12f372ea98a9afeb11a813",
+            "size": 82665,
+            "url": "https://piston-meta.mojang.com/v1/packages/3bfc5fdcc28d8897aa12f372ea98a9afeb11a813/manifest.json"
+          },
+          "released": "2021-05-10T16:43:02+00:00"
+        }
+      },
+      "windows-x64": {
+        "java-runtime-alpha": {
+          "manifest": {
+            "sha1": "5e91f68978e873ef3b4f533dc1dcb73c2e9efff7",
+            "size": 147226,
+            "url": "https://piston-meta.mojang.com/v1/packages/5e91f68978e873ef3b4f533dc1dcb73c2e9efff7/manifest.json"
+          },
+          "released": "2021-05-10T16:48:07+00:00"
+        }
+      },
+      "windows-x86": {
+        "java-runtime-alpha": {
+          "manifest": {
+            "sha1": "41062fddae9baa5a5e6f5a20d4720e604b1e28f6",
+            "size": 145520,
+            "url": "https://piston-meta.mojang.com/v1/packages/41062fddae9baa5a5e6f5a20d4720e604b1e28f6/manifest.json"
+          },
+          "released": "2021-05-10T16:45:24+00:00"
+        }
+      }
+    }
+  }
+}

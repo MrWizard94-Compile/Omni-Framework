@@ -1,0 +1,22 @@
+{
+  "retrievedAtUnix": 1784527424,
+  "manifestUrl": "https://piston-meta.mojang.com/mc/game/version_manifest_v2.json",
+  "javaRuntimeUrl": "https://launchermeta.mojang.com/v1/products/java-runtime/2ec0cc96c44e5a76b9c8b7c39df7210883d12871/all.json",
+  "entries": [
+    {
+      "path": "version_manifest_v2.json",
+      "url": "https://piston-meta.mojang.com/mc/game/version_manifest_v2.json",
+      "sha256": "4a1ca36883d77dc2c448b6abffe94abf827ec5a5c16c0f7f79de748781545923"
+    },
+    {
+      "path": "versions/1.21.1.json",
+      "url": "https://piston-meta.mojang.com/v1/packages/d2ce7afeae88d45f482bc64681efafcb91ed4cca/1.21.1.json",
+      "sha256": "01eb5e6b9597c38c8e36020d50988482d08c3a5158db6e944431d094b6e6eee9"
+    },
+    {
+      "path": "java_runtime_all.json",
+      "url": "https://launchermeta.mojang.com/v1/products/java-runtime/2ec0cc96c44e5a76b9c8b7c39df7210883d12871/all.json",
+      "sha256": "b490908c9bda7f4ed5220145dee8dd1ee9ad92a210080adec3c183b0f0a50a8b"
+    }
+  ]
+}
