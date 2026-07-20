@@ -58,7 +58,7 @@ Delivery bricks (dependency-first; each lands complete, tested, zero-warning):
 | 5 | Install/launch pipeline (client, then server variant + EULA flow) | ✅ 2026-07-19 |
 | 6 | Importers ×4 + fingerprinting/hash recovery | ✅ 2026-07-19 |
 | 7 | Tauri shell + UI surfaces (contract: `OmniLauncher/COMMANDS.md`) | ✅ 2026-07-19 |
-| 8 | OmniLoader Gradle multi-project: loader-model (`omni.mod.json` v0) upward per ARCHITECTURE §2 | ⬜ |
+| 8 | OmniLoader Gradle multi-project: `loader-diag` + `loader-model` (`omni.mod.json` v0) per ARCHITECTURE §2 | ✅ 2026-07-20 |
 | 9 | Meta CDN deployment tooling (target live: `omnimeta.wpaistudio.net`, ADR-0016) | ⬜ |
 
 ## Phase 5 — Stabilization ⬜
