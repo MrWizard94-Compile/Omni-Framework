@@ -20,6 +20,21 @@ allprojects {
 
     repositories {
         mavenCentral()
+
+        // SpongePowered publishes Mixin only to its own repository, never to
+        // Maven Central, so ADR-0009's pinned 0.8.7-line runtime cannot be
+        // resolved without it.
+        //
+        // Scoped by group rather than opened wide: `content { includeGroup }`
+        // means this host is consulted for org.spongepowered coordinates and
+        // nothing else. Without that filter, every dependency in the build
+        // would be looked up here first, which turns one third-party host into
+        // a position to answer for artifacts it has no business serving.
+        maven {
+            name = "spongepowered"
+            url = uri("https://repo.spongepowered.org/repository/maven-public/")
+            content { includeGroup("org.spongepowered") }
+        }
     }
 }
 

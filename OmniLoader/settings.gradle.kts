@@ -30,4 +30,5 @@ include(
     "provider-minecraft",
     "loader-resolve",
     "loader-transform",
+    "loader-mixin",
 )
