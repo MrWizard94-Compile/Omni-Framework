@@ -14,6 +14,7 @@ resolver = "3"
 members = [
     "OmniMeta/format",
     "OmniMeta/generator",
+    "OmniMeta/deploy",
     "OmniLauncher/crates/omni-meta-client",
     "OmniLauncher/crates/omni-core",
     "OmniLauncher/apps/launcher-shell",
@@ -41,6 +42,10 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 sha1 = "0.10"
 sha2 = "0.10"
+# AWS SigV4 request signing for the R2 (S3-compatible) deploy path. Pairs with
+# sha2, which is already in-tree; the alternative was an SDK an order of
+# magnitude larger for one signing algorithm (SOUL §22).
+hmac = "0.12"
 ureq = { version = "2.12", features = ["json"] }
 # bundled: SQLite compiled in — zero system dependency, reproducible offline
 # builds (SOUL §21). backup: online-backup API for LNC-2's DB backup duty.

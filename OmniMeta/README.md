@@ -75,6 +75,40 @@ tree (`generator/tests/golden/`, regeneration command in the test header) must b
 reproduced byte-for-byte, and double-runs must be identical. QA gates:
 `cargo test --workspace` and `cargo clippy --workspace --all-targets` (zero warnings).
 
+## Publishing (`OmniMeta/deploy`, brick 9)
+
+`omni-meta-deploy` uploads a generated tree to the R2 bucket behind
+`omnimeta.wpaistudio.net`:
+
+```powershell
+# See exactly what would be published — no network, no credentials needed:
+cargo run -p omni-meta-deploy -- --tree <dir> --dry-run
+
+# Publish (credentials come from the environment, and only from there):
+$env:R2_ACCOUNT_ID      = "<cloudflare account id>"
+$env:R2_ACCESS_KEY_ID   = "<r2 access key>"
+$env:R2_SECRET_ACCESS_KEY = "<r2 secret>"
+cargo run -p omni-meta-deploy -- --tree <dir>
+```
+
+Three properties are load-bearing, and all three are decided in pure, tested code:
+
+1. **Upload order is deepest-first.** Payloads publish before the component indexes
+   that name them; the tree root publishes **last**. The tree is a hash chain, so a
+   client that has read a root only ever requests files that root vouched for — with
+   this ordering the worst case mid-publish is a client seeing the *previous complete*
+   tree, never a root pointing at objects that do not exist yet.
+2. **Cache policy is per-object.** Hash-addressed payloads are immutable and get a
+   year; the mutable roots get 5 minutes plus `must-revalidate`. Reversing these is the
+   mistake that cannot be undone in the CDN.
+3. **Credentials are environment-only** (SOUL §36) — never an argument (shell history,
+   process list) and never a file (eventually committed). `--dry-run` needs none.
+
+After uploading, each object is read back **through the public URL** rather than the
+S3 API, so a green run proves what a launcher actually receives — including that the
+custom domain and TLS are wired correctly. SigV4 signing is implemented directly
+against the published AWS test vectors rather than pulled from an SDK (SOUL §22).
+
 ## Non-goals
 
 No account data, no telemetry, no mod files — metadata only. Mod content always comes from official platform CDNs (COMPLIANCE §1/§5).

@@ -2488,6 +2488,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "omni-meta-deploy"
+version = "0.1.0"
+dependencies = [
+ "hmac",
+ "omni-meta-format",
+ "sha2",
+ "tempfile",
+ "ureq",
+]
+
+[[package]]
 name = "omni-meta-format"
 version = "0.1.0"
 dependencies = [

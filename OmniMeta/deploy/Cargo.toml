@@ -1,0 +1,22 @@
+[package]
+name = "omni-meta-deploy"
+description = "Publishes a generated OmniMeta /v1 tree to Cloudflare R2 with per-object cache policy (SVC-1, ADR-0012/ADR-0016)"
+publish = false
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+
+[dependencies]
+hmac = { workspace = true }
+omni-meta-format = { workspace = true }
+sha2 = { workspace = true }
+ureq = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }
+
+[lints]
+workspace = true

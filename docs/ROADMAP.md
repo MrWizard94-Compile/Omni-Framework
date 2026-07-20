@@ -40,7 +40,7 @@ Comparative feature matrix generated (`intelligence/matrix.md`, `tools/matrix.py
 
 Delivered: **`OmniLoader/ARCHITECTURE.md`** (module map, boot sequence, `omni.mod.json` v0, transform cache, compat SPI, Mixin integration), **`OmniLauncher/ARCHITECTURE.md`** (crate layering, SQLite schema v1 draft, auth, job runner, importers, servers), **`OmniMeta/README.md`** (meta service + index format v1), and ADRs 0009–0014 resolving the REQUIREMENTS §9 deferred list. Remaining §9 item deferred by design: SRG/legacy-Forge support awaits Phase 6 census data.
 
-## Phase 4 — MVP Implementation ▶ (started 2026-07-18)
+## Phase 4 — MVP Implementation ▶ (started 2026-07-18; all 9 bricks delivered 2026-07-20 — end-to-end run pending)
 
 Scope per REQUIREMENTS.md (D7/D8 expanded it):
 - OmniLauncher (Tauri) launches vanilla 1.21.1 end-to-end with real MSA login; **client and server instances**; all four migration importers (CurseForge App, Prism/MultiMC, Modrinth/.mrpack, official profiles).
@@ -59,7 +59,7 @@ Delivery bricks (dependency-first; each lands complete, tested, zero-warning):
 | 6 | Importers ×4 + fingerprinting/hash recovery | ✅ 2026-07-19 |
 | 7 | Tauri shell + UI surfaces (contract: `OmniLauncher/COMMANDS.md`) | ✅ 2026-07-19 |
 | 8 | OmniLoader Gradle multi-project: `loader-diag` + `loader-model` (`omni.mod.json` v0) per ARCHITECTURE §2 | ✅ 2026-07-20 |
-| 9 | Meta CDN deployment tooling (target live: `omnimeta.wpaistudio.net`, ADR-0016) | ⬜ |
+| 9 | Meta CDN deployment tooling (`OmniMeta/deploy`; target `omnimeta.wpaistudio.net`, ADR-0016) | ✅ 2026-07-20 |
 
 ## Phase 5 — Stabilization ⬜
 
