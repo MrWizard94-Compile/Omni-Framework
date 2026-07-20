@@ -50,11 +50,22 @@ pub fn login_with_xbox(http: &dyn AuthHttp, xsts: &XstsToken) -> Result<McToken,
     });
     let response = http.post_json(LOGIN_URL, &body, None)?;
     if response.status == 403 {
+        // Report the observation, then the likely cause — not a verdict.
+        //
+        // This message used to assert "approval is pending", which is a claim about
+        // Mojang's internal state that nothing here can see. On 2026-07-20 that turned
+        // out to be actively wrong: Mojang confirmed a review batch had completed while
+        // this call still returned 403, so "pending" was telling the user a reassuring
+        // story about a request that may well have been declined. A 403 here means the
+        // service refused this client ID; it does not say why, and neither should we.
         return Err(AuthError::Protocol {
             step: "minecraft login",
-            detail: "Minecraft services refused this application (403). The Azure \
-                     client ID is not yet on Mojang's third-party-launcher allowlist \
-                     — approval is pending (see ROADMAP external dependencies)."
+            detail: "Minecraft services refused this application (403). This is what a \
+                     client ID that is not on Mojang's third-party-launcher allow list \
+                     receives; it is also what a submission that was reviewed and \
+                     declined receives, and the two are indistinguishable from here. \
+                     Confirm the application against Mojang's criteria before \
+                     resubmitting (see ROADMAP external dependencies)."
                 .to_owned(),
         });
     }
