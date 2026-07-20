@@ -77,7 +77,7 @@ work in the entire project.
 | 10 | `loader-core` + `loader-provider-api` + `provider-minecraft` — transforming classloader, partitions, boot sequence, vanilla headless boot | high | ✅ 2026-07-20 |
 | 11 | `loader-resolve` — backtracking constraint search (ADR-0018), rule SPI, ordering, dedupe, unsat-core error rendering (LDR-5) | high | ✅ 2026-07-20 |
 | 12 | `loader-transform` — AOT pipeline, hash-keyed cache, audit store, intermediary→official remapping (LDR-2, ADR-0010, ADR-0019) | **very high** | ✅ 2026-07-20 |
-| 13 | `loader-mixin` — pinned Mixin behind `MixinServiceOmni`, refmap translation, compat levels (LDR-8, ADR-0009) | **very high** | ⬜ |
+| 13 | `loader-mixin` — pinned Mixin behind `MixinServiceOmni`, refmap translation, compat levels (LDR-8, ADR-0009) | **very high** | ✅ 2026-07-20 |
 | 14 | `omni-api` + a native test mod — proves the native path end to end | medium | ⬜ |
 | 15 | `compat-api` + `compat-fabric` — a real Fabric mod loads (metadata-level, CMP-2) | **very high** | ⬜ |
 | 16 | `compat-neoforge` — a real NeoForge mod loads (full AOT translation) | **extreme** | ⬜ |
