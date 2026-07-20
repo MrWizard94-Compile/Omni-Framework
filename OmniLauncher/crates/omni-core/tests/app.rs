@@ -342,6 +342,75 @@ fn install_job_registers_runs_and_reports_failure_without_blocking() {
     );
 }
 
+/// Regression: the first live install sat at `pending` forever with no error.
+///
+/// The install thread failed while resolving the component stack (the meta
+/// service was unreachable), but `pending → failed` was not a legal transition,
+/// so the failure was silently dropped and the job center showed a job that
+/// looked like it was about to start. A job whose setup fails must reach
+/// `failed` and carry a message, exactly like one that fails mid-run.
+#[test]
+fn a_job_that_fails_before_running_still_reports_failure() {
+    // A meta source that serves nothing, so `resolve_stack` fails before the
+    // runner is ever constructed — the live condition, reproduced.
+    let data = tempfile::tempdir().expect("tempdir");
+    let cache = tempfile::tempdir().expect("tempdir");
+    let empty_tree = tempfile::tempdir().expect("tempdir");
+    let clock = Arc::new(FixedClock::new(NOW));
+    let db = Arc::new(Db::open_in_memory(clock.clone()).expect("db"));
+    let sink = Arc::new(CollectingSink::new());
+    let source: Arc<dyn MetaSource> = Arc::new(DirSource::new(empty_tree.path()));
+    let meta = Arc::new(MetaClient::new(source, cache.path()).expect("meta"));
+    let service = AppService::with_parts(
+        AppConfig {
+            data_root: data.path().to_path_buf(),
+            meta_url: "dir://empty".to_owned(),
+            client_id: omni_core::auth::DEV_CLIENT_ID.to_owned(),
+            vault_service: "OmniLauncher-test".to_owned(),
+        },
+        db,
+        clock,
+        sink.clone(),
+        meta,
+        Arc::new(MemoryVault::new()),
+        Arc::new(OfflineHttp),
+        Arc::new(EmptyBlobs),
+    );
+
+    let instance = service
+        .create_instance("Pack", "1.21.1", InstanceKind::Client)
+        .expect("create");
+    let job_id = service.start_install(instance.id).expect("start install");
+
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(30);
+    let settled = loop {
+        let job = service
+            .db()
+            .with_store(|store| store.job(job_id))
+            .expect("query")
+            .expect("job");
+        if job.state != JobState::Pending && job.state != JobState::Running {
+            break job;
+        }
+        assert!(
+            std::time::Instant::now() < deadline,
+            "job never left pending — the failure was swallowed again"
+        );
+        std::thread::sleep(std::time::Duration::from_millis(20));
+    };
+
+    assert_eq!(settled.state, JobState::Failed, "setup failure must surface as failed");
+    let error = settled.error.expect("a failed job must say why");
+    let message = error["message"].as_str().expect("message text");
+    assert!(
+        message.contains("meta"),
+        "the message must name the cause the user can act on: {message}"
+    );
+    // (Timestamps are not asserted here: the harness runs on a fixed clock, so
+    // created_at and updated_at are equal by construction. The state and the
+    // error message are what prove the row was written.)
+}
+
 #[test]
 fn job_commands_validate_and_report_ownership() {
     let h = harness();

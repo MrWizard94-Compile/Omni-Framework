@@ -427,15 +427,18 @@ impl AppService {
                     run(&db, job_id, &mut executor, sink.as_ref(), &token)
                 })();
                 if let Err(err) = outcome {
-                    // Resolution/store failure before or around the runner:
-                    // record it on the job so the job center can show it.
+                    // A failure anywhere in the thread — resolving the stack,
+                    // constructing the executor, or inside the runner — must land
+                    // on the job row. Anything else leaves the job center showing
+                    // a state the job is not actually in.
                     let detail = serde_json::json!({
                         "message": err.to_string(),
                         "retryable": true,
                     });
                     let _ = db.with_store(|store| {
-                        let job = store.job(job_id)?;
-                        if job.is_some_and(|job| job.state == JobState::Running) {
+                        if let Some(job) = store.job(job_id)?
+                            && job.state.can_transition_to(JobState::Failed)
+                        {
                             store.fail_job(job_id, &detail)?;
                         }
                         Ok(())

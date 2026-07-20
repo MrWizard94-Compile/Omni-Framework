@@ -141,7 +141,10 @@ text_enum! {
 
 text_enum! {
     /// Job lifecycle state (LNC-5). Legal transitions are enforced by
-    /// [`JobState::can_transition_to`].
+    /// [`JobState::can_transition_to`]: `pending → running`,
+    /// `running → paused | failed | done`, `paused | failed → running`
+    /// (resume/retry), and `pending | paused → failed` for work that breaks
+    /// before or between runs. `done` is terminal.
     JobState ("jobs.state") {
         /// Created, not yet claimed by a runner.
         Pending => "pending",
@@ -165,6 +168,13 @@ impl JobState {
             (self, to),
             (Self::Pending | Self::Paused | Self::Failed, Self::Running)
                 | (Self::Running, Self::Paused | Self::Failed | Self::Done)
+                // A job can also fail *before or between* runs: its instance was
+                // deleted, its component stack will not resolve, the meta service
+                // is unreachable. Leaving that unrepresentable was a real bug — a
+                // job whose setup failed sat at `pending` forever with no error,
+                // which reads to the user as "about to start" rather than "broken"
+                // (found on the first live install, 2026-07-20).
+                | (Self::Pending | Self::Paused, Self::Failed)
         )
     }
 }
@@ -416,6 +426,11 @@ mod tests {
             (Running, Done),
             (Paused, Running),
             (Failed, Running),
+            // Setup can fail before the runner ever starts (unresolvable stack,
+            // unreachable meta). Without these the failure has nowhere to go and
+            // the job sits at `pending` looking like it is about to run.
+            (Pending, Failed),
+            (Paused, Failed),
         ];
         for (from, to) in legal {
             assert!(from.can_transition_to(to), "{from} -> {to} must be legal");
