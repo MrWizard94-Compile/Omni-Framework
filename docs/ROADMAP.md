@@ -40,7 +40,12 @@ Comparative feature matrix generated (`intelligence/matrix.md`, `tools/matrix.py
 
 Delivered: **`OmniLoader/ARCHITECTURE.md`** (module map, boot sequence, `omni.mod.json` v0, transform cache, compat SPI, Mixin integration), **`OmniLauncher/ARCHITECTURE.md`** (crate layering, SQLite schema v1 draft, auth, job runner, importers, servers), **`OmniMeta/README.md`** (meta service + index format v1), and ADRs 0009–0014 resolving the REQUIREMENTS §9 deferred list. Remaining §9 item deferred by design: SRG/legacy-Forge support awaits Phase 6 census data.
 
-## Phase 4 — MVP Implementation ▶ (started 2026-07-18; all 9 bricks delivered 2026-07-20 — end-to-end run pending)
+## Phase 4 — MVP Implementation ▶ (started 2026-07-18)
+
+**Honest status**: two of the three scope items below are delivered. The **loader** is
+not — bricks 1–9 built the launcher and meta service; the loader has 2 of its 12
+modules. "Bricks delivered" is not the same as "phase complete", and the table below
+is split so that stays visible.
 
 Scope per REQUIREMENTS.md (D7/D8 expanded it):
 - OmniLauncher (Tauri) launches vanilla 1.21.1 end-to-end with real MSA login; **client and server instances**; all four migration importers (CurseForge App, Prism/MultiMC, Modrinth/.mrpack, official profiles).
@@ -60,6 +65,27 @@ Delivery bricks (dependency-first; each lands complete, tested, zero-warning):
 | 7 | Tauri shell + UI surfaces (contract: `OmniLauncher/COMMANDS.md`) | ✅ 2026-07-19 |
 | 8 | OmniLoader Gradle multi-project: `loader-diag` + `loader-model` (`omni.mod.json` v0) per ARCHITECTURE §2 | ✅ 2026-07-20 |
 | 9 | Meta CDN deployment tooling (`OmniMeta/deploy`; target `omnimeta.wpaistudio.net`, ADR-0016) | ✅ 2026-07-20 |
+
+### Launcher + meta: delivered. Loader: remaining bricks
+
+Scope item 2 (`OmniLoader` boots the game and loads three kinds of mod) decomposes into
+these. Ordered by dependency; difficulty is relative, and the last two are the highest-risk
+work in the entire project.
+
+| # | Brick | Difficulty | Status |
+|---|---|---|---|
+| 10 | `loader-core` + `loader-provider-api` + `provider-minecraft` — transforming classloader, partitions, boot sequence, vanilla headless boot | high | ⬜ |
+| 11 | `loader-resolve` — pseudo-boolean SAT, rule SPI, ordering, dedupe, unsat-core error rendering (LDR-5) | high | ⬜ |
+| 12 | `loader-transform` — AOT pipeline, hash-keyed cache, audit store, intermediary→official remapping (LDR-2, ADR-0010) | **very high** | ⬜ |
+| 13 | `loader-mixin` — pinned Mixin behind `MixinServiceOmni`, refmap translation, compat levels (LDR-8, ADR-0009) | **very high** | ⬜ |
+| 14 | `omni-api` + a native test mod — proves the native path end to end | medium | ⬜ |
+| 15 | `compat-api` + `compat-fabric` — a real Fabric mod loads (metadata-level, CMP-2) | **very high** | ⬜ |
+| 16 | `compat-neoforge` — a real NeoForge mod loads (full AOT translation) | **extreme** | ⬜ |
+
+Brick 16 is Sinytra-Connector-scale: the corpus dossier records that as multi-year work by
+a team. Treating it as "one more brick" would be dishonest planning. Bricks 10–14 are
+ordinary hard engineering; 15–16 are research-adjacent and should get their own scoping
+pass before anyone commits to a date.
 
 ### First live validation — 2026-07-20
 
