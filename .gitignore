@@ -34,6 +34,8 @@ OmniLauncher/apps/launcher-shell/gen/
 # the snapshot is a copy of Mojang's data — neither belongs in the repository.
 /meta-snapshot/
 /meta-tree/
+/plan.txt
+/upload.sh
 
 # Java/Gradle (OmniLoader — Phase 4)
 build/
