@@ -1,0 +1,43 @@
+{
+    "schemaVersion": 1,
+    "id": "terralith",
+    "version": "2.5.4",
+    "name": "Terralith",
+    "description": "Explore almost 100 new biomes consisting of both realism and light fantasy, using just Vanilla blocks. Complete with several immersive structures to compliment the overhauled terrain.",
+    "authors": [
+        "Starmute",
+        "catter1",
+        "TheKingWhale",
+        "Apollounknowndev"
+    ],
+    "contact": {
+        "homepage": "https://www.stardustlabs.net/",
+        "sources": "https://github.com/Stardust-Labs-MC/Terralith",
+        "issues": "https://github.com/Stardust-Labs-MC/Terralith/issues",
+        "discord": "https://discord.gg/stardustlabs"
+    },
+    "license": "Stardust Labs License",
+    "icon": "pack.png",
+    "environment": "*",
+    "entrypoints": {},
+    "mixins": [],
+    "depends": {
+        "fabricloader": ">=0.12.7",
+        "fabric-api-base": "*",
+        "minecraft": ">=1.20"
+    },
+    "custom": {
+        "modmenu": {
+            "links": {
+                "modmenu.curseforge": "https://www.curseforge.com/minecraft/mc-mods/terralith",
+                "modmenu.discord": "https://discord.gg/stardustlabs",
+                "modmenu.kofi": "https://ko-fi.com/stardustlabs",
+                "modmenu.modrinth": "https://modrinth.com/mod/terralith",
+                "modmenu.patreon": "https://www.patreon.com/stardustlabs",
+                "modmenu.twitter": "https://twitter.com/StardustLabs",
+                "modmenu.wiki": "https://stardustlabs.miraheze.org/",
+                "modmenu.youtube": "https://www.youtube.com/@stardustlabs"
+            }
+        }
+    }
+}

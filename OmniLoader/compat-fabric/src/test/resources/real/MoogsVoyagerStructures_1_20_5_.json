@@ -1,0 +1,42 @@
+{
+    "schemaVersion": 1,
+    "id": "mvs",
+    "version": "5.0.6",
+    "name": "MoogsVoyagerStructures",
+    "description": "160+ structures made with vanilla blocks and entities bringing life to your world! Discover loot, enemies, & villagers along the way!",
+    "authors": [
+      "FinnDog"
+    ],
+    "contributors": [
+      "Phantax"
+    ],
+    "contact": {
+      "homepage": "https://www.curseforge.com/minecraft/mc-mods/moogs-voyager-structures",
+      "sources": "https://github.com/Moog-s-Mods/MoogsVoyagerStructures",
+      "issues": "https://github.com/Moog-s-Mods/MoogsVoyagerStructures/issues",
+      "discord": "https://discord.gg/S5nffJbuvA",
+      "ko-fi": "https://ko-fi.com/finndog",
+      "curseforge": "https://www.curseforge.com/minecraft/mc-mods/moogs-voyager-structures",
+      "modrinth": "https://modrinth.com/mod/moogs-voyager-structures"
+    },
+    "license": "GNU Lesser General Public License v3.0",
+    "icon": "assets/mvs/icon.png",
+    "environment": "*",
+    "depends": {
+      "fabric-resource-loader-v0": "*",
+      "moogs_structures": "*"
+    },
+    "custom": {
+      "modmenu": {
+        "links": {
+          "mvs.releases": "https://github.com/Moog-s-Mods/MoogsVoyagerStructures/releases",
+          "modmenu.discord": "https://discord.gg/S5nffJbuvA",
+          "mvs.kofi": "https://ko-fi.com/finndog",
+          "mvs.curseforge": "https://www.curseforge.com/minecraft/mc-mods/moogs-voyager-structures",
+          "mvs.modrinth": "https://modrinth.com/mod/moogs-voyager-structures"
+        },
+        "parent": "moogs_structures",
+        "update_checker": true
+      }
+    }
+  }

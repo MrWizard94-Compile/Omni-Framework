@@ -37,5 +37,7 @@ include(
     "loader-transform",
     "loader-mixin",
     "omni-api",
+    "compat-api",
+    "compat-fabric",
     "integration-tests",
 )
