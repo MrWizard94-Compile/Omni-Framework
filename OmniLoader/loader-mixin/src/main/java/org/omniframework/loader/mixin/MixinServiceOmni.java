@@ -171,6 +171,28 @@ public final class MixinServiceOmni extends MixinServiceAbstract {
         return CompatibilityLevel.JAVA_8;
     }
 
+    /**
+     * Builds Mixin's transformer, for the loader to wrap in a {@link MixinClassTransformer}.
+     *
+     * <p>Mixin hands its internals to the service through {@code offer()} during
+     * initialisation, and {@code getInternal} — protected on the abstract base — is the only way
+     * back to them. Exposing exactly this one factory keeps the loader from needing access to
+     * Mixin's internals generally.
+     *
+     * @throws IllegalStateException if called before Mixin has initialised and offered its
+     *     factory, which would otherwise surface as a null dereference inside the caller
+     */
+    public org.spongepowered.asm.mixin.transformer.IMixinTransformer createTransformer() {
+        var factory = getInternal(
+                org.spongepowered.asm.mixin.transformer.IMixinTransformerFactory.class);
+        if (factory == null) {
+            throw new IllegalStateException(
+                    "Mixin has not offered its transformer factory yet — MixinBootstrap.init() "
+                            + "must run before the loader asks for a transformer");
+        }
+        return factory.createTransformer();
+    }
+
     @Override
     public CompatibilityLevel getMaxCompatibilityLevel() {
         Wiring current = wiring;

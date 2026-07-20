@@ -183,8 +183,19 @@ class TransformCacheTest {
                     cache.directoryFor(stale).resolve(TransformCache.ACCESS_MARKER),
                     FileTime.from(Instant.now().minus(30, ChronoUnit.DAYS)));
 
-            long half = cache.sizeBytes() / 2;
-            assertEquals(1, cache.evictToFit(half));
+            // Budget derived from the entry that should survive, NOT from half the total.
+            // Halving assumes the two entries are byte-identical in size, and they are not:
+            // the `accessed` marker stores Instant.now().toString(), whose length varies
+            // because Instant suppresses trailing zeros in the nanosecond field. A few bytes
+            // of difference put the budget below the survivor's size, and eviction correctly
+            // took both — a flaky test, not a cache bug.
+            long survivorBytes = cache.entries().stream()
+                    .filter(entry -> entry.key().equals(fresh))
+                    .mapToLong(CacheEntry::sizeBytes)
+                    .findFirst()
+                    .orElseThrow();
+
+            assertEquals(1, cache.evictToFit(survivorBytes));
             assertTrue(cache.lookup(stale).isEmpty(), "the older entry should go first");
             assertTrue(cache.lookup(fresh).isPresent(), "the recently used entry should survive");
         }
