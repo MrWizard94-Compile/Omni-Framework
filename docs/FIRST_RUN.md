@@ -42,14 +42,18 @@ type there. That is the whole login: OmniLauncher never shows a password field a
 receives your password (COMPLIANCE §2). Complete it in the browser, and the panel closes
 by itself when the core reports the result.
 
-> **Expect this to fail at the last step, and that is fine.** Mojang's approval of the
-> client ID is still pending (submitted 2026-07-19, weekly review). The Microsoft and
-> Xbox links work today; `api.minecraftservices.com` will reject an unapproved app with a
-> **403**, which surfaces as a message naming exactly that cause. Everything else below
-> can still be exercised.
+> **This works as of 2026-07-20.** Mojang's approval landed and the full chain was
+> verified end to end from the command line — MSA → XBL → XSTS → Minecraft services,
+> profile returned, credentials stored. The earlier 403 at `api.minecraftservices.com` is
+> gone.
 
-Once approval lands, a successful sign-in shows your username, a **verified** badge, and
-how long offline play remains available (the 14-day window, ADR-0011).
+A successful sign-in shows your username, a **verified** badge, and how long offline play
+remains available (the 14-day window, ADR-0011).
+
+> **You will sign in again here even though the probe already succeeded.** The probe uses
+> its own scratch database and the `OmniLauncher-dev` vault namespace, deliberately
+> separate from the app's. That separation is why a dev experiment cannot disturb a real
+> account, and the cost is one extra sign-in.
 
 ### 2. Instances — create one
 
