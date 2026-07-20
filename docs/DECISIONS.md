@@ -1,6 +1,6 @@
 # Architecture Decision Records
 
-Append-only log. Every entry: context → decision → consequences. Never delete an ADR; supersede it with a new one. Governed by `../SOULv2.0.0.md` §31.
+Append-only log. Every entry: context → decision → consequences. Never delete an ADR; supersede it with a new one. Governed by `../SOUL.md`.
 
 ---
 
@@ -222,3 +222,29 @@ Mapping *data* remains out of the loader jar and arrives as versioned, hash-addr
 - Inheritance-aware remapping is ours to keep correct. This is the pipeline's highest-consequence failure mode: a missed rename produces a jar that verifies, loads, and throws `NoSuchMethodError` only when a rare path executes. It is covered by tests that load the transformed classes and invoke them, rather than comparing bytes.
 - Tiny v1, Proguard, and SRG formats are not readable. None is needed for the Fabric-family path; SRG is already deferred by LDR-3. Adding one is a reader, not a redesign.
 - If first-party remapping later proves to miss cases tinyremapper handles, adopting it is contained — `HierarchyRemapper` sits behind `RemapPass` and the hierarchy index would still be required.
+
+---
+
+## ADR-0020 — Mixed-ecosystem packs are the product thesis, stated explicitly · 2026-07-20 · Accepted
+
+**Context.** The director stated the goal plainly (2026-07-20): "OmniLoader/OmniLauncher are meant to be able to load any mod family together in a single pack — so if your favourite mods are on different loaders, no longer an issue."
+
+This was always the plan and the architecture was built for it, but an audit of the binding documents found it **written down nowhere**. LDR-5 requires "cross-ecosystem identity/provides dedupe", which implies simultaneity without stating it. ARCHITECTURE §1 says the loader "hosts three mod populations" — which reads equally well as three separate capabilities. Phase 4's exit criterion lists "one native Omni test mod, one Fabric mod via compat layer, one NeoForge mod via compat layer" and can be satisfied by three independent runs.
+
+That gap matters because it changes what bricks 15 and 16 are for. Read separately they are two compat layers; read correctly they are two halves of one capability whose interesting case is both active at once — which is strictly harder than either, and which nobody scoping them later would infer from the table.
+
+**Decision.** Mixed-ecosystem packs are a **first-class requirement**, not an emergent side effect:
+
+1. A single instance MUST be able to load native Omni mods, Fabric-family mods, and NeoForge-family mods **simultaneously**, resolved in one pass and sharing one classloader, one Mixin runtime and one transform cache.
+2. Bricks 15 and 16 are **not complete on their own terms**. Each layer's exit criterion is its ecosystem loading *alongside* the others, not in isolation. A dedicated mixed-pack test is required before either is called done.
+3. The canonical model (LDR-6) is the mechanism and stays the mechanism: every ecosystem imports INTO it, after which resolution, transformation and dispatch treat all mods identically. No per-ecosystem pipeline may be added, because two pipelines cannot resolve against each other.
+
+**Consequences.**
+
+- The existing architecture already supports this and was chosen for it — canonical model, single transforming classloader with logical partitions (LDR-4/D3), one pinned Mixin runtime (LDR-8), cross-ecosystem dedupe (LDR-5). Nothing needs redesigning; this records why those choices are load-bearing rather than merely tidy.
+- Four hazards belong to the mixed case specifically, and to neither layer alone:
+  - **Duplicate identity** — the same mod ported to two ecosystems, or two ecosystems bundling the same library, appearing as two candidates for one id. LDR-5's dedupe covers the mechanism; which copy wins is a policy still to be decided.
+  - **Competing shims** — Fabric API and a NeoForge layer patching the same game behaviour differently. Conflicting `ShimSet`s are detectable (CMP-5 tracks them) but not currently reconciled.
+  - **Cross-ecosystem load order** — a Fabric mod depending on something a NeoForge mod provides. The resolver already orders across the whole candidate set, so this works by construction, and the test must prove it rather than assume it.
+  - **Two live `ApiFacade`s** — both guest loader APIs answering at once, about the same mod set. Each must report the whole pack, not only its own ecosystem's share, or mods will conclude their dependencies are absent.
+- ROADMAP brick 15/16 exit criteria are amended to require the mixed case.

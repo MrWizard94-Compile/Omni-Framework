@@ -79,13 +79,31 @@ work in the entire project.
 | 12 | `loader-transform` — AOT pipeline, hash-keyed cache, audit store, intermediary→official remapping (LDR-2, ADR-0010, ADR-0019) | **very high** | ✅ 2026-07-20 |
 | 13 | `loader-mixin` — pinned Mixin behind `MixinServiceOmni`, refmap translation, compat levels (LDR-8, ADR-0009) | **very high** | ✅ 2026-07-20 |
 | 14 | `omni-api` + a native test mod — proves the native path end to end | medium | ✅ 2026-07-20 |
-| 15 | `compat-api` + `compat-fabric` — a real Fabric mod loads (metadata-level, CMP-2) | **very high** | ⬜ |
-| 16 | `compat-neoforge` — a real NeoForge mod loads (full AOT translation) | **extreme** | ⬜ |
+| 15 | `compat-api` + `compat-fabric` — a real Fabric mod loads **alongside native mods** (metadata-level, CMP-2, ADR-0020) | **very high** | ▶ |
+| 16 | `compat-neoforge` — a real NeoForge mod loads **in the same pack as Fabric and native mods** (full AOT translation, ADR-0020) | **extreme** | ⬜ |
 
 Brick 16 is Sinytra-Connector-scale: the corpus dossier records that as multi-year work by
 a team. Treating it as "one more brick" would be dishonest planning. Bricks 10–14 are
 ordinary hard engineering; 15–16 are research-adjacent and should get their own scoping
 pass before anyone commits to a date.
+
+**Neither is done alone (ADR-0020).** The product thesis is mixed packs — any mod family
+together in one instance — so each layer's exit criterion is its ecosystem loading
+*alongside* the others, and a dedicated mixed-pack test gates both.
+
+**Measured 2026-07-20** against Better MC [FABRIC] BMC3 (MC 1.21.1, 347 mods), which
+replaced estimation with counts:
+
+| Question | Answer |
+|---|---|
+| Manifests importing cleanly | 340/347 (98%) |
+| Surface **we must implement** (`net.fabricmc.api.*`, `net.fabricmc.loader.api.*`) | **66 types**, used by 304/347 mods |
+| Surface **we simply load** (`net.fabricmc.fabric.api.*`) | 385 types — ships as the fabric-api mod |
+| Types carrying most of the weight | 6 outweigh the other 60 combined |
+
+The 49% of mods declaring a `fabric-api` dependency do not need that API reimplemented;
+they need one ordinary jar to load. That distinction is the difference between a bounded
+job and an unbounded one.
 
 ### First live validation — 2026-07-20
 
