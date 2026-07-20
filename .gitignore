@@ -47,3 +47,6 @@ Desktop.ini
 *.swp
 *~
 .DS_Store
+
+# Scratch data from the server_smoke example (real game artifacts, never committed).
+server-smoke-data/
