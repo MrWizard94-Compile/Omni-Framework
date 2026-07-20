@@ -120,9 +120,19 @@ fresh install for the same instance resumes from exactly the same point.
 | `list_accounts` | — | `Account[]` | `entitlementValid` reflects the ADR-0011 window |
 | `start_device_login` | — | `DeviceCode` | Returns the prompt; completion arrives as `LoginFinished` |
 | `sign_out` | `uuid` | `void` | Deletes the vault entry and the row |
+| `open_sign_in_page` | `url` | `void` | Opens the device-code page in the system browser |
 
 The launcher never renders a password field and never receives a password
 (COMPLIANCE §2). The user consents on Microsoft's own page.
+
+`open_sign_in_page` is the one command that does **not** wrap an `AppService`
+method: opening the OS browser is shell-layer platform integration, not
+portable core logic. The window's capability grants the web layer no opener
+permission (`capabilities/default.json`), so the shell performs the open behind
+this typed command and refuses any `url` that is not HTTPS to a known Microsoft
+sign-in host — the web layer proposes the URL, the shell validates it. The URL
+is also always shown as copyable text, so a refusal or a spawn failure degrades
+to "open it yourself" rather than blocking sign-in.
 
 ### Launch and console
 

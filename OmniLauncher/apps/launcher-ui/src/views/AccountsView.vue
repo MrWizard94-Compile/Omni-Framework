@@ -40,6 +40,17 @@ async function copyCode(): Promise<void> {
   }
 }
 
+async function openPage(): Promise<void> {
+  if (!prompt.value) return;
+  try {
+    await api.openSignInPage(prompt.value.verificationUri);
+  } catch (error) {
+    // The URL is always shown as text beside the button, so a failure here
+    // degrades to "open it yourself" rather than blocking sign-in.
+    reportError(error);
+  }
+}
+
 async function remove(uuid: string): Promise<void> {
   try {
     await api.signOut(uuid);
@@ -78,15 +89,13 @@ function windowText(expiresAt: number | null): string {
     <div v-if="prompt" class="card mb-5 border-indigo-800 bg-indigo-950/30">
       <h3 class="text-sm font-semibold text-indigo-200">Finish signing in</h3>
       <ol class="mt-2 space-y-2 text-sm text-slate-300">
-        <li>
-          1. Open
-          <a
-            class="text-indigo-300 underline"
-            :href="prompt.verificationUri"
-            target="_blank"
-            rel="noreferrer"
-            >{{ prompt.verificationUri }}</a
-          >
+        <li class="flex flex-wrap items-center gap-2">
+          1.
+          <button class="btn-ghost text-xs" @click="openPage">Open sign-in page</button>
+          <span class="text-slate-400">or visit</span>
+          <code class="rounded bg-slate-950 px-2 py-1 font-mono text-xs">{{
+            prompt.verificationUri
+          }}</code>
         </li>
         <li class="flex items-center gap-2">
           2. Enter this code:

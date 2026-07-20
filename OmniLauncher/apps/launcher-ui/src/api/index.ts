@@ -77,6 +77,17 @@ export const startDeviceLogin = () => invoke<DeviceCode>("start_device_login");
 
 export const signOut = (uuid: string) => invoke<void>("sign_out", { uuid });
 
+/**
+ * Opens the Microsoft sign-in page in the system browser.
+ *
+ * The web layer cannot open a browser itself — the window's capability grants
+ * it no opener permission by design — so this goes through the shell, which
+ * refuses any URL that is not a known Microsoft sign-in host. The `url` is the
+ * one the core handed us in the device-code prompt.
+ */
+export const openSignInPage = (url: string) =>
+  invoke<void>("open_sign_in_page", { url });
+
 // --- launch & console ------------------------------------------------------
 
 export const acceptServerEula = (instanceId: number) =>

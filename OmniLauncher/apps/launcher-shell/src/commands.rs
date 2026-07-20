@@ -192,6 +192,115 @@ pub async fn sign_out(
     blocking(Arc::clone(&service), move |s| s.sign_out(&uuid)).await
 }
 
+/// Opens the Microsoft device-code sign-in page in the system browser.
+///
+/// # Why this command exists at all, and why it is the exception
+///
+/// Every other command here is a thin wrapper over an [`AppService`] method,
+/// because all *launcher logic* lives in the portable core. This one is not:
+/// opening the OS browser is platform integration, which belongs to the shell,
+/// not to `omni-core` (a core that shelled out to a browser could not be tested
+/// without one). It is the single sanctioned exception to the wrapper rule.
+///
+/// It exists because the window's capability grants the web layer no opener or
+/// shell permission by design (`capabilities/default.json`), so a plain
+/// `<a target="_blank">` is inert inside the webview — it opens a tab in a real
+/// browser during dev and does nothing in the shipped app. That gap was
+/// invisible to every headless UI test and to browser-based Vite dev; it
+/// surfaced the first time a human clicked the link in the actual window
+/// (2026-07-20).
+///
+/// # Why it takes the URL yet cannot open an arbitrary one
+///
+/// The URL comes from the core's device-code response, but the web layer hands
+/// it back, so the shell must not trust it: a bug or compromise in the web
+/// layer could otherwise turn this into "open any URL". [`is_sign_in_url`]
+/// rejects anything that is not HTTPS to a known Microsoft sign-in host, so the
+/// worst the web layer can do is open a Microsoft login page. The web layer
+/// proposes; the shell disposes.
+///
+/// # Errors
+///
+/// [`AppError`] `usage` if the URL is not an allowed sign-in URL; `internal` if
+/// the browser process cannot be spawned.
+#[tauri::command]
+pub async fn open_sign_in_page(url: String) -> Result<(), AppError> {
+    if !is_sign_in_url(&url) {
+        return Err(AppError::usage(format!(
+            "refusing to open '{url}': not an HTTPS Microsoft sign-in URL"
+        )));
+    }
+    open_in_browser(&url)
+}
+
+/// Hosts the sign-in page may live on. Kept explicit rather than "any
+/// microsoft.com" so a look-alike subdomain cannot slip through.
+const SIGN_IN_HOSTS: &[&str] = &[
+    "microsoft.com",
+    "www.microsoft.com",
+    "login.microsoftonline.com",
+    "login.live.com",
+];
+
+/// Whether `url` is an HTTPS URL to a known Microsoft sign-in host.
+///
+/// Pure and total so the security boundary is unit-testable without spawning
+/// anything. Parsing is deliberately strict: scheme must be exactly `https`,
+/// and the host must equal an allowlisted entry — not merely end with it, since
+/// `microsoft.com.evil.test` ends with nothing useful but `evil-microsoft.com`
+/// would pass a naive suffix check.
+fn is_sign_in_url(url: &str) -> bool {
+    let Some(rest) = url.strip_prefix("https://") else {
+        return false;
+    };
+    // Host runs to the first '/', '?' or '#'. Reject empty and userinfo ('@'),
+    // which is the classic way to disguise the real host.
+    let host = rest.split(['/', '?', '#']).next().unwrap_or("");
+    if host.is_empty() || host.contains('@') {
+        return false;
+    }
+    // Strip a port if present; compare the bare host.
+    let bare = host.split(':').next().unwrap_or("");
+    SIGN_IN_HOSTS.contains(&bare)
+}
+
+/// Hands a validated URL to the OS default browser.
+///
+/// Windows uses `rundll32 url.dll,FileProtocolHandler`, which passes the URL as
+/// a direct argument with no shell in between — so no `cmd` metacharacter can
+/// be interpreted even though [`is_sign_in_url`] already rules them out. Other
+/// platforms use their standard opener; the shell targets Windows today, and
+/// these keep the code honest for the eventual port.
+fn open_in_browser(url: &str) -> Result<(), AppError> {
+    let mut command = browser_command(url);
+    command
+        .spawn()
+        .map(|_| ())
+        .map_err(|err| AppError::new("internal", format!("cannot open the browser: {err}")))
+}
+
+/// The platform command that opens a URL, without a shell.
+fn browser_command(url: &str) -> std::process::Command {
+    #[cfg(target_os = "windows")]
+    {
+        let mut command = std::process::Command::new("rundll32.exe");
+        command.arg("url.dll,FileProtocolHandler").arg(url);
+        command
+    }
+    #[cfg(target_os = "macos")]
+    {
+        let mut command = std::process::Command::new("open");
+        command.arg(url);
+        command
+    }
+    #[cfg(not(any(target_os = "windows", target_os = "macos")))]
+    {
+        let mut command = std::process::Command::new("xdg-open");
+        command.arg(url);
+        command
+    }
+}
+
 // ----------------------------------------------------------- launch/console
 
 /// Records explicit server-EULA acceptance and writes `eula.txt`.
@@ -303,6 +412,7 @@ pub fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static 
         list_accounts,
         start_device_login,
         sign_out,
+        open_sign_in_page,
         accept_server_eula,
         launch_instance,
         stop_process,
@@ -313,4 +423,67 @@ pub fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static 
         get_setting,
         set_setting,
     ]
+}
+
+#[cfg(test)]
+mod tests {
+    use super::is_sign_in_url;
+
+    #[test]
+    fn accepts_the_device_code_page() {
+        // The one the device-code flow actually returns.
+        assert!(is_sign_in_url("https://www.microsoft.com/link"));
+        assert!(is_sign_in_url("https://microsoft.com/link"));
+    }
+
+    #[test]
+    fn accepts_the_other_microsoft_sign_in_hosts() {
+        assert!(is_sign_in_url("https://login.microsoftonline.com/common/oauth2/v2.0/authorize"));
+        assert!(is_sign_in_url("https://login.live.com/oauth20_authorize.srf?client_id=x"));
+    }
+
+    #[test]
+    fn rejects_plain_http() {
+        // A downgrade to http would let the sign-in page be intercepted.
+        assert!(!is_sign_in_url("http://www.microsoft.com/link"));
+    }
+
+    #[test]
+    fn rejects_unknown_hosts() {
+        assert!(!is_sign_in_url("https://example.com/link"));
+        assert!(!is_sign_in_url("https://evil.test/steal"));
+    }
+
+    #[test]
+    fn rejects_lookalike_hosts() {
+        // The failure modes a naive check would wave through:
+        // a suffix trick, a prefix trick, and a subdomain of the wrong domain.
+        assert!(!is_sign_in_url("https://microsoft.com.evil.test/link"));
+        assert!(!is_sign_in_url("https://evil-microsoft.com/link"));
+        assert!(!is_sign_in_url("https://notmicrosoft.com/link"));
+        assert!(!is_sign_in_url("https://microsoft.com.attacker.net/link"));
+    }
+
+    #[test]
+    fn rejects_userinfo_disguise() {
+        // The @ trick: the real host is evil.test, microsoft.com is only userinfo.
+        assert!(!is_sign_in_url("https://www.microsoft.com@evil.test/link"));
+        assert!(!is_sign_in_url("https://microsoft.com:pass@evil.test/"));
+    }
+
+    #[test]
+    fn rejects_non_https_schemes() {
+        // file: and custom schemes are the interesting attacks if a URL opener
+        // ever trusted them.
+        assert!(!is_sign_in_url("file:///c:/windows/system32/calc.exe"));
+        assert!(!is_sign_in_url("javascript:alert(1)"));
+        assert!(!is_sign_in_url("data:text/html,<script>alert(1)</script>"));
+        assert!(!is_sign_in_url(""));
+        assert!(!is_sign_in_url("microsoft.com/link"));
+    }
+
+    #[test]
+    fn accepts_an_allowed_host_with_a_port() {
+        assert!(is_sign_in_url("https://login.live.com:443/oauth20_authorize.srf"));
+    }
 }
