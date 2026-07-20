@@ -107,8 +107,24 @@ stale `pending` job had no action; a meta error named no URL; and a retried-then
 job kept displaying its old failure.
 
 **Exit criterion still open**: the game itself launching, which is gated on Mojang's
-approval of the client ID (submitted 2026-07-19, weekly review). Everything the Launch
-button depends on is working. Walkthrough: `FIRST_RUN.md`.
+approval of the client ID (submitted 2026-07-19). Everything the Launch button depends on
+is working. Walkthrough: `FIRST_RUN.md`.
+
+Mojang's review is **unobservable**: no receipt, no status page, no approval notice
+(director-confirmed 2026-07-20). Approval manifests only as the Minecraft-services step
+ceasing to return 403. Two consequences worth stating plainly, so nobody re-derives them:
+
+- **Silence carries no information.** Neither "no email" nor elapsed time tells us whether
+  the submission landed, is queued, or was rejected. Any plan that waits for a signal is
+  waiting for something that does not exist.
+- **Retrying is the only probe**, so the check must be cheap and infrequent by design — a
+  deliberate poll a human runs, never an automated retry loop. Hammering an approval
+  endpoint is the fastest way to earn the denial we are trying to avoid.
+
+The install and launch chain either side of that step is verified independently: the server
+path needs no Microsoft account at all and is exercised end to end by
+`cargo run -p omni-core --example server_smoke` (measured 2026-07-20: cold 17.0s, warm
+6.0s, server jar hash-verified against its content-addressed name).
 
 ## Phase 5 — Stabilization ⬜
 
@@ -133,5 +149,5 @@ architecture phase begins after the Phase 4 MVP ships. Charter: `../OmniMC_Rust 
 | Item | Owner | Status |
 |---|---|---|
 | Azure app registration for MSA OAuth | MrWizard94 | ✅ 2026-07-19 — "OmniLauncher", client ID `ff86f866-0ef7-4208-aa66-c17d8124dcc3`, settings verified compliant (ADR-0016) |
-| Mojang approval of Azure client ID (form: aka.ms/mce-reviewappid) | MrWizard94 | ▶ **submitted 2026-07-19** (AppID + tenant + justification; reviews processed weekly) — approval gates live end-to-end login only |
+| Mojang approval of Azure client ID (form: aka.ms/mce-reviewappid) | MrWizard94 | ▶ **submitted 2026-07-19** (AppID + tenant + justification) — approval gates live end-to-end login only. **The process is opaque by design**: Mojang sends no submission receipt, publishes no status to check, and issues no approval notice (director-confirmed 2026-07-20). It simply starts working. So absence of mail is not evidence either way, and the *only* observable is retrying the auth chain — see the note under Phase 4's exit criterion. |
 | Meta CDN hosting (R2 bucket `omni-meta` + `omnimeta.wpaistudio.net`) | MrWizard94 + AI | ✅ **LIVE 2026-07-20** — tree published and hash-chain verified over the public URL |
