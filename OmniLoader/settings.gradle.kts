@@ -14,9 +14,11 @@
 //   provider-minecraft   the one provider that does know about Minecraft.
 //
 //   loader-resolve       which mods load, in what order, and why not (LDR-5).
+//   loader-transform     the AOT bytecode pipeline, its cache, and the audit
+//                        store that answers "who changed this class" (LDR-2).
 //
-// Still to come (ARCHITECTURE §2): loader-transform, loader-mixin,
-// compat-api, compat-fabric, compat-neoforge, omni-api.
+// Still to come (ARCHITECTURE §2): loader-mixin, compat-api, compat-fabric,
+// compat-neoforge, omni-api.
 
 rootProject.name = "omniloader"
 
@@ -27,4 +29,5 @@ include(
     "loader-core",
     "provider-minecraft",
     "loader-resolve",
+    "loader-transform",
 )

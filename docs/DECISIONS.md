@@ -197,3 +197,28 @@ Every behavioural clause of LDR-5 remains satisfied: per-ecosystem rule plugins 
 - *Revisit trigger:* if a real pack is ever measured resolving in more than ~2 seconds, or the minimal-subset core proves unhelpful in practice, revisit with a superseding ADR. Because the search is behind `Resolver`'s public surface, swapping the mechanism would not change callers.
 - The unsat-core path costs one re-solve per root. It runs only on failure, where correctness of the message outweighs the milliseconds.
 - Corpus divergence is deliberate and documented here so it is not later mistaken for an oversight.
+
+---
+
+## ADR-0019 — Transform tooling: ASM directly, with first-party mapping code · 2026-07-20 · Accepted
+
+**Amends** the tooling clause of OmniLoader/ARCHITECTURE.md §6 ("mappingio/tinyremapper-class tooling"). The pipeline's stages, ordering, cache, and audit are unchanged; this records what the remapping stage is *built from*.
+
+**Context.** Brick 12 needed bytecode rewriting. Two questions had to be answered: whether the loader takes an external dependency at all — it had none through brick 11 — and if so, which.
+
+Every library the loader touches before mods are on the classpath becomes a library every mod is forced to coexist with. That is why `loader-model` ships its own JSON reader. But a hand-rolled class-file reader is a different proposition entirely: the format gains a version every six months, and getting the constant pool wrong is a permanent correctness liability rather than a parsing inconvenience. ADR-0009's pinned Mixin is itself built on ASM, so ASM enters the dependency graph at brick 13 regardless of what is decided here.
+
+**Decision.** `loader-transform` depends on **ASM** (`asm`, `asm-commons`, `asm-tree`) and nothing else. Mapping concerns are first-party:
+
+1. **Tiny v2 parsing** is implemented directly (`TinyV2Reader`) rather than adopting `mappingio`. The format is a tab-indented TSV, the useful subset is small, and mappings are read before any mod is loaded — exactly the position where an extra dependency is most expensive. Namespaces are selected **by name**, never positionally, because an artifact with unexpected column order would otherwise yield a mapping set that renames confidently in the wrong direction.
+2. **Remapping** is ASM's `ClassRemapper` over a first-party `HierarchyRemapper` rather than adopting `tinyremapper`. The reason is correctness, not preference: mappings name a member by its *declaring* class while bytecode names it by whatever class the call site referenced, so member lookup must walk ancestors. That walk needs a class hierarchy index, and ARCHITECTURE §8 already requires `loader-transform` to expose one for Mixin's `ClassInfo` equivalent. The index has to exist either way; building the remapper over it is a smaller commitment than adopting tinyremapper and then maintaining a second hierarchy source beside it.
+3. **Frame recomputation** uses `COMPUTE_FRAMES` with `getCommonSuperClass` answered from that index. ASM's default answers by loading both classes, which cannot work for classes that are mid-transformation.
+
+Mapping *data* remains out of the loader jar and arrives as versioned, hash-addressed artifacts per ADR-0010 — unchanged.
+
+**Consequences.**
+
+- One external runtime dependency, shared with `loader-mixin` at brick 13 rather than duplicated.
+- Inheritance-aware remapping is ours to keep correct. This is the pipeline's highest-consequence failure mode: a missed rename produces a jar that verifies, loads, and throws `NoSuchMethodError` only when a rare path executes. It is covered by tests that load the transformed classes and invoke them, rather than comparing bytes.
+- Tiny v1, Proguard, and SRG formats are not readable. None is needed for the Fabric-family path; SRG is already deferred by LDR-3. Adding one is a reader, not a redesign.
+- If first-party remapping later proves to miss cases tinyremapper handles, adopting it is contained — `HierarchyRemapper` sits behind `RemapPass` and the hierarchy index would still be required.

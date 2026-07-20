@@ -17,7 +17,11 @@ import java.util.Optional;
  * a dependency), and it lets parse errors carry the line/column detail that LDR-10's typed
  * issues require.
  *
- * <p>This model is read-only by design — the loader parses manifests, it never writes them.
+ * <p>Third-party manifests are <em>only ever read</em> — the loader never rewrites a file a mod
+ * author owns. Loader-owned files are a different matter: the transform cache writes its own
+ * {@code meta.json} and {@code audit.json}, so {@link JsonWriter} serialises this model back out.
+ * Reading and writing share one model deliberately, so a file the loader writes is provably one
+ * it can read.
  */
 public sealed interface Json {
 
