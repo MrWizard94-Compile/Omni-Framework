@@ -93,9 +93,16 @@ impl Store<'_> {
         if !current.can_transition_to(to) {
             return Err(CoreError::IllegalTransition { job_id: id, from: current, to });
         }
+        // Starting a new attempt invalidates the previous failure. Without this,
+        // a job that failed, was resumed, and then succeeded still carried its
+        // old `error_json` — so the job center rendered a completed install
+        // alongside the reason an earlier attempt had failed, which reads as
+        // "it worked, but also it didn't" (found live 2026-07-20).
+        let clearing_error = to == JobState::Running;
         tx.execute(
-            "UPDATE jobs SET state = ?2, updated_at = ?3 WHERE id = ?1",
-            params![id, to, self.clock.now_unix()],
+            "UPDATE jobs SET state = ?2, updated_at = ?3, \
+             error_json = CASE WHEN ?4 THEN NULL ELSE error_json END WHERE id = ?1",
+            params![id, to, self.clock.now_unix(), clearing_error],
         )
         .map_err(CoreError::db("update job state"))?;
         let job = tx

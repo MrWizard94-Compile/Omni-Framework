@@ -187,6 +187,43 @@ fn failure_persists_error_and_retry_resumes_at_failed_step() {
     assert_eq!(*log.lock().expect("log"), expected_full_log());
 }
 
+/// Regression: a job that failed, was resumed, and then succeeded kept showing
+/// the earlier failure. The job center rendered a completed install next to the
+/// reason a previous attempt had failed — "it worked, but also it didn't".
+/// Starting a new attempt must clear the stale error.
+#[test]
+fn retrying_clears_the_previous_failure() {
+    let db = fresh_db();
+    let job = db.with_store(|store| store.create_job("install", None)).expect("create");
+    let log = Arc::new(Mutex::new(Vec::new()));
+
+    // Fail once.
+    let mut failing = Scripted::new(log.clone());
+    failing.fail_once_at = Some(2);
+    run(&db, job.id, &mut failing, &omni_core::NullSink, &CancelToken::new()).expect("run");
+    let failed = db.with_store(|store| store.job(job.id)).expect("query").expect("job");
+    assert_eq!(failed.state, JobState::Failed);
+    assert!(failed.error.is_some(), "the failure is recorded while it is current");
+
+    // Retry to completion.
+    run(
+        &db,
+        job.id,
+        &mut Scripted::new(log.clone()),
+        &omni_core::NullSink,
+        &CancelToken::new(),
+    )
+    .expect("retry");
+
+    let done = db.with_store(|store| store.job(job.id)).expect("query").expect("job");
+    assert_eq!(done.state, JobState::Done);
+    assert!(
+        done.error.is_none(),
+        "a succeeded job must not still carry why an earlier attempt failed: {:?}",
+        done.error
+    );
+}
+
 #[test]
 fn crash_recovery_pauses_running_jobs_at_their_resume_point() {
     let db = fresh_db();
