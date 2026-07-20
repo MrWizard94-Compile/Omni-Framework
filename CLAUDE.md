@@ -2,7 +2,7 @@
 
 ## Law
 
-**`SOULv2.0.0.md` is the constitution of this project. SOUL IS LAW.** Every delivery must pass the SOUL §0 fifteen-point pre-delivery checklist. Complete, production-ready, zero-warning bricks only. Document obsessively. When SOUL and convenience conflict, SOUL wins.
+**`SOUL.md` is the constitution of this project. SOUL IS LAW.** Every delivery must pass the SOUL fifteen-point Pre-Delivery Gate. Complete, production-ready, zero-warning bricks only. Document obsessively. When SOUL and convenience conflict, SOUL wins.
 
 ## Identity & Branding
 
