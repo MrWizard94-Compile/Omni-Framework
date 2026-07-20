@@ -8,8 +8,12 @@
 //   loader-model  the canonical mod model + `omni.mod.json` v0 (LDR-6, §5) —
 //                 the shape every ecosystem imports INTO.
 //
-// Still to come (ARCHITECTURE §2): loader-core, loader-provider-api,
-// provider-minecraft, loader-resolve, loader-transform, loader-mixin,
+//   loader-provider-api  the GameProvider SPI — how the loader is told where the
+//                        game is, without knowing anything about Minecraft (LDR-1).
+//   loader-core          classloading, partitions, discovery, boot (LDR-3, LDR-4).
+//   provider-minecraft   the one provider that does know about Minecraft.
+//
+// Still to come (ARCHITECTURE §2): loader-resolve, loader-transform, loader-mixin,
 // compat-api, compat-fabric, compat-neoforge, omni-api.
 
 rootProject.name = "omniloader"
@@ -17,4 +21,7 @@ rootProject.name = "omniloader"
 include(
     "loader-diag",
     "loader-model",
+    "loader-provider-api",
+    "loader-core",
+    "provider-minecraft",
 )

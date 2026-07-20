@@ -74,7 +74,7 @@ work in the entire project.
 
 | # | Brick | Difficulty | Status |
 |---|---|---|---|
-| 10 | `loader-core` + `loader-provider-api` + `provider-minecraft` — transforming classloader, partitions, boot sequence, vanilla headless boot | high | ⬜ |
+| 10 | `loader-core` + `loader-provider-api` + `provider-minecraft` — transforming classloader, partitions, boot sequence, vanilla headless boot | high | ✅ 2026-07-20 |
 | 11 | `loader-resolve` — pseudo-boolean SAT, rule SPI, ordering, dedupe, unsat-core error rendering (LDR-5) | high | ⬜ |
 | 12 | `loader-transform` — AOT pipeline, hash-keyed cache, audit store, intermediary→official remapping (LDR-2, ADR-0010) | **very high** | ⬜ |
 | 13 | `loader-mixin` — pinned Mixin behind `MixinServiceOmni`, refmap translation, compat levels (LDR-8, ADR-0009) | **very high** | ⬜ |
