@@ -21,6 +21,13 @@ dependencies {
     api(project(":loader-transform"))
     api("org.spongepowered:mixin:0.8.7")
 
+    // `api`, not `implementation`: Mixin's IClassBytecodeProvider is defined in terms of
+    // ClassNode, so ASM's tree package is part of this module's own surface — anything
+    // implementing or calling these providers needs it too. loader-transform keeps ASM
+    // internal because its passes only return byte arrays.
+    api("org.ow2.asm:asm:9.8")
+    api("org.ow2.asm:asm-tree:9.8")
+
     compileOnly("com.google.guava:guava:32.1.2-jre")
     compileOnly("com.google.code.gson:gson:2.10.1")
 
