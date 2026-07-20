@@ -61,11 +61,28 @@ Delivery bricks (dependency-first; each lands complete, tested, zero-warning):
 | 8 | OmniLoader Gradle multi-project: `loader-diag` + `loader-model` (`omni.mod.json` v0) per ARCHITECTURE §2 | ✅ 2026-07-20 |
 | 9 | Meta CDN deployment tooling (`OmniMeta/deploy`; target `omnimeta.wpaistudio.net`, ADR-0016) | ✅ 2026-07-20 |
 
-**Phase 4 exit criterion still open**: the end-to-end run — vanilla 1.21.1 actually
-launching from the built app, with a real account and real Mojang data. Every brick is
-tested in isolation and against fixtures; this is the first time they meet reality.
-Walkthrough: `FIRST_RUN.md`. Requires the director at the keyboard (a window, a Microsoft
-sign-in, a ~600 MB download) and, for live login, Mojang's pending approval.
+### First live validation — 2026-07-20
+
+The app was built, launched, and driven end to end. Everything upstream of the Launch
+button is now proven against reality rather than fixtures:
+
+| Capability | Live result |
+|---|---|
+| Meta service | Published and hash-chain verified over the public URL (20 objects, 0 mismatches) |
+| Import | Director's real ATM10 pack: **324 mods**, 0 skipped, loader identified |
+| Install | **1.06 GB** in ~27 min — 270 libraries/jars, 3,888 assets, Java 21 auto-provisioned |
+| Repair | Full verify of 4,560 files in **34–61 s**, zero re-downloads |
+| Resume | Interrupted and failed jobs resumed to completion, nothing fetched twice |
+| Auth | MSA → XBL → XSTS all live; stops at Minecraft services with a typed 403 |
+
+Four defects surfaced and were fixed the same session — all of the "only appears when the
+system meets reality" kind: a job failing before it started was silently swallowed; a
+stale `pending` job had no action; a meta error named no URL; and a retried-then-succeeded
+job kept displaying its old failure.
+
+**Exit criterion still open**: the game itself launching, which is gated on Mojang's
+approval of the client ID (submitted 2026-07-19, weekly review). Everything the Launch
+button depends on is working. Walkthrough: `FIRST_RUN.md`.
 
 ## Phase 5 — Stabilization ⬜
 
