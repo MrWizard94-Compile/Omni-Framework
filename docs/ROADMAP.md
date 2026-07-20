@@ -61,6 +61,12 @@ Delivery bricks (dependency-first; each lands complete, tested, zero-warning):
 | 8 | OmniLoader Gradle multi-project: `loader-diag` + `loader-model` (`omni.mod.json` v0) per ARCHITECTURE §2 | ✅ 2026-07-20 |
 | 9 | Meta CDN deployment tooling (`OmniMeta/deploy`; target `omnimeta.wpaistudio.net`, ADR-0016) | ✅ 2026-07-20 |
 
+**Phase 4 exit criterion still open**: the end-to-end run — vanilla 1.21.1 actually
+launching from the built app, with a real account and real Mojang data. Every brick is
+tested in isolation and against fixtures; this is the first time they meet reality.
+Walkthrough: `FIRST_RUN.md`. Requires the director at the keyboard (a window, a Microsoft
+sign-in, a ~600 MB download) and, for live login, Mojang's pending approval.
+
 ## Phase 5 — Stabilization ⬜
 
 Test matrix, zero-warning hardening across all three languages, docs completion, release engineering (SOUL §34): signed/checksummed artifacts, changelogs, upgrade paths.
