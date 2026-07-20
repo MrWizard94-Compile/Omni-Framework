@@ -70,6 +70,17 @@ subprojects {
 
     tasks.withType<Test>().configureEach {
         useJUnitPlatform()
+
+        // Forward -Domni.* from the Gradle JVM into the test JVM. Gradle does not propagate
+        // system properties across that boundary, so a probe gated on one would find it absent,
+        // skip via an assumption, and report success having measured nothing — a green result
+        // that proves nothing, which is the failure mode SOUL gate 4 exists to forbid.
+        System.getProperties().forEach { key, value ->
+            val name = key.toString()
+            if (name.startsWith("omni.")) {
+                systemProperty(name, value.toString())
+            }
+        }
         testLogging {
             events("failed")
             exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL
