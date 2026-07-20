@@ -69,11 +69,16 @@ been downloaded yet: installing is a separate, explicit step so you can watch it
 cd C:\WPAI\Gaming\Minecraft\Omni_Framework
 # Capture Mojang's data and generate the tree (~1 min):
 cargo run -p omni-meta-gen -- snapshot --out .\meta-snapshot --versions 1.21.1
-cargo run -p omni-meta-gen -- generate --snapshot .\meta-snapshot --out .\meta-tree
+cargo run -p omni-meta-gen -- generate --snapshot .\meta-snapshot --out .\meta-tree --force
 
 # See exactly what would be published — no credentials needed:
 cargo run -p omni-meta-deploy -- --tree .\meta-tree --dry-run
 ```
+
+`--force` is there because `generate` refuses to overwrite an existing tree
+unless you say so — re-running the walkthrough would otherwise stop with
+"output tree already exists". Both directories are gitignored: they are
+deterministic artifacts, rebuildable at any time.
 
 To actually publish you need an **R2 API token**: Cloudflare dashboard → R2 → *Manage
 API tokens* → create one with **Object Read & Write** on the `omni-meta` bucket. Then, in
