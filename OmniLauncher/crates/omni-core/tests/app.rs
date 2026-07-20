@@ -439,6 +439,80 @@ fn job_commands_validate_and_report_ownership() {
     assert!(err.message.contains("done"), "explains why: {}", err.message);
 }
 
+/// Clearing history must remove what is finished and keep what is not. The
+/// asymmetry matters: a `paused` job is work the user suspended, and losing it
+/// to a "clear" button would be the kind of surprise that stops people pressing
+/// buttons at all.
+#[test]
+fn clearing_history_removes_finished_jobs_and_keeps_live_ones() {
+    let h = harness();
+    let instance =
+        h.service.create_instance("Pack", "1.21.1", InstanceKind::Client).expect("create");
+
+    let make = |state: JobState| {
+        let job = h
+            .service
+            .db()
+            .with_store(|store| store.create_job("install", Some(instance.id)))
+            .expect("job");
+        h.service
+            .db()
+            .with_store(|store| {
+                match state {
+                    JobState::Pending => {}
+                    JobState::Done => {
+                        store.transition_job(job.id, JobState::Running)?;
+                        store.complete_job(job.id, &json!({}))?;
+                    }
+                    JobState::Failed => {
+                        store.transition_job(job.id, JobState::Running)?;
+                        store.fail_job(job.id, &json!({ "message": "boom" }))?;
+                    }
+                    JobState::Paused => {
+                        store.transition_job(job.id, JobState::Running)?;
+                        store.transition_job(job.id, JobState::Paused)?;
+                    }
+                    JobState::Running => {
+                        store.transition_job(job.id, JobState::Running)?;
+                    }
+                }
+                Ok(())
+            })
+            .expect("set state");
+        job.id
+    };
+
+    let done = make(JobState::Done);
+    let failed = make(JobState::Failed);
+    let paused = make(JobState::Paused);
+    let pending = make(JobState::Pending);
+    let running = make(JobState::Running);
+    let _ = h.sink.drain();
+
+    let removed = h.service.clear_finished_jobs().expect("clear");
+    assert_eq!(removed, 2, "exactly the done and failed jobs");
+
+    let surviving: Vec<i64> = h.service.list_jobs().expect("jobs").iter().map(|j| j.id).collect();
+    assert!(!surviving.contains(&done), "finished work is history");
+    assert!(!surviving.contains(&failed), "so is a failure the user moved past");
+    assert!(surviving.contains(&paused), "suspended work must survive");
+    assert!(surviving.contains(&pending), "queued work must survive");
+    assert!(surviving.contains(&running), "running work must survive");
+
+    assert!(
+        h.sink.drain().contains(&CoreEvent::JobsChanged),
+        "the list changed, so the UI is told to refetch"
+    );
+
+    // Clearing again removes nothing and, having changed nothing, says nothing.
+    let _ = h.sink.drain();
+    assert_eq!(h.service.clear_finished_jobs().expect("clear"), 0);
+    assert!(
+        !h.sink.drain().contains(&CoreEvent::JobsChanged),
+        "a no-op must not announce a change"
+    );
+}
+
 #[test]
 fn crash_recovery_is_exposed_as_a_startup_command() {
     let h = harness();
@@ -717,6 +791,7 @@ fn event_wire_shapes_are_stable() {
             CoreEvent::InstanceChanged { instance_id: Some(5) },
             json!({ "InstanceChanged": { "instance_id": 5 } }),
         ),
+        (CoreEvent::JobsChanged, json!("JobsChanged")),
         (CoreEvent::AccountsChanged, json!("AccountsChanged")),
         (
             CoreEvent::LoginFinished { uuid: Some("u".into()), error: None },

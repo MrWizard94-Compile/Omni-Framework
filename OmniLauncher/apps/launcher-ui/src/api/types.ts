@@ -150,4 +150,5 @@ export type CoreEvent =
   | { ProcessExited: { instance_id: number; session_id: number; exit_code: number } }
   | { InstanceChanged: { instance_id: number | null } }
   | { LoginFinished: { uuid: string | null; error: string | null } }
+  | "JobsChanged"
   | "AccountsChanged";

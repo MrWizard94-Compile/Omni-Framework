@@ -385,6 +385,26 @@ impl AppService {
         }
     }
 
+    /// Clears finished jobs (`done` and `failed`) from the history, returning
+    /// how many were removed.
+    ///
+    /// Work in progress is never touched — `pending`, `paused`, and `running`
+    /// jobs survive, because those are things the user has not finished with.
+    /// Clearing a failed job is not lossy: its downloaded files live in the
+    /// content-addressed cache, so a fresh install resumes from exactly the same
+    /// point.
+    ///
+    /// # Errors
+    ///
+    /// [`AppError`] on store failure.
+    pub fn clear_finished_jobs(&self) -> Result<usize, AppError> {
+        let removed = self.db.with_store(|store| store.delete_finished_jobs())?;
+        if removed > 0 {
+            self.emit(CoreEvent::JobsChanged);
+        }
+        Ok(removed)
+    }
+
     /// Startup duty: any job still marked `running` was owned by a process
     /// that died, so it becomes `paused` at its persisted resume point.
     ///

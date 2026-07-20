@@ -66,6 +66,9 @@ export const resumeJob = (jobId: number) => invoke<void>("resume_job", { jobId }
 
 export const cancelJob = (jobId: number) => invoke<boolean>("cancel_job", { jobId });
 
+/** Clears finished (done/failed) jobs; resolves with how many were removed. */
+export const clearFinishedJobs = () => invoke<number>("clear_finished_jobs");
+
 // --- accounts --------------------------------------------------------------
 
 export const listAccounts = () => invoke<Account[]>("list_accounts");

@@ -56,6 +56,10 @@ pub enum CoreEvent {
         /// The affected instance; `None` means "the list changed".
         instance_id: Option<i64>,
     },
+    /// The job list itself changed — rows were added or removed rather than one
+    /// job changing state (e.g. finished jobs were cleared). The UI refetches
+    /// the whole list.
+    JobsChanged,
     /// The account set changed (login completed, sign-out, window re-stamped).
     AccountsChanged,
     /// A background sign-in finished (success or typed failure), so the UI can

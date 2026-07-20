@@ -103,9 +103,15 @@ Reads the meta service. Works offline once the root index has been cached (SVC-2
 | `start_install` | `instanceId` | `number` (job id) | Returns immediately |
 | `resume_job` | `jobId` | `void` | Valid for `pending`/`paused`/`failed` |
 | `cancel_job` | `jobId` | `boolean` | Cooperative pause at the next step boundary |
+| `clear_finished_jobs` | — | `number` (removed) | Deletes `done` and `failed` rows; never touches live work |
 
 Installs persist a resume point after every step, so **resume continues rather than
 restarting** and re-running a finished install is a free verify/repair pass.
+
+`clear_finished_jobs` removes `done` and `failed` rows only — `pending`, `paused`, and
+`running` survive, because those are work the user has not finished with. Clearing a
+failed job is not lossy: what it downloaded lives in the content-addressed cache, so a
+fresh install for the same instance resumes from exactly the same point.
 
 ### Accounts
 
@@ -172,8 +178,13 @@ UI receives. Serde's external tagging means field-carrying variants arrive as
 | `ProcessStarted` | `{ instance_id, session_id, pid }` | Note the session for the console |
 | `ProcessExited` | `{ instance_id, session_id, exit_code }` | Notify; refresh instances |
 | `InstanceChanged` | `{ instance_id }` (`null` = list changed) | Refresh instances |
+| `JobsChanged` | *(bare string)* | Refresh the whole job list (rows added/removed) |
 | `AccountsChanged` | *(bare string)* | Refresh accounts |
 | `LoginFinished` | `{ uuid, error }` | Close the device-code panel; report outcome |
+
+Field-less variants (`JobsChanged`, `AccountsChanged`) arrive as bare strings, so a
+TypeScript handler must narrow those **before** any `in` check — otherwise the remaining
+union still contains a string. The strict typecheck enforces this.
 
 Event *payload* fields are `snake_case` — they come from the core's own enum rather than
 the DTO layer, and the pinning test documents them exactly as they appear. This asymmetry

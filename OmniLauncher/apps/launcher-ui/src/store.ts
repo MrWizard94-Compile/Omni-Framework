@@ -118,8 +118,16 @@ export async function initStore(): Promise<void> {
 }
 
 function handleEvent(event: CoreEvent): void {
+  // Field-less variants arrive as bare strings, so they must be narrowed out
+  // before any `in` check — otherwise the remaining union still contains a
+  // string and `"x" in event` is not valid. (The strict typecheck catches this,
+  // which is exactly why it is worth running.)
   if (event === "AccountsChanged") {
     void refreshAccounts();
+    return;
+  }
+  if (event === "JobsChanged") {
+    void refreshJobs();
     return;
   }
   if ("InstanceChanged" in event) {

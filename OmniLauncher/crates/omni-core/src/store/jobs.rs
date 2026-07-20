@@ -179,6 +179,28 @@ impl Store<'_> {
         Ok(Job { error: Some(error.clone()), ..job })
     }
 
+    /// Removes finished jobs (`done` and `failed`), returning how many went.
+    ///
+    /// **Why `failed` counts as finished.** A failed install job is resumable,
+    /// so deleting it looks lossy — but the work it represents lives in the
+    /// content-addressed cache, not in the row. Starting a fresh install for the
+    /// same instance picks up exactly where the old one stopped, because every
+    /// already-downloaded file verifies from cache. So the row is genuinely
+    /// history, and a job centre that cannot forget a failure the user has moved
+    /// past is just clutter.
+    ///
+    /// `pending`, `paused`, and `running` are never touched: those are work the
+    /// user has not finished with.
+    ///
+    /// # Errors
+    ///
+    /// [`CoreError::Db`] on driver failure.
+    pub fn delete_finished_jobs(&mut self) -> Result<usize, CoreError> {
+        self.conn
+            .execute("DELETE FROM jobs WHERE state IN ('done', 'failed')", [])
+            .map_err(CoreError::db("clear finished jobs"))
+    }
+
     /// Crash recovery (startup duty): every `running` job — impossible unless
     /// the previous process died — becomes `paused` at its persisted resume
     /// point. Returns the affected ids.

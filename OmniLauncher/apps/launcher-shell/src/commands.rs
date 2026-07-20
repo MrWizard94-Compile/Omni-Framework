@@ -157,6 +157,14 @@ pub async fn cancel_job(
     blocking(Arc::clone(&service), move |s| Ok(s.cancel_job(job_id))).await
 }
 
+/// Clears finished jobs from the history; returns how many were removed.
+#[tauri::command]
+pub async fn clear_finished_jobs(
+    service: State<'_, Arc<AppService>>,
+) -> Result<usize, AppError> {
+    blocking(Arc::clone(&service), AppService::clear_finished_jobs).await
+}
+
 // ----------------------------------------------------------------- accounts
 
 /// Every signed-in account.
@@ -291,6 +299,7 @@ pub fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static 
         start_install,
         resume_job,
         cancel_job,
+        clear_finished_jobs,
         list_accounts,
         start_device_login,
         sign_out,

@@ -7,9 +7,27 @@
  * resume point after every step (LNC-5), so "Retry" continues rather than
  * restarting.
  */
+import { computed } from "vue";
 import * as api from "../api";
 import type { Job } from "../api/types";
-import { store, reportError, toast } from "../store";
+import { store, refreshJobs, reportError, toast } from "../store";
+
+/** Jobs the runner will never pick up again — what "clear finished" removes. */
+const finishedCount = computed(
+  () => store.jobs.filter((job) => job.state === "done" || job.state === "failed").length,
+);
+
+async function clearFinished(): Promise<void> {
+  try {
+    const removed = await api.clearFinishedJobs();
+    // The core emits JobsChanged, but refreshing here too means the list is
+    // already correct by the time the toast appears.
+    await refreshJobs();
+    toast("info", removed === 1 ? "Cleared 1 finished job." : `Cleared ${removed} finished jobs.`);
+  } catch (error) {
+    reportError(error);
+  }
+}
 
 const stateStyle: Record<Job["state"], string> = {
   running: "bg-indigo-500/20 text-indigo-300",
@@ -54,12 +72,24 @@ async function cancel(job: Job): Promise<void> {
 
 <template>
   <div class="p-6">
-    <header class="mb-5">
-      <h2 class="text-lg font-semibold">Jobs</h2>
-      <p class="mt-0.5 text-xs text-slate-500">
-        Installs and repairs run in the background. Interrupted work resumes from its last
-        completed step — nothing is downloaded twice.
-      </p>
+    <header class="mb-5 flex items-start justify-between gap-4">
+      <div>
+        <h2 class="text-lg font-semibold">Jobs</h2>
+        <p class="mt-0.5 text-xs text-slate-500">
+          Installs and repairs run in the background. Interrupted work resumes from its last
+          completed step — nothing is downloaded twice.
+        </p>
+      </div>
+      <!-- Only offered when there is something to clear, and the count says
+           exactly what will go. Running and paused work is never touched. -->
+      <button
+        v-if="finishedCount > 0"
+        class="btn-ghost shrink-0"
+        :title="'Removes finished and failed jobs from this list. Running and paused work is kept, and clearing a failed job loses nothing — its downloaded files stay cached.'"
+        @click="clearFinished"
+      >
+        Clear finished ({{ finishedCount }})
+      </button>
     </header>
 
     <p v-if="store.jobs.length === 0" class="text-sm text-slate-500">Nothing has run yet.</p>
