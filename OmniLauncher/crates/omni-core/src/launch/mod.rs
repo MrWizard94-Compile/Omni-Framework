@@ -55,6 +55,23 @@ pub struct LaunchInputs<'a> {
     pub extra_jvm_args: Vec<String>,
 }
 
+/// The lowest heap the game can actually start with (MiB). Below this the JVM
+/// either refuses the value outright or dies reserving the object heap, so no
+/// value under it is ever worth emitting.
+const MIN_HEAP_MIB: u64 = 512;
+
+/// The heap size to actually write into `-Xmx`, never below the floor.
+///
+/// The single place a heap argument is emitted, and therefore the one place
+/// that must guarantee the JVM is never handed something it will reject. The
+/// caller's value has normally already been through the settings policy, but
+/// this floor holds regardless of how the inputs were built — a `0` here would
+/// otherwise become `-Xmx0M`, which is exactly the argument that crashed a real
+/// launch on 2026-07-20 with "Invalid maximum heap size".
+fn heap_mib(requested: u64) -> u64 {
+    requested.max(MIN_HEAP_MIB)
+}
+
 fn substitute(template: &str, values: &BTreeMap<&str, String>) -> String {
     let mut out = template.to_owned();
     for (key, value) in values {
@@ -175,7 +192,7 @@ pub fn build_client_command(
     values.insert("launcher_version", env!("CARGO_PKG_VERSION").to_owned());
     values.insert("classpath", classpath);
 
-    let mut args: Vec<String> = vec![format!("-Xmx{}M", inputs.memory_mib)];
+    let mut args: Vec<String> = vec![format!("-Xmx{}M", heap_mib(inputs.memory_mib))];
     args.extend(inputs.extra_jvm_args.iter().cloned());
     match (&game.arguments, &game.legacy_arguments) {
         (Some(arguments), _) => {
@@ -267,7 +284,7 @@ pub fn build_server_command(
         .get("downloads")
         .and_then(|downloads| downloads["server"]["sha1"].as_str())
         .ok_or(CoreError::NotFound { what: "server jar download", id: inputs.instance.id })?;
-    let mut args = vec![format!("-Xmx{}M", inputs.memory_mib)];
+    let mut args = vec![format!("-Xmx{}M", heap_mib(inputs.memory_mib))];
     args.extend(inputs.extra_jvm_args.iter().cloned());
     args.push("-jar".to_owned());
     args.push(cache.object_path(server_sha1).to_string_lossy().into_owned());
@@ -357,4 +374,33 @@ pub fn wait_and_record(
         store.touch_last_played(session.instance_id)
     })?;
     Ok(code)
+}
+
+#[cfg(test)]
+mod heap_tests {
+    use super::{heap_mib, MIN_HEAP_MIB};
+
+    #[test]
+    fn zero_is_floored_never_emitted_as_xmx0m() {
+        // The exact 2026-07-20 crash: a stored 0 reached the arg builder and
+        // became `-Xmx0M`, which the JVM rejects as "Invalid maximum heap
+        // size". The floor is the last line of defence, independent of the
+        // settings policy upstream.
+        assert_eq!(heap_mib(0), MIN_HEAP_MIB);
+        assert_eq!(format!("-Xmx{}M", heap_mib(0)), format!("-Xmx{MIN_HEAP_MIB}M"));
+    }
+
+    #[test]
+    fn sub_floor_values_are_raised_to_the_floor() {
+        assert_eq!(heap_mib(1), MIN_HEAP_MIB);
+        assert_eq!(heap_mib(MIN_HEAP_MIB - 1), MIN_HEAP_MIB);
+    }
+
+    #[test]
+    fn viable_values_pass_through_untouched() {
+        // A real modpack heap (10 GB) must not be clamped down.
+        assert_eq!(heap_mib(MIN_HEAP_MIB), MIN_HEAP_MIB);
+        assert_eq!(heap_mib(4096), 4096);
+        assert_eq!(heap_mib(10240), 10240);
+    }
 }

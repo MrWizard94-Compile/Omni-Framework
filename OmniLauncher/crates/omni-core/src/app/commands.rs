@@ -47,6 +47,26 @@ use crate::store::{ComponentSource, InstanceKind, JobState, NewInstance, StackEn
 
 /// Default heap for a new instance when settings say nothing (MiB).
 const DEFAULT_MEMORY_MIB: u64 = 4096;
+
+/// Resolves the heap size to launch with from an instance's settings.
+///
+/// The setting is user intent, and "no intent" has two spellings that must
+/// behave identically: the key being absent, and the key being present as `0`
+/// — the latter is how imported packs carry "no per-instance override" (see
+/// the importer). Both yield the default. A stored `0` reaching the JVM as
+/// `-Xmx0M` is what crashed the first imported pack on 2026-07-20; this maps it
+/// back to the default so instances imported before that fix still launch,
+/// rather than needing a manual settings edit.
+///
+/// A positive value is respected as given, including large ones — a 10 GB
+/// modpack heap is a legitimate choice, so this is deliberately not capped
+/// here. The hard floor below which no JVM will start lives at the argument
+/// builder (`build_client_command`), the one place that must never emit an
+/// impossible heap regardless of how the value arrived.
+fn resolve_memory_mib(settings: &serde_json::Value) -> u64 {
+    settings["memoryMib"].as_u64().filter(|&mib| mib > 0).unwrap_or(DEFAULT_MEMORY_MIB)
+}
+
 /// Console tail cap, so a runaway log can never balloon an IPC message.
 const MAX_CONSOLE_LINES: usize = 2000;
 
@@ -637,7 +657,7 @@ impl AppService {
             ));
         }
 
-        let memory_mib = instance.settings["memoryMib"].as_u64().unwrap_or(DEFAULT_MEMORY_MIB);
+        let memory_mib = resolve_memory_mib(&instance.settings);
         let extra_jvm_args: Vec<String> = instance.settings["jvmArgs"]
             .as_array()
             .map(|args| {
@@ -873,5 +893,39 @@ impl AppService {
     pub fn set_setting(&self, key: &str, value: &serde_json::Value) -> Result<(), AppError> {
         self.db.with_store(|store| store.set_setting(key, value))?;
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod memory_tests {
+    use super::{resolve_memory_mib, DEFAULT_MEMORY_MIB};
+
+    #[test]
+    fn absent_setting_uses_the_default() {
+        assert_eq!(resolve_memory_mib(&serde_json::json!({})), DEFAULT_MEMORY_MIB);
+    }
+
+    #[test]
+    fn zero_sentinel_uses_the_default() {
+        // The reported bug: an imported pack stored memoryMib: 0, which must
+        // resolve to the default rather than reaching the JVM as a zero heap.
+        // This is what lets instance 1 — already in the DB with 0 — launch
+        // without a manual settings edit.
+        assert_eq!(resolve_memory_mib(&serde_json::json!({ "memoryMib": 0 })), DEFAULT_MEMORY_MIB);
+    }
+
+    #[test]
+    fn wrong_type_uses_the_default() {
+        assert_eq!(
+            resolve_memory_mib(&serde_json::json!({ "memoryMib": "lots" })),
+            DEFAULT_MEMORY_MIB
+        );
+    }
+
+    #[test]
+    fn a_real_choice_is_respected_including_large_heaps() {
+        // A 10 GB modpack allocation is legitimate and must survive unchanged.
+        assert_eq!(resolve_memory_mib(&serde_json::json!({ "memoryMib": 10240 })), 10240);
+        assert_eq!(resolve_memory_mib(&serde_json::json!({ "memoryMib": 2048 })), 2048);
     }
 }

@@ -168,7 +168,13 @@ pub(crate) fn create_imported_instance(db: &Db, seed: &InstanceSeed) -> Result<i
     if let Some((kind, version)) = &seed.loader {
         settings[IMPORTED_LOADER_KEY] = serde_json::json!({ "kind": kind, "version": version });
     }
-    if let Some(memory) = seed.memory_mib {
+    // A memory value of 0 is not "allocate zero" — it is how CurseForge (and
+    // others) spell "the user set no per-instance override, use the app
+    // default". Persisting it verbatim produced `-Xmx0M` and an instant JVM
+    // crash on the first imported pack that had never had its memory set (ATM10
+    // To The Sky, 2026-07-20). A non-positive value is dropped so the launch
+    // read site falls back to the default, exactly as a missing key does.
+    if let Some(memory) = seed.memory_mib.filter(|&mib| mib > 0) {
         settings["memoryMib"] = serde_json::json!(memory);
     }
     db.with_store(|store| {
