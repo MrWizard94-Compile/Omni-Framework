@@ -31,4 +31,6 @@ include(
     "loader-resolve",
     "loader-transform",
     "loader-mixin",
+    "omni-api",
+    "integration-tests",
 )
