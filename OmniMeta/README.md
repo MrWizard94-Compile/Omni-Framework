@@ -1,6 +1,6 @@
 # OmniMeta — the Omni Metadata Service
 
-**Status**: Phase 3 design; **generator implemented 2026-07-18** (Phase 4 brick 1 — see §Implementation below). Hosting deploy (ADR-0012) pending director domain confirmation.
+**Status**: **LIVE** — serving at `https://omnimeta.wpaistudio.net/v1/` since 2026-07-20. Generator (brick 1) and publish tooling (brick 9) implemented; see §Implementation and §Publishing.
 **Authority chain**: SOUL v2.0.0 → `../docs/REQUIREMENTS.md` (SVC-1/SVC-2, D6) → this spec.
 **Pattern provenance**: three-way corpus consensus — meta.multimc.org (multimc), meta.prismlauncher.org (prism-launcher), daedalus (modrinth-app, the Rust reference implementation).
 
@@ -108,6 +108,22 @@ After uploading, each object is read back **through the public URL** rather than
 S3 API, so a green run proves what a launcher actually receives — including that the
 custom domain and TLS are wired correctly. SigV4 signing is implemented directly
 against the published AWS test vectors rather than pulled from an SDK (SOUL §22).
+
+### Bot protection (worth knowing before debugging a 403)
+
+The custom domain sits behind Cloudflare's default bot protection, which rejects
+well-known automation user-agents. `Python-urllib/3.10` gets a **403**; the launcher's
+own `omni-meta-client/...` agent and an absent user-agent both get **200**. So a 403 while
+poking at the service by hand is almost certainly the tool's user-agent, not a broken
+deploy — verified 2026-07-20 when exactly that tripped up a verification script.
+
+### First publish (2026-07-20)
+
+21 objects published via wrangler's OAuth session (no API token was created; credentials
+never left the director's own Cloudflare login). Verified after the fact by walking the
+whole hash chain over the public URL as a launcher would: **20 objects, 0 mismatches**,
+with roots serving `max-age=300, must-revalidate` and payloads `max-age=31536000,
+immutable`.
 
 ## Non-goals
 
