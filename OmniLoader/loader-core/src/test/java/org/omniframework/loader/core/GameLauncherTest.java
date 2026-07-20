@@ -146,8 +146,14 @@ class GameLauncherTest {
     @DisplayName("providers are discovered through ServiceLoader")
     void providersAreDiscovered() {
         List<GameProvider> providers = GameLauncher.discoverProviders();
-        // provider-minecraft is on the test classpath via the project dependency graph only
-        // when present; the mechanism itself is what this asserts.
+        // loader-core cannot depend on provider-minecraft — the dependency runs the other way —
+        // so this can only assert the mechanism does not blow up with nothing registered.
+        //
+        // That is a weak assertion, and it once hid a real defect: provider-minecraft's
+        // registration was committed one directory too deep, so no provider was discoverable in
+        // any real run, and this test passed anyway because an empty list is also non-null.
+        // The assertion that actually matters lives in integration-tests'
+        // ProviderDiscoveryTest, which has a provider on its classpath and names it.
         assertNotNull(providers, "discovery must never return null");
     }
 

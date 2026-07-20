@@ -17,8 +17,13 @@
 //   loader-transform     the AOT bytecode pipeline, its cache, and the audit
 //                        store that answers "who changed this class" (LDR-2).
 //
-// Still to come (ARCHITECTURE §2): loader-mixin, compat-api, compat-fabric,
-// compat-neoforge, omni-api.
+//   loader-mixin         the pinned Mixin runtime behind MixinServiceOmni (LDR-8).
+//   omni-api             what native mods compile against — separate release
+//                        cadence, and depends on nothing so that stays true.
+//   integration-tests    no production code: proves the modules fit together,
+//                        which no single module's tests can.
+//
+// Still to come (ARCHITECTURE §2): compat-api, compat-fabric, compat-neoforge.
 
 rootProject.name = "omniloader"
 

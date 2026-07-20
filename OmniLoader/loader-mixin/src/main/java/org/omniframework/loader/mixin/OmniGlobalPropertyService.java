@@ -36,6 +36,18 @@ public final class OmniGlobalPropertyService implements IGlobalPropertyService {
         return new Key(Objects.requireNonNull(name, "name"));
     }
 
+    /**
+     * {@inheritDoc}
+     *
+     * <p>Unchecked by necessity, not by choice. Mixin's SPI declares {@code <T> T
+     * getProperty(IPropertyKey)} with no bound relating {@code T} to the key, so the stored
+     * {@code Object} cannot be checked against it — there is nothing at runtime that says what
+     * type a given key holds. Storing a typed map instead would not help: the interface hands us
+     * an untyped key and expects an inferred return.
+     *
+     * <p>Not removable while ADR-0009 pins this Mixin line; a version bump that gives the SPI a
+     * typed key is the only thing that would change it, and that bump requires its own ADR.
+     */
     @SuppressWarnings("unchecked")
     @Override
     public <T> T getProperty(IPropertyKey key) {
@@ -53,6 +65,13 @@ public final class OmniGlobalPropertyService implements IGlobalPropertyService {
         properties.put(key, value);
     }
 
+    /**
+     * {@inheritDoc}
+     *
+     * <p>Unchecked for the same reason as {@link #getProperty(IPropertyKey)}, and removable on
+     * the same condition. The default value does not help: it constrains what the caller wanted,
+     * not what the map actually holds.
+     */
     @SuppressWarnings("unchecked")
     @Override
     public <T> T getProperty(IPropertyKey key, T defaultValue) {

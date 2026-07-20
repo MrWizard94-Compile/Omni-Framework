@@ -14,5 +14,6 @@ dependencies {
     testImplementation(project(":loader-resolve"))
     testImplementation(project(":loader-transform"))
     testImplementation(project(":omni-api"))
+    testImplementation(project(":provider-minecraft"))
     testImplementation("org.ow2.asm:asm:9.8")
 }
