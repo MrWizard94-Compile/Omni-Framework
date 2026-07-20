@@ -13,7 +13,9 @@
 //   loader-core          classloading, partitions, discovery, boot (LDR-3, LDR-4).
 //   provider-minecraft   the one provider that does know about Minecraft.
 //
-// Still to come (ARCHITECTURE §2): loader-resolve, loader-transform, loader-mixin,
+//   loader-resolve       which mods load, in what order, and why not (LDR-5).
+//
+// Still to come (ARCHITECTURE §2): loader-transform, loader-mixin,
 // compat-api, compat-fabric, compat-neoforge, omni-api.
 
 rootProject.name = "omniloader"
@@ -24,4 +26,5 @@ include(
     "loader-provider-api",
     "loader-core",
     "provider-minecraft",
+    "loader-resolve",
 )

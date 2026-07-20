@@ -169,3 +169,31 @@ Append-only log. Every entry: context → decision → consequences. Never delet
 5. **Branding** carries no Minecraft trademark and no compatibility claims; showcase materials present engine benchmarks and the open modding platform, never substitute-product claims.
 
 **Consequences.** OmniMC receives its own architecture phase (engine direction: wgpu rendering with multidraw indirect, decoupled simulation/render/IO loops) gated behind Phase 4 MVP completion for capacity; `OmniMC_Rust Edition/` is chartered by its README pointing here; the two products complement rather than endanger each other — real-Minecraft modding through the Framework, original modding through OmniMC.
+
+---
+
+## ADR-0018 — Resolution mechanism: bespoke backtracking search, not pseudo-boolean SAT · 2026-07-20 · Accepted
+
+**Supersedes** the mechanism clause of LDR-5 / decision D4 (REQUIREMENTS.md §2) and the "SAT resolver" cell in OmniLoader/ARCHITECTURE.md §2. The behavioural clauses of LDR-5 are unchanged and are all delivered.
+
+**Context.** LDR-5 specifies "pseudo-boolean SAT resolution ... and unsat-core → human-quality error rendering", derived from the corpus (fabric-loader and quilt-loader both relocate Sat4j). Implementing brick 11 surfaced a tension between the two halves of that sentence. A SAT solver answers *whether* a satisfying assignment exists and, on failure, returns an unsat core as a set of clauses over encoded variables. But the requirement's stated purpose is a message a player can act on. Recovering "Create needs Flywheel 1.0 or newer, but the copy bundled inside Valkyrien Skies is 0.6" from clause indices means maintaining a full reverse mapping from every encoded variable back to the mod, dependency, and candidate that produced it — the error-rendering problem is not solved by the solver, only relocated behind it.
+
+Searching the constraint graph directly keeps every failure at the point where the loader still knows what it was attempting, so the message is written from live domain objects rather than reconstructed.
+
+**Decision.** `loader-resolve` implements resolution as a **bespoke backtracking constraint search** over mod candidates, not as a reduction to pseudo-boolean SAT. No SAT library is vendored. Specifically:
+
+1. Candidates are tried **newest-first**, with user-installed copies beating bundled ones at equal version; ids are visited in a stable order, so resolution is **deterministic** across runs.
+2. Constraints are enforced **symmetrically** — a candidate must satisfy the requirements of already-selected mods, not merely have its own satisfied.
+3. The **common failures** (missing dependency, version mismatch, explicit conflict) are detected *before* search so their messages name the mod, the requirement, and what is actually installed.
+4. A genuine search failure is narrowed to a **minimal unsatisfiable subset** by deletion — one re-solve per root — so the error names only mods that are actually in conflict, never bystanders. This is LDR-5's "unsat core", delivered in domain terms.
+5. Ordering is a separate pass with **hard explicit edges** (`before`/`after`: a cycle is a reported error) and **soft implied edges** (`depends`: broken to resolve a cycle, with a warning), because the canonical model deliberately separates requirement from ordering and mutual requirement is legal.
+
+Every behavioural clause of LDR-5 remains satisfied: per-ecosystem rule plugins (the `ResolverRule` SPI), BEFORE/AFTER ordering constraints, cross-ecosystem identity/provides dedupe, and unsat-core → human-quality error rendering.
+
+**Consequences.**
+
+- *Accepted risk:* chronological backtracking has no conflict-driven clause learning, so its worst case is worse than Sat4j's on adversarially-structured inputs. This is a real difference, not a wash.
+- *Measured, not assumed:* a seeded 448-candidate fixture — 400 content mods over 24 libraries each bundled at two competing versions, with roughly one mod in eight declaring `breaks` against its library's 2.x line so the search must genuinely back out of its newest-first choice — resolves in **~42 ms**. That is above the 324 mods of the ATM10 pack used for launcher validation. `ResolverScaleTest` keeps this honest with a loose 10-second tripwire that exponential blowup would blow past rather than nudge, and asserts as a property that whatever assignment the search returns violates no declared rule (ARCHITECTURE §11).
+- *Revisit trigger:* if a real pack is ever measured resolving in more than ~2 seconds, or the minimal-subset core proves unhelpful in practice, revisit with a superseding ADR. Because the search is behind `Resolver`'s public surface, swapping the mechanism would not change callers.
+- The unsat-core path costs one re-solve per root. It runs only on failure, where correctness of the message outweighs the milliseconds.
+- Corpus divergence is deliberate and documented here so it is not later mistaken for an oversight.

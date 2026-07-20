@@ -15,7 +15,7 @@ OmniLoader is a JVM mod loader for Minecraft: Java Edition, first target MC 1.21
 | `loader-core` | Bootstrap, classloading, partitions, service wiring. Zero gameplay API. | (fabric-loader) Knot |
 | `loader-provider-api` + `provider-minecraft` | GameProvider SPI; MC-specific location/patching isolated | (fabric-loader) |
 | `loader-model` | Canonical mod model + `omni.mod.json` parsing (§5) | (fabric-loader) metadata |
-| `loader-resolve` | SAT resolver, rule SPI, ordering, dedupe, error rendering | (quilt-loader)+(fancymodloader) |
+| `loader-resolve` | Backtracking resolver (ADR-0018), rule SPI, ordering, dedupe, error rendering | (quilt-loader)+(fancymodloader) |
 | `loader-transform` | AOT pipeline, cache, audit store, remapping | (sinytra-connector)+(fancymodloader) |
 | `loader-mixin` | Pinned Mixin + `MixinServiceOmni` + refmap translation | (spongepowered-mixin) |
 | `loader-diag` | Typed issues, boot UI hooks, failure tree | (fancymodloader) earlydisplay |
@@ -31,7 +31,7 @@ JVM entry (client/server thin mains)
  → GameProvider located (ServiceLoader) → game jars identified, version verified vs manifest
  → Discovery: mods/ walker + dev-classpath + args finders → candidate set (nested jars recursed)
  → Per-candidate metadata import → canonical model (native parse | compat-layer import, §7)
- → Resolution: rules from core + each layer → SAT solve → ordered winning set | typed failure
+ → Resolution: rules from core + each layer → backtracking search → ordered winning set | typed failure
  → Transform ensure: per-jar cache lookup (§6); misses run the AOT pipeline now (parallel)
  → Partitioned transforming loader assembles: game + cached artifacts
  → Mixin bootstrap: config registration (native + translated refmaps), compat levels
