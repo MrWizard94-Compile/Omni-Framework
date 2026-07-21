@@ -628,6 +628,20 @@ fn launch_gate_distinguishes_its_three_outcomes() {
 }
 
 #[test]
+fn server_launch_does_not_require_a_microsoft_account() {
+    // D8: dedicated servers are first-class; CPL-2 ownership is for *playing*
+    // the client game, not for spawning an official server jar.
+    let h = harness();
+    let instance =
+        h.service.create_instance("Srv", "1.21.1", InstanceKind::Server).expect("create");
+    // Empty account uuid must not produce `auth` for servers — EULA or install
+    // are the only legitimate gates before a spawn attempt.
+    let err = h.service.launch_instance(instance.id, "").expect_err("pre-install");
+    assert_ne!(err.kind, "auth", "server launch must not demand MSA: {err:?}");
+    assert_ne!(err.kind, "entitlement", "server launch must not use CPL-2: {err:?}");
+}
+
+#[test]
 fn server_eula_acceptance_is_explicit_and_recorded() {
     let h = harness();
     let instance =

@@ -126,6 +126,13 @@ fn auth_values(auth: &LaunchAuth) -> AuthValues {
             uuid: profile_uuid.clone(),
             token: "offline-entitlement-window".to_owned(),
         },
+        // Server launches never substitute into auth placeholders; callers
+        // must not build a *client* command with this variant.
+        LaunchAuth::DedicatedServer => AuthValues {
+            name: "Server".to_owned(),
+            uuid: "00000000-0000-0000-0000-000000000000".to_owned(),
+            token: String::new(),
+        },
     }
 }
 

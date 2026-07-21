@@ -4,9 +4,8 @@
  *
  * Mods are rendered as entities with their ecosystem and port-status badges —
  * the visible payoff of storing them as rows rather than as a folder listing
- * (LNC-2/D5). Launching goes through the account the user selected; the core's
- * CPL-2 gate is what actually authorizes it, and its typed refusal is shown
- * verbatim.
+ * (LNC-2/D5). Client launches go through the selected account (CPL-2). Server
+ * launches need only explicit EULA acceptance (D8) — no Microsoft account.
  */
 import { computed, ref, watch } from "vue";
 import * as api from "../api";
@@ -26,6 +25,26 @@ const busy = ref(false);
 const selectedAccount = computed(() =>
   store.accounts.find((a) => a.uuid === store.activeAccount) ?? null,
 );
+
+/** Whether Launch is allowed for the current selection. */
+const canLaunch = computed(() => {
+  if (busy.value || selectedId.value === null || !detail.value) return false;
+  if (detail.value.summary.kind === "server") {
+    return detail.value.serverEulaAccepted;
+  }
+  return selectedAccount.value !== null;
+});
+
+const launchTitle = computed(() => {
+  if (!detail.value) return undefined;
+  if (detail.value.summary.kind === "server" && !detail.value.serverEulaAccepted) {
+    return "Accept the Minecraft server EULA first";
+  }
+  if (detail.value.summary.kind === "client" && !selectedAccount.value) {
+    return "Sign in on the Accounts tab first";
+  }
+  return undefined;
+});
 
 async function select(id: number): Promise<void> {
   selectedId.value = id;
@@ -99,10 +118,13 @@ async function install(): Promise<void> {
 }
 
 async function launch(): Promise<void> {
-  if (selectedId.value === null || !store.activeAccount) return;
+  if (selectedId.value === null || !detail.value || !canLaunch.value) return;
   busy.value = true;
   try {
-    await api.launchInstance(selectedId.value, store.activeAccount);
+    // Servers pass an empty account uuid; the core ignores it for InstanceKind::Server.
+    const accountUuid =
+      detail.value.summary.kind === "server" ? "" : (store.activeAccount ?? "");
+    await api.launchInstance(selectedId.value, accountUuid);
     toast("info", "Launching — output appears in Console.");
   } catch (error) {
     reportError(error);
@@ -258,8 +280,8 @@ function formatDate(seconds: number | null): string {
             <button class="btn-ghost" :disabled="busy" @click="install">Install / Repair</button>
             <button
               class="btn-primary"
-              :disabled="busy || !selectedAccount"
-              :title="selectedAccount ? undefined : 'Sign in on the Accounts tab first'"
+              :disabled="!canLaunch"
+              :title="launchTitle"
               @click="launch"
             >
               Launch

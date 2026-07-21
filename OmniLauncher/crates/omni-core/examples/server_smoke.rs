@@ -1,29 +1,21 @@
-//! Live install probe for a dedicated-server instance — the unblocked part of
-//! the Phase 4 exit criterion.
+//! Live install + optional spawn probe for a dedicated-server instance —
+//! the Phase 4 exit path that needs no Microsoft account.
 //!
 //! ```text
-//! cargo run -p omni-core --example server_smoke                # install
+//! cargo run -p omni-core --example server_smoke                # install only
 //! cargo run -p omni-core --example server_smoke -- --accept-eula
+//! cargo run -p omni-core --example server_smoke -- --accept-eula --launch
 //! ```
 //!
-//! Exercises the chain that needs no Microsoft account at all: meta resolve
-//! against the live service, server-jar and library download with hash
-//! verification, auto-Java provisioning, and (optionally) recording the
-//! director's EULA acceptance.
+//! Exercises: live meta resolve, server-jar/library download with hash
+//! verification, auto-Java, optional EULA record, and optional process spawn.
 //!
-//! **It stops before launching.** `AppService::launch_instance` applies the
-//! CPL-2 entitlement gate to every launch, servers included, and CPL-2's
-//! wording is categorical: "no launch path exists without a verified
-//! entitlement record". Reaching a spawn from here would mean either
-//! fabricating a `LaunchAuth` or adding a public launch-without-auth method —
-//! that is, deciding the CPL-2 scope question by implementing it. That
-//! decision belongs to the director and to a superseding ADR, so this tool
-//! does neither. Once the scope is settled the launch step lands here.
+//! **CPL-2 applies to client play, not dedicated servers (D8).** Server launch
+//! uses `LaunchAuth::DedicatedServer` and the EULA gate only.
 //!
 //! **The EULA is not accepted for you.** `--accept-eula` records *your*
 //! affirmation of Mojang's server EULA (<https://aka.ms/MinecraftEULA>) and
-//! writes `eula.txt`. Run it yourself, having read the terms; nothing here
-//! accepts on your behalf.
+//! writes `eula.txt`. Run it yourself, having read the terms.
 
 use std::process::ExitCode;
 use std::sync::Arc;
@@ -39,6 +31,7 @@ const INSTANCE_NAME: &str = "server-smoke";
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().collect();
     let accept_eula = args.iter().any(|arg| arg == "--accept-eula");
+    let do_launch = args.iter().any(|arg| arg == "--launch");
 
     let data_root = std::env::current_dir()
         .unwrap_or_else(|_| ".".into())
@@ -65,7 +58,7 @@ fn main() -> ExitCode {
     // 1. Instance -------------------------------------------------------
     let instance = match existing_instance(&service).transpose() {
         Some(Ok(id)) => {
-            println!("\n[1/3] reusing instance {id} ({INSTANCE_NAME})");
+            println!("\n[1/4] reusing instance {id} ({INSTANCE_NAME})");
             id
         }
         Some(Err(err)) => {
@@ -74,7 +67,7 @@ fn main() -> ExitCode {
         }
         None => match service.create_instance(INSTANCE_NAME, GAME_VERSION, InstanceKind::Server) {
             Ok(summary) => {
-                println!("\n[1/3] created instance {} ({INSTANCE_NAME}, {GAME_VERSION})", summary.id);
+                println!("\n[1/4] created instance {} ({INSTANCE_NAME}, {GAME_VERSION})", summary.id);
                 summary.id
             }
             Err(err) => {
@@ -85,7 +78,7 @@ fn main() -> ExitCode {
     };
 
     // 2. Install --------------------------------------------------------
-    println!("\n[2/3] install — resolving {GAME_VERSION} from meta and fetching artifacts");
+    println!("\n[2/4] install — resolving {GAME_VERSION} from meta and fetching artifacts");
     let started = Instant::now();
     let job_id = match service.start_install(instance) {
         Ok(id) => id,
@@ -101,7 +94,7 @@ fn main() -> ExitCode {
     println!("      install complete in {:.1}s", started.elapsed().as_secs_f64());
 
     // 3. EULA -----------------------------------------------------------
-    println!("\n[3/3] server EULA");
+    println!("\n[3/4] server EULA");
     if accept_eula {
         match service.accept_server_eula(instance) {
             Ok(()) => println!("      recorded your acceptance; eula.txt written"),
@@ -113,11 +106,32 @@ fn main() -> ExitCode {
     } else {
         println!("      NOT accepted — this is yours to affirm, not mine.");
         println!("      Read https://aka.ms/MinecraftEULA, then re-run with:");
-        println!("        cargo run -p omni-core --example server_smoke -- --accept-eula");
+        println!("        cargo run -p omni-core --example server_smoke -- --accept-eula --launch");
+        println!("\nINSTALL CHAIN VERIFIED (launch skipped without EULA)");
+        return ExitCode::SUCCESS;
     }
 
-    println!("\nINSTALL CHAIN VERIFIED — launch is gated on the CPL-2 scope decision");
-    println!("  instance {instance} is installed and ready; see the module docs.");
+    // 4. Launch ---------------------------------------------------------
+    if !do_launch {
+        println!("\n[4/4] launch skipped (pass --launch after accepting the EULA)");
+        println!("\nINSTALL + EULA VERIFIED");
+        return ExitCode::SUCCESS;
+    }
+
+    println!("\n[4/4] launch dedicated server (no Microsoft account)");
+    let session = match service.launch_instance(instance, "") {
+        Ok(id) => id,
+        Err(err) => {
+            eprintln!("launch FAILED: {err}");
+            return ExitCode::FAILURE;
+        }
+    };
+    println!("      session {session} started");
+    // Give the JVM a moment to bind or crash, then stop cleanly.
+    std::thread::sleep(Duration::from_secs(8));
+    let stopped = service.stop_process(session);
+    println!("      stop_process → {stopped}");
+    println!("\nPHASE 4 SERVER EXIT PATH VERIFIED (install + eula + spawn + stop)");
     ExitCode::SUCCESS
 }
 

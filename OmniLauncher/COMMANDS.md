@@ -139,18 +139,19 @@ to "open it yourself" rather than blocking sign-in.
 | Command | Arguments | Returns | Notes |
 |---|---|---|---|
 | `accept_server_eula` | `instanceId` | `void` | **Only** from an explicit user action (D8) |
-| `launch_instance` | `instanceId`, `accountUuid` | `number` (session id) | Runs the CPL-2 gate first |
+| `launch_instance` | `instanceId`, `accountUuid` | `number` (session id) | Client: CPL-2 gate. Server: EULA only (`accountUuid` ignored) |
 | `stop_process` | `sessionId` | `boolean` | `false` = not supervised here |
 | `console_tail` | `sessionId`, `maxLines` | `ConsoleTail` | Capped at 2000 lines |
 
-`launch_instance` has exactly three outcomes, pinned by
-`launch_gate_distinguishes_its_three_outcomes`:
+**Client** launches have three CPL-2 outcomes (pinned by
+`launch_gate_distinguishes_its_three_outcomes`):
 
 1. **Online and verified** → launches, and the 14-day offline window slides forward.
 2. **Offline inside the window** → launches on the vault-anchored entitlement record.
 3. **Otherwise** → refuses with `entitlement` (window expired) or `auth` (no credentials).
 
-There is no fourth path. A launch never happens without a verified entitlement.
+**Server** launches skip CPL-2 entirely (D8). They require recorded EULA acceptance
+and a completed install; `accountUuid` may be empty.
 
 ### Import
 

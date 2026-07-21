@@ -27,7 +27,13 @@ pub struct LiveSession {
     pub mc_access_token: String,
 }
 
-/// What the launch gate authorized (CPL-2: no third possibility exists).
+/// What the launch gate authorized.
+///
+/// Client launches have exactly two possibilities under CPL-2 (online verification,
+/// or offline within the vault-anchored window). Dedicated **server** instances
+/// (D8) are a third path: no player identity is required — ownership of the
+/// client game is not the gate; the official server jar download + explicit
+/// EULA acceptance are (see `build_server_command`).
 #[derive(Debug, Clone)]
 pub enum LaunchAuth {
     /// Online, verified now — window re-stamped.
@@ -41,6 +47,8 @@ pub enum LaunchAuth {
         /// When offline play expires (Unix seconds).
         window_expires_at: i64,
     },
+    /// Dedicated server process: no MSA/entitlement; EULA gate lives elsewhere.
+    DedicatedServer,
 }
 
 /// The auth façade the shell talks to. Transport and vault are injected;

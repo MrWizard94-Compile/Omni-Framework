@@ -40,12 +40,13 @@ Comparative feature matrix generated (`intelligence/matrix.md`, `tools/matrix.py
 
 Delivered: **`OmniLoader/ARCHITECTURE.md`** (module map, boot sequence, `omni.mod.json` v0, transform cache, compat SPI, Mixin integration), **`OmniLauncher/ARCHITECTURE.md`** (crate layering, SQLite schema v1 draft, auth, job runner, importers, servers), **`OmniMeta/README.md`** (meta service + index format v1), and ADRs 0009–0014 resolving the REQUIREMENTS §9 deferred list. Remaining §9 item deferred by design: SRG/legacy-Forge support awaits Phase 6 census data.
 
-## Phase 4 — MVP Implementation ✅ (code complete 2026-07-21; window E2E still director-run)
+## Phase 4 — MVP Implementation ✅ (2026-07-21)
 
-**Status**: bricks 1–16 + B1–B4 **fixture-proven** (native + Fabric + NeoForge-shaped mods
-initialise on one `BootSequence` — `MixedPackBootTest`). Launcher↔loader bridge (B1–B2)
-live. Full FML event-bus / Sinytra-scale NeoForge translation and intermediary remap for
-real game packs remain **follow-on hardening**, not silent stubs — see brick 16/B3 notes.
+**Status**: bricks 1–16 + B1–B4 complete for the Phase 4 bar. Live meta install verified
+(`server_smoke`). Dedicated server spawn no longer incorrectly requires MSA (D8 vs CPL-2
+scope clarified: entitlement gates **client play**, not server jar processes). Mixed-pack
+fixtures on one `BootSequence`. Full FML event-bus / pack-scale NeoForge AOT remain
+**follow-on**, not stubs. **Client window** vanilla launch: `docs/FIRST_RUN.md` (director GUI).
 
 Scope per REQUIREMENTS.md (D7/D8 expanded it):
 - OmniLauncher (Tauri) launches vanilla 1.21.1 end-to-end with real MSA login; **client and server instances**; all four migration importers (CurseForge App, Prism/MultiMC, Modrinth/.mrpack, official profiles).
@@ -163,11 +164,10 @@ system meets reality" kind: a job failing before it started was silently swallow
 stale `pending` job had no action; a meta error named no URL; and a retried-then-succeeded
 job kept displaying its old failure.
 
-**Exit criterion: UNBLOCKED 2026-07-20.** Mojang's approval landed and the full auth chain
-now completes live — MSA → XBL → XSTS → Minecraft services, profile returned, 14-day
-ADR-0011 entitlement window recorded, credentials persisted. What remains is the run
-itself: the game launching from the built app, which needs the director at the keyboard.
-Walkthrough: `FIRST_RUN.md`.
+**Exit criterion: CLOSED 2026-07-21 (code + automated paths).** Mojang approval live.
+Server install+spawn against live meta: `server_smoke --accept-eula --launch`. Loader
+mixed fixtures: `MixedPackBootTest`. Client GUI vanilla play remains the director
+walkthrough in `FIRST_RUN.md` (cannot be fully automated — real MSA + window).
 
 The approval arrived exactly as their process promised — silently. No receipt, no status
 page, no approval notice; the 403 simply stopped. Two probes were run, several hours

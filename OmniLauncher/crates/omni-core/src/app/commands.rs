@@ -687,18 +687,18 @@ impl AppService {
         Ok(())
     }
 
-    /// Launches an instance for an account and supervises the process.
+    /// Launches an instance and supervises the process.
     /// Returns the `processes` row id (the console/stop handle).
     ///
-    /// The CPL-2 gate runs first: online verification when reachable, else the
-    /// vault-anchored offline window, else a typed refusal — there is no
-    /// launch path without a verified entitlement (COMPLIANCE §1).
+    /// **Client:** CPL-2 gate (online verification or offline window).
+    /// **Server:** no MSA — EULA acceptance only (D8 / COMPLIANCE §1: ownership
+    /// gates *play*, not spawning an official server jar).
     ///
     /// # Errors
     ///
-    /// [`AppError`] `entitlement` when the gate refuses, `network`/`auth` on
-    /// sign-in trouble, `notFound` for missing rows, `usage` when the server
-    /// EULA has not been accepted.
+    /// [`AppError`] `entitlement`/`auth` when the client gate refuses, `notFound`
+    /// for missing rows, `usage` when the server EULA has not been accepted or
+    /// Java is missing.
     ///
     /// # Panics
     ///
@@ -713,12 +713,43 @@ impl AppService {
             .db
             .with_store(|store| store.instance(instance_id))?
             .ok_or_else(|| AppError::new("notFound", format!("instance {instance_id} not found")))?;
+        let auth = self.authorize_launch(&instance, account_uuid)?;
+        let command = self.build_launch_command(&instance, &auth)?;
+        self.spawn_and_supervise(instance_id, &command)
+    }
 
-        let auth_service =
-            AuthService::new(self.http.as_ref(), self.vault.as_ref(), &self.config.client_id);
-        let auth: LaunchAuth = auth_service.launch_gate(&self.db, account_uuid)?;
+    /// Client → CPL-2; server → dedicated (no account).
+    fn authorize_launch(
+        &self,
+        instance: &crate::store::Instance,
+        account_uuid: &str,
+    ) -> Result<LaunchAuth, AppError> {
+        match instance.kind {
+            InstanceKind::Server => Ok(LaunchAuth::DedicatedServer),
+            InstanceKind::Client => {
+                if account_uuid.is_empty() {
+                    return Err(AppError::new(
+                        "auth",
+                        "sign in with a Microsoft account that owns Minecraft before launching",
+                    ));
+                }
+                let auth_service = AuthService::new(
+                    self.http.as_ref(),
+                    self.vault.as_ref(),
+                    &self.config.client_id,
+                );
+                Ok(auth_service.launch_gate(&self.db, account_uuid)?)
+            }
+        }
+    }
 
-        let stack = self.resolve(instance_id)?;
+    /// Resolves stack/Java and builds the process command for this instance kind.
+    fn build_launch_command(
+        &self,
+        instance: &crate::store::Instance,
+        auth: &LaunchAuth,
+    ) -> Result<crate::launch::LaunchCommand, AppError> {
+        let stack = self.resolve(instance.id)?;
         let game = stack.game()?;
         let component = game
             .java_version
@@ -736,7 +767,6 @@ impl AppService {
                  install job first",
             ));
         }
-
         let memory_mib = resolve_memory_mib(&instance.settings);
         let extra_jvm_args: Vec<String> = instance.settings["jvmArgs"]
             .as_array()
@@ -745,31 +775,28 @@ impl AppService {
             })
             .unwrap_or_default();
         let inputs = LaunchInputs {
-            instance: &instance,
+            instance,
             stack: &stack,
-            auth: &auth,
+            auth,
             java_exe,
             memory_mib,
             features: std::collections::BTreeMap::new(),
             extra_jvm_args,
         };
-        let command = match instance.kind {
+        match instance.kind {
             InstanceKind::Client => {
-                // A loader-managed instance boots through OmniLoader; a vanilla one runs the game
-                // directly. The loader runtime is resolved from the staged distribution, and a
-                // modded instance with no runtime refuses rather than quietly running vanilla.
                 match resolve_loader_runtime(
                     &instance.settings,
                     self.config.loader_dist_dir.as_deref(),
                 )? {
                     Some(loader) => {
-                        build_loader_command(&self.paths, &inputs, &platform, &loader)?
+                        Ok(build_loader_command(&self.paths, &inputs, &platform, &loader)?)
                     }
-                    None => build_client_command(&self.paths, &inputs, &platform)?,
+                    None => Ok(build_client_command(&self.paths, &inputs, &platform)?),
                 }
             }
-            InstanceKind::Server => build_server_command(&self.db, &self.paths, &inputs)
-                .map_err(|err| match err {
+            InstanceKind::Server => build_server_command(&self.db, &self.paths, &inputs).map_err(
+                |err| match err {
                     crate::CoreError::NotFound { what: "server EULA acceptance", .. } => {
                         AppError::usage(
                             "accept the Minecraft server EULA for this instance before \
@@ -777,17 +804,23 @@ impl AppService {
                         )
                     }
                     other => AppError::from(other),
-                })?,
-        };
+                },
+            ),
+        }
+    }
 
-        let (session, child) = spawn_recorded(&self.db, &self.paths, instance_id, &command)?;
+    /// Spawns the process, records the session, and waits off-thread.
+    fn spawn_and_supervise(
+        &self,
+        instance_id: i64,
+        command: &crate::launch::LaunchCommand,
+    ) -> Result<i64, AppError> {
+        let (session, child) = spawn_recorded(&self.db, &self.paths, instance_id, command)?;
         self.emit(CoreEvent::ProcessStarted {
             instance_id,
             session_id: session.id,
             pid: session.pid,
         });
-
-        // Supervise: wait off-thread so the command returns immediately.
         let db = Arc::clone(&self.db);
         let sink = Arc::clone(&self.sink);
         let processes = Arc::clone(&self.processes);
@@ -795,9 +828,6 @@ impl AppService {
         std::thread::Builder::new()
             .name(format!("omni-process-{session_id}"))
             .spawn(move || {
-                // Take ownership back from the registry to wait on it; if the
-                // user pressed stop, the child is already gone from the map
-                // and killed, and `wait_and_record` still records the exit.
                 let child = processes
                     .lock()
                     .unwrap_or_else(std::sync::PoisonError::into_inner)

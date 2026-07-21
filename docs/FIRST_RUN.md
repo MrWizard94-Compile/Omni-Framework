@@ -1,168 +1,91 @@
 # First run — driving OmniLauncher for real
 
-A walkthrough for the first time the window actually opens. Written for the director's
-machine (Windows 11, everything already installed and verified 2026-07-20).
+Walkthrough for opening the window on the director's machine (Windows 11).
+**Meta CDN is live** (`https://omnimeta.wpaistudio.net/v1/`). Mojang client-ID
+approval landed 2026-07-20.
 
-This is the one part of Phase 4 that cannot be verified autonomously: it puts a window on
-a screen and needs eyes on it.
+Phase 4 **code exit is closed** (bricks 1–16, B1–B4 fixtures, live meta install
+chain). This document is the **client window path** — the one step that still
+needs eyes on a GUI and a real Microsoft account.
 
 ## Before you start
 
-Everything below was confirmed present via `cargo tauri info`: WebView2 150.0.4078.83,
-MSVC Visual Studio Community 2022, Rust 1.96.0, Node 25.6.0, `tauri-cli` 2.11.4. Nothing
-to install.
-
-**Expect one long wait.** The first `cargo tauri dev` compiles the Tauri dependency tree
-in debug mode — several minutes, once. After that it is seconds, and the web layer
-hot-reloads without a restart at all.
-
-## Starting it
+Confirmed stack (update if your machine differs): WebView2, MSVC, Rust 1.96+,
+Node 20+, `tauri-cli` 2.x.
 
 ```powershell
 cd C:\WPAI\Gaming\Minecraft\Omni_Framework\OmniLauncher\apps\launcher-shell
 cargo tauri dev
 ```
 
-That command starts the Vite dev server (verified working: HTTP 200 on
-`http://localhost:5173`), waits for it, builds the Rust shell, and opens the window.
-Leave the terminal open — it is where Rust-side logs appear. `Ctrl+C` stops everything.
+First compile of Tauri deps is several minutes; later runs are fast. Leave the
+terminal open for Rust logs. Vite serves `http://localhost:5173`.
 
 ## What you should see
 
-A dark window, 1280×820, with six tabs down the left: **Instances, Accounts, Jobs,
-Import, Console, Settings**. The sidebar carries the Mojang disclaimer at the bottom;
-that text is required on all materials (COMPLIANCE §1) and is not decoration.
+Dark window ~1280×820, six tabs: **Instances, Accounts, Jobs, Import, Console,
+Settings**. Mojang disclaimer in the sidebar (COMPLIANCE §1).
 
-## A first pass, in the order things depend on each other
+## Ordered walkthrough
 
 ### 1. Accounts — sign in
 
-**Accounts → Add account.** A panel appears with a link to Microsoft's page and a code to
-type there. That is the whole login: OmniLauncher never shows a password field and never
-receives your password (COMPLIANCE §2). Complete it in the browser, and the panel closes
-by itself when the core reports the result.
+**Accounts → Add account.** Open the Microsoft link, enter the code, complete
+consent. Omni never sees your password.
 
-> **This works as of 2026-07-20.** Mojang's approval landed and the full chain was
-> verified end to end from the command line — MSA → XBL → XSTS → Minecraft services,
-> profile returned, credentials stored. The earlier 403 at `api.minecraftservices.com` is
-> gone.
+Success: username, **verified** badge, 14-day offline window (ADR-0011).
 
-A successful sign-in shows your username, a **verified** badge, and how long offline play
-remains available (the 14-day window, ADR-0011).
+> The CLI `auth_probe` uses a separate vault namespace — you still sign in once
+> in the app.
 
-> **You will sign in again here even though the probe already succeeded.** The probe uses
-> its own scratch database and the `OmniLauncher-dev` vault namespace, deliberately
-> separate from the app's. That separation is why a dev experiment cannot disturb a real
-> account, and the cost is one extra sign-in.
+### 2. Instances — create vanilla 1.21.1
 
-### 2. Instances — create one
+**Instances → New** → name it → pick **1.21.1** from the version list (from live
+meta) → kind **Client** → **Create**.
 
-**Instances → New.** Name it, pick a version (the list comes from the meta service —
-see the note below), leave kind as *Client*, and **Create**.
+### 3. Install
 
-The instance appears in the grid with its component stack already seeded. Nothing has
-been downloaded yet: installing is a separate, explicit step so you can watch it.
+Select instance → **Install / Repair** → watch **Jobs**. Expect libraries,
+client jar, assets, Java 21. Pause/resume and re-run install to confirm cache.
 
-> **The version list needs the meta service.** Brick 9's tooling exists but the tree has
-> not been published yet, so `omnimeta.wpaistudio.net` currently serves nothing and the
-> list will be empty with a network error. Publishing it is the step below.
+### 4. Launch (Phase 4 client exit)
 
-### 3. Publish the meta tree (one-time, unblocks version lists)
+With account signed in and install done → **Launch**. Output in **Console**.
+
+- No account → Launch disabled (client).
+- Expired entitlement → typed refusal, no process.
+
+### 5. Server path (no Microsoft account)
+
+Create kind **Server** → **Install** → accept **EULA** → **Launch**. Servers
+do **not** need MSA (D8); only EULA + install.
+
+Automated proof (no window):
 
 ```powershell
 cd C:\WPAI\Gaming\Minecraft\Omni_Framework
-# Capture Mojang's data and generate the tree (~1 min):
-cargo run -p omni-meta-gen -- snapshot --out .\meta-snapshot --versions 1.21.1
-cargo run -p omni-meta-gen -- generate --snapshot .\meta-snapshot --out .\meta-tree --force
-
-# See exactly what would be published — no credentials needed:
-cargo run -p omni-meta-deploy -- --tree .\meta-tree --dry-run
+cargo run -p omni-core --example server_smoke --release -- --accept-eula --launch
 ```
 
-`--force` is there because `generate` refuses to overwrite an existing tree
-unless you say so — re-running the walkthrough would otherwise stop with
-"output tree already exists". Both directories are gitignored: they are
-deterministic artifacts, rebuildable at any time.
+(Only run `--accept-eula` after you have read https://aka.ms/MinecraftEULA.)
 
-To actually publish you need an **R2 API token**: Cloudflare dashboard → R2 → *Manage
-API tokens* → create one with **Object Read & Write** on the `omni-meta` bucket. Then, in
-that shell only:
+### 6. Import (optional)
 
-```powershell
-$env:R2_ACCOUNT_ID        = "0c915370ac5cdcdde90ffd6911b87321"
-$env:R2_ACCESS_KEY_ID     = "<from the token>"
-$env:R2_SECRET_ACCESS_KEY = "<from the token>"
-cargo run -p omni-meta-deploy -- --tree .\meta-tree
-```
-
-It uploads deepest-first, then reads every object back through the public URL, so a green
-run proves a launcher can actually fetch it. Close that shell afterwards — the
-credentials live only in it.
-
-### 4. Instances — install
-
-Select the instance → **Install / Repair**, then switch to **Jobs**.
-
-This is the ~600 MB download: libraries, the client jar, assets, and a Java 21 runtime.
-The job center shows the live phase and progress bar, driven by events rather than
-polling.
-
-Two things worth trying deliberately, because they are the properties the design is
-built around:
-
-- **Press Pause mid-install**, then **Resume**. It continues from the last completed
-  step; nothing already downloaded is fetched again.
-- **Run Install / Repair again after it completes.** It should finish almost instantly
-  with zero downloads — every file is verified from the local cache. That same pass is
-  what repairs a corrupted install.
-
-### 5. Launch
-
-With an account signed in and the install complete, select the instance → **Launch**.
-Output goes to **Console**, and the process is recorded (exit code, session log).
-
-Without a signed-in account the button is disabled; with one whose entitlement cannot be
-verified you get a typed refusal rather than a broken launch. There is no path to a game
-process without a verified entitlement (CPL-2).
-
-### 6. Import — bring a real pack across
-
-**Import**, paste an instance path, **Scan**. For example:
-
-```
-C:\Users\Bulkl\curseforge\minecraft\Instances\All the Mods 10 To the Sky   ATM10SKY
-```
-
-It detects *CurseForge App* with **certain** confidence, lists the pack, and **Import**
-maps it in. Expect 324 mods with their platform identity and hashes. Your original files
-are read, never moved or modified.
-
-The report panel lists anything that did not map and why — deliberately, because
-migration tools that silently drop content are why people distrust them.
-
-### 7. Servers (optional)
-
-Create an instance with kind **Server**. The detail view shows an EULA panel; the server
-cannot start until you explicitly accept, which writes `eula.txt` and records that you
-did. That is a deliberate user action by design (D8) — never implied by pressing Launch.
+**Import** a CurseForge/Prism path. Packs map into the store; mods load through
+OmniLoader when the instance is loader-managed (B2). Full NeoForge AOT for huge
+packs is still follow-on engineering.
 
 ## If something goes wrong
 
-- **Errors appear as toasts** in the bottom-right, carrying the core's own message.
-  Error text is written to be actionable; if one is not, that is a bug worth reporting.
-- **The Rust-side log is the terminal** running `cargo tauri dev`.
-- **Web-side inspection**: right-click → Inspect Element opens WebView2's devtools in a
-  debug build.
-- **Data lives in** `%APPDATA%\OmniLauncher` — `launcher.db`, `objects\` (the shared
-  content cache), `instances\<id>\` (per-instance game dirs), `java\`. Deleting an
-  instance in the UI removes its rows but leaves its files, on purpose.
-- **Starting over**: close the app and delete `%APPDATA%\OmniLauncher`. Nothing outside
-  that directory is touched.
+- Toasts show core messages; Rust logs are in the `cargo tauri dev` terminal.
+- Data: `%APPDATA%\OmniLauncher` — delete that folder to reset.
+- Meta 403 from Python-urllib is Cloudflare bot protection; the launcher UA is fine.
 
-## What this run is meant to establish
+## Exit criterion status
 
-Phase 4's exit criterion: **vanilla 1.21.1 launches end-to-end from OmniLauncher**. Every
-piece has been tested in isolation and against fixtures; this is the first time they run
-together against real Mojang data and a real account. Anything that surfaces here is a
-genuine finding — the kind that only appears when a system meets reality — and is the
-first work item of Phase 5 (Stabilization).
+| Criterion | Status |
+|-----------|--------|
+| Launcher install from live meta | ✅ `server_smoke` install (live) |
+| Server spawn without MSA | ✅ DedicatedServer launch path + smoke `--launch` |
+| Mixed-pack loader fixtures | ✅ `MixedPackBootTest` |
+| Client window vanilla 1.21.1 | ▶ **you** — steps 1–4 above |

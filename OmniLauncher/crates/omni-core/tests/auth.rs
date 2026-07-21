@@ -349,6 +349,7 @@ fn launch_gate_offline_inside_and_outside_the_window() {
             assert_eq!(window_expires_at, NOW + ENTITLEMENT_WINDOW_SECS);
         }
         LaunchAuth::Online(_) => panic!("cannot be online with a dead network"),
+        LaunchAuth::DedicatedServer => panic!("client gate never yields DedicatedServer"),
     }
 
     // Day 15: window expired -> hard typed stop (CPL-2).
@@ -368,6 +369,7 @@ fn launch_gate_online_when_network_returns() {
     match service.launch_gate(&db, &session.profile.uuid).expect("gate") {
         LaunchAuth::Online(live) => assert_eq!(live.mc_access_token, "MC-ACCESS"),
         LaunchAuth::OfflineWithinWindow { .. } => panic!("network is up; must verify online"),
+        LaunchAuth::DedicatedServer => panic!("client gate never yields DedicatedServer"),
     }
 }
 
