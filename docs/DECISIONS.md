@@ -248,3 +248,30 @@ That gap matters because it changes what bricks 15 and 16 are for. Read separate
   - **Cross-ecosystem load order** — a Fabric mod depending on something a NeoForge mod provides. The resolver already orders across the whole candidate set, so this works by construction, and the test must prove it rather than assume it.
   - **Two live `ApiFacade`s** — both guest loader APIs answering at once, about the same mod set. Each must report the whole pack, not only its own ecosystem's share, or mods will conclude their dependencies are absent.
 - ROADMAP brick 15/16 exit criteria are amended to require the mixed case.
+
+---
+
+## ADR-0021 — Transforming-loader parent: sealed except the shared mod API · 2026-07-20 · Accepted
+
+**Amends** ARCHITECTURE §4, which specified "Parent loader is a sealed empty loader (no system-classpath leakage)."
+
+**Context.** Scoping the boot orchestration (ROADMAP B1) surfaced that `OmniTransformingClassLoader` could not boot any mod that links the loader API. Its parent was `getPlatformClassLoader()` — the JDK and nothing else — and its parent-first list named `org.omniframework.loader.` as "the loader's own API, which mods link against and must share an identity with". Two things were wrong with that:
+
+1. The platform parent has no `org.omniframework.*` at all, so a mod's entrypoint — which `implements org.omniframework.api.ModInitializer` — could not have its interface resolved when defined through the transforming loader. The class would fail to define, or, under a naive fix, define against a *different* `ModInitializer` than the entrypoint dispatcher holds, so the cast at dispatch would throw `ClassCastException`.
+2. The shared prefix was `org.omniframework.loader.` (the loader's *internals*), not `org.omniframework.api.` (the mod-facing API). Sharing the internals would leak the loader's implementation into the mod environment; sharing the API is what mods actually need.
+
+The gap never fired because brick 10 booted vanilla (the game links no loader API) and brick 14 dispatched entrypoints through a test-local classloader. The first real modded boot would have hit it as an unexplained `ClassNotFoundException`/`ClassCastException` deep in startup.
+
+**Decision.** The transforming loader's parent is a filtered runtime loader (`LoaderRuntimeParent`), not a bare platform loader:
+
+1. JDK classes resolve through the platform parent, as before.
+2. Classes under `org.omniframework.api.` are delegated to an **API source** loader — the loader that holds omni-api on its classpath — so mods and the loader resolve one shared class with one identity. The bootstrap supplies the API source explicitly, so the identity is decided at the boot's edge.
+3. **Everything else throws `ClassNotFoundException`.** The application classpath behind the API source is reachable only for that one package family; the no-leakage property ARCHITECTURE §4 required is preserved, just no longer at the cost of the API.
+
+`org.omniframework.loader.` is removed from the parent-first set: the loader's internals are not shared with mods, which link the API rather than the implementation.
+
+**Consequences.**
+
+- Native mods that implement `omni-api` load with correct type identity; proven by an integration test that builds a real `ModInitializer` implementor, loads it through the transforming loader, and both asserts assignability to the test's own `ModInitializer` and runs it. The seal is proven by the same suite: a test class and a loader-internal class both remain unreachable.
+- Third-party runtimes that must be shared once bytecode transformation and Mixin run against real mods — ASM, the Mixin runtime (`org.spongepowered.asm.`) — are **not** shared yet. They join the shared set when those stages are wired (B3), deliberately and with their own tests, not speculatively now.
+- The `LoaderRuntimeParent` shared-prefix set is the single point that decides what crosses the seal, so future additions are one reviewed list, not scattered delegation logic.

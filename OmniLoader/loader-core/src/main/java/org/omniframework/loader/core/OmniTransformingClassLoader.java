@@ -9,6 +9,7 @@ import java.security.ProtectionDomain;
 import java.security.cert.Certificate;
 import java.util.Collections;
 import java.util.Enumeration;
+import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import org.omniframework.loader.core.resource.ResourceRoot;
@@ -21,13 +22,16 @@ import org.omniframework.loader.core.resource.ResourceRoot;
  * enforced rather than assumed:
  *
  * <ol>
- *   <li><b>The parent is the platform loader, not the application loader.</b> This is the
- *       important one. The application loader holds whatever was on the launch classpath — the
- *       launcher's own dependencies, the loader's own libraries. If the game could see those,
- *       a mod would silently link against the launcher's copy of a library, and the resulting
- *       "works on my machine" failures are nearly impossible to diagnose. Delegating only to the
- *       JDK seals that leak (ARCHITECTURE §4: "a sealed empty loader (no system-classpath
- *       leakage)").
+ *   <li><b>The parent is a filtered runtime loader: the JDK plus the mod-facing API, and
+ *       nothing else.</b> This is the important one. The application loader holds whatever was on
+ *       the launch classpath — the launcher's own dependencies, the loader's internals. If the
+ *       game could see those, a mod would silently link against the launcher's copy of a library,
+ *       and the resulting "works on my machine" failures are nearly impossible to diagnose. So
+ *       the parent ({@link LoaderRuntimeParent}) delegates JDK classes to the platform loader and
+ *       {@code org.omniframework.api.*} to the loader that holds it — giving mods a shared
+ *       identity with the API they implement — and refuses everything else. A bare platform
+ *       parent (the original design) sealed out the API too, which meant no mod that links it
+ *       could load at all; ADR-0021 records the correction.
  *   <li><b>Parent-last for everything else.</b> Game and mod classes are found here first, so a
  *       transformed class is never shadowed by an untransformed copy.
  *   <li><b>Transformation happens exactly once per class.</b> The JVM's per-name locking plus
@@ -46,28 +50,57 @@ public final class OmniTransformingClassLoader extends ClassLoader implements ja
     }
 
     /**
-     * Packages always delegated to the parent. Deliberately short: these are the packages the
-     * JVM itself requires come from the platform, plus the loader's own API, which mods link
-     * against and must therefore share an identity with.
+     * Packages delegated to the parent rather than loaded from a partition. The JVM requires the
+     * first group come from the platform; {@code org.omniframework.api.} is the mod-facing API,
+     * which a mod's entrypoint implements and must therefore resolve to the <em>same</em> class
+     * the loader holds.
+     *
+     * <p>Note what is absent: {@code org.omniframework.loader.} (the loader's own internals) is
+     * NOT parent-first. Mods link the API, not the implementation, and delegating the internals
+     * would both leak them into the mod environment and let a mod shadow a loader class from its
+     * own jar. The parent ({@link LoaderRuntimeParent}) enforces the same boundary from the other
+     * side by refusing everything outside {@link #SHARED_API_PREFIXES}.
      */
     private static final String[] PARENT_FIRST_PREFIXES = {
         "java.", "javax.", "jdk.", "sun.", "com.sun.", "org.w3c.dom.", "org.xml.sax.",
-        "org.omniframework.loader.",
+        "org.omniframework.api.",
     };
+
+    /** The packages the runtime parent shares from the API source. */
+    private static final List<String> SHARED_API_PREFIXES = List.of("org.omniframework.api.");
 
     private final PartitionRegistry partitions;
     private final ClassTransformer transformer;
 
     /**
-     * Creates a loader over the given partitions.
+     * Creates a loader whose API source is whatever loaded the loader itself.
+     *
+     * <p>The common case: in a real boot the bootstrap, the loader, and {@code omni-api} share a
+     * classloader, so deriving the API source from this class's own loader is exactly right. Tests
+     * that only load game/mod classes (never the API) are unaffected, since nothing they load
+     * falls in a shared prefix.
      *
      * @param partitions the search order; see {@link PartitionRegistry}
      * @param transformer applied to every transformable class; use
      *     {@link ClassTransformer#identity()} for an unmodified game
      */
     public OmniTransformingClassLoader(PartitionRegistry partitions, ClassTransformer transformer) {
-        // The platform loader sees JDK classes and nothing else — no application classpath.
-        super("omni", ClassLoader.getPlatformClassLoader());
+        this(partitions, transformer, OmniTransformingClassLoader.class.getClassLoader());
+    }
+
+    /**
+     * Creates a loader with an explicit API source.
+     *
+     * <p>The bootstrap uses this so the API a mod resolves is the exact class the entrypoint
+     * dispatcher will cast against — one identity, decided at the boot's edge rather than by
+     * whatever happened to load this class.
+     *
+     * @param apiSource the loader holding {@code org.omniframework.api.*} on its classpath
+     */
+    public OmniTransformingClassLoader(
+            PartitionRegistry partitions, ClassTransformer transformer, ClassLoader apiSource) {
+        super("omni", new LoaderRuntimeParent(
+                Objects.requireNonNull(apiSource, "apiSource"), SHARED_API_PREFIXES));
         this.partitions = Objects.requireNonNull(partitions, "partitions");
         this.transformer = Objects.requireNonNull(transformer, "transformer");
     }

@@ -41,7 +41,7 @@ JVM entry (client/server thin mains)
 
 ## 4. Classloading & Partitions (D3)
 
-One `OmniTransformingClassLoader` (KnotClassDelegate pattern, (fabric-loader)): every class routes through it; per-mod **logical partitions** track code source, claimed packages, and ecosystem tags. Package-claim conflicts are diagnosed (fancymodloader's IncompatibleModReason quality) but not JPMS-enforced. Parent loader is a sealed empty loader (no system-classpath leakage). Game classes and mod classes share the namespace — required for Fabric-family semantics and the single Mixin pipeline.
+One `OmniTransformingClassLoader` (KnotClassDelegate pattern, (fabric-loader)): every class routes through it; per-mod **logical partitions** track code source, claimed packages, and ecosystem tags. Package-claim conflicts are diagnosed (fancymodloader's IncompatibleModReason quality) but not JPMS-enforced. Parent loader is sealed except the mod-facing API surface — JDK from the platform loader, `org.omniframework.api.*` shared from the API source for identity, everything else refused (**ADR-0021**; the original "sealed empty" could not boot a mod that links the API). Game classes and mod classes share the namespace — required for Fabric-family semantics and the single Mixin pipeline.
 
 ## 5. Canonical Mod Model & `omni.mod.json` v0 (LDR-6)
 
