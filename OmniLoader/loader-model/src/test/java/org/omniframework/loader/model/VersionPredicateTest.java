@@ -63,6 +63,20 @@ class VersionPredicateTest {
     void partialVersions() {
         assertTrue(matches(">=1.2", "1.2.0"), "\">=1.2\" means \">=1.2.0\"");
         assertTrue(matches(">=1", "1.0.0"));
+        // Java platform versions are often written as a single component.
+        assertTrue(matches(">=21", "21"), "\">=21\" must match platform java \"21\"");
+        assertTrue(matches(">=21", "21.0.0"));
+        assertTrue(matches(">=17", "21.0.0"));
+    }
+
+    @Test
+    @DisplayName("Fabric-style x wildcards expand to a bounded range")
+    void xWildcards() {
+        assertTrue(matches("1.21.x", "1.21.1"));
+        assertTrue(matches("1.21.x", "1.21.0"));
+        assertFalse(matches("1.21.x", "1.22.0"));
+        assertFalse(matches("1.21.x", "1.20.4"));
+        assertTrue(matches("21.0.x", "21.0.8"));
     }
 
     @Test

@@ -80,11 +80,14 @@ public record SemanticVersion(
             rest = rest.substring(0, dash);
         }
         String[] core = rest.split("\\.", -1);
-        if (core.length != 3) {
+        // Accept 1–3 numeric components: "21" → 21.0.0, "1.21" → 1.21.0.
+        // Minecraft/Java manifests write these constantly; requiring three
+        // components made ">=21" fail against platform java "21".
+        if (core.length == 0 || core.length > 3) {
             return Optional.empty();
         }
         int[] numbers = new int[3];
-        for (int i = 0; i < 3; i++) {
+        for (int i = 0; i < core.length; i++) {
             if (!isNumericIdentifier(core[i])) {
                 return Optional.empty();
             }

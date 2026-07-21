@@ -28,11 +28,25 @@ class SemanticVersionTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"1.2", "1.2.3.4", "v1.2.3", "01.2.3", "1.2.3-", "1.2.3+", "", "  ",
+    @ValueSource(strings = {"1.2.3.4", "v1.2.3", "01.2.3", "1.2.3-", "1.2.3+", "", "  ",
             "1.2.x", "-1.2.3", "1.2.3-01"})
     @DisplayName("rejects text that is not valid semver, without throwing")
     void rejectsInvalid(String text) {
         assertTrue(SemanticVersion.parse(text).isEmpty(), () -> "should reject: " + text);
+    }
+
+    @Test
+    @DisplayName("one- and two-component versions pad to major.minor.patch")
+    void padsPartialCore() {
+        // Manifests (and platform java versions) write "21" / "1.21" constantly.
+        SemanticVersion java = SemanticVersion.parse("21").orElseThrow();
+        assertEquals(21, java.major());
+        assertEquals(0, java.minor());
+        assertEquals(0, java.patch());
+        SemanticVersion mc = SemanticVersion.parse("1.21").orElseThrow();
+        assertEquals(1, mc.major());
+        assertEquals(21, mc.minor());
+        assertEquals(0, mc.patch());
     }
 
     @Test

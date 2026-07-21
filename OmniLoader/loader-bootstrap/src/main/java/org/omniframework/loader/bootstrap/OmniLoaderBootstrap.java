@@ -266,8 +266,24 @@ public final class OmniLoaderBootstrap {
     }
 
     private static void reportIssues(IssueCollector issues) {
+        int errors = 0;
+        int warnings = 0;
         for (var issue : issues.issues()) {
-            System.out.println("[omniloader] " + issue.describe());
+            String line = "[omniloader] " + issue.describe();
+            if (issue.level().blocksLoading()) {
+                System.err.println(line);
+                errors++;
+            } else {
+                System.out.println(line);
+                warnings++;
+            }
+        }
+        if (errors > 0) {
+            System.err.println(
+                    "[omniloader] BOOT FAILED — " + errors + " error(s), " + warnings
+                            + " warning(s). Fix the ERROR lines above (open Console in OmniLauncher).");
+        } else if (warnings > 0) {
+            System.out.println("[omniloader] " + warnings + " warning(s); boot continued.");
         }
     }
 }

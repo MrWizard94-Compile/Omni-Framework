@@ -143,8 +143,17 @@ function handleEvent(event: CoreEvent): void {
     return;
   }
   if ("ProcessExited" in event) {
-    const code = event.ProcessExited.exit_code;
-    toast(code === 0 ? "info" : "error", `Session ended (exit code ${code}).`);
+    const { exit_code: code, session_id: sessionId } = event.ProcessExited;
+    state.activeSession = sessionId;
+    if (code === 0) {
+      toast("info", "Game closed (exit code 0).");
+    } else {
+      // Non-zero is never silent: point the director at Console where session-*.log is tailed.
+      toast(
+        "error",
+        `Launch failed (exit code ${code}). Open Console for the session log — look for [omniloader] ERROR lines.`,
+      );
+    }
     void refreshInstances();
     return;
   }

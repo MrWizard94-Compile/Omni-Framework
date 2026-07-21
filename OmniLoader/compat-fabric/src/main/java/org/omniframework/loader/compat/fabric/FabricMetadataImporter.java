@@ -119,7 +119,16 @@ public final class FabricMetadataImporter implements MetadataImporter {
         builder.environment(readEnvironment(manifest, id.get(), issues));
         readEntrypoints(manifest, builder, id.get(), issues);
         readDependencies(manifest, builder, id.get(), issues);
-        readProvides(manifest, builder);
+        ModVersion modVersion = ModVersion.parse(version.get());
+        readProvides(manifest, builder, modVersion);
+        // Historical Fabric id aliases still appear in depends/ blocks.
+        if ("cloth-config".equals(id.get())) {
+            builder.provides(new ProvidedMod("cloth-config2", modVersion));
+        }
+        if ("fabric-api".equals(id.get())) {
+            // Older mods depend on "fabric" rather than "fabric-api".
+            builder.provides(new ProvidedMod("fabric", modVersion));
+        }
         readNestedJars(manifest, builder);
         readMixins(manifest, builder);
         manifest.get("accessWidener").flatMap(Json::asString).ifPresent(builder::accessFile);
@@ -270,13 +279,15 @@ public final class FabricMetadataImporter implements MetadataImporter {
         return VersionPredicate.any();
     }
 
-    private static void readProvides(Json.Obj manifest, ModMetadata.Builder builder) {
+    private static void readProvides(
+            Json.Obj manifest, ModMetadata.Builder builder, ModVersion providingVersion) {
         manifest.get("provides").flatMap(Json::asArray).ifPresent(array -> {
             for (Json element : array.elements()) {
                 element.asString().ifPresent(provided ->
                         // Fabric's provides carries no version; the providing mod's own is the
-                        // honest stand-in, and matches what Fabric itself assumes.
-                        builder.provides(new ProvidedMod(provided, ModVersion.parse("0.0.0"))));
+                        // honest stand-in (never 0.0.0 — that made every provides-based
+                        // dependency fail range checks like ">=0.102.0").
+                        builder.provides(new ProvidedMod(provided, providingVersion)));
             }
         });
     }

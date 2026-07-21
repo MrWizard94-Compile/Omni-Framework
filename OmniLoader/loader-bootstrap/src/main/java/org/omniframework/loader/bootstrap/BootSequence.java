@@ -51,7 +51,19 @@ import org.omniframework.loader.transform.mapping.MappingSet;
  */
 public final class BootSequence {
 
+    /**
+     * OmniLoader product version (native omniloader id). Kept separate from the
+     * <em>hosted Fabric Loader API</em> version we advertise to guest mods.
+     */
     public static final String LOADER_VERSION = "0.1.0";
+
+    /**
+     * Version advertised for synthetic {@code fabricloader} / provides, so real
+     * Fabric packs that declare {@code fabricloader >= 0.15…0.18} resolve. This is
+     * the API surface version Omni claims to host — not a claim that stock Fabric
+     * Loader 0.18.x is embedded.
+     */
+    public static final String HOSTED_FABRIC_LOADER_VERSION = "0.18.5";
 
     private final List<GameProvider> providers;
     private final List<CompatLayer> layers;
@@ -228,9 +240,11 @@ public final class BootSequence {
                         .build(),
                 gameJar));
         // Fabric mods depend on fabricloader; NeoForge on neoforge/forge.
+        // Advertise a modern Fabric Loader API version so dependency resolution
+        // does not reject every real pack (they require fabricloader >= 0.15+).
         platform.add(ModCandidate.topLevel(
-                ModMetadata.builder("fabricloader", ModVersion.parse(LOADER_VERSION))
-                        .name("Fabric Loader (hosted)")
+                ModMetadata.builder("fabricloader", ModVersion.parse(HOSTED_FABRIC_LOADER_VERSION))
+                        .name("Fabric Loader (hosted by Omni)")
                         .build(),
                 gameJar));
         platform.add(ModCandidate.topLevel(
@@ -243,8 +257,9 @@ public final class BootSequence {
                         .name("Forge (hosted)")
                         .build(),
                 gameJar));
+        // Use 21.0.0 so ">=21" range predicates match (semver needs orderable form).
         platform.add(ModCandidate.topLevel(
-                ModMetadata.builder("java", ModVersion.parse("21"))
+                ModMetadata.builder("java", ModVersion.parse("21.0.0"))
                         .name("Java")
                         .build(),
                 gameJar));

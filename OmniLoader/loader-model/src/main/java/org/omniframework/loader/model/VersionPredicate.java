@@ -219,6 +219,11 @@ public record VersionPredicate(String raw, List<Term> terms) {
             return Optional.empty();
         }
         String trimmed = text.trim();
+        // Fabric-style "1.21.x" / "21.0.x" → >=N.M.0, <next
+        Optional<VersionPredicate> xRange = expandXWildcard(trimmed);
+        if (xRange.isPresent()) {
+            return xRange;
+        }
         if (!trimmed.startsWith("^") && !trimmed.startsWith("~")) {
             return parse(trimmed);
         }
@@ -232,6 +237,42 @@ public record VersionPredicate(String raw, List<Term> terms) {
                 : SemanticVersion.of(from.major(), from.minor() + 1, 0);
         return Optional.of(new VersionPredicate(
                 trimmed,
+                List.of(
+                        new Term(Operator.GREATER_EQUAL, Optional.of(from), from.toString()),
+                        new Term(Operator.LESS, Optional.of(until), until.toString()))));
+    }
+
+    /**
+     * Expands {@code 1.21.x} / {@code 1.x} into an inclusive lower bound and exclusive upper
+     * bound on the varying component. Fabric manifests write this constantly.
+     */
+    private static Optional<VersionPredicate> expandXWildcard(String text) {
+        if (!text.endsWith(".x") && !text.endsWith(".X") && !text.equalsIgnoreCase("x")) {
+            return Optional.empty();
+        }
+        if (text.equalsIgnoreCase("x") || text.equalsIgnoreCase(".x")) {
+            return Optional.of(any());
+        }
+        String prefix = text.substring(0, text.length() - 2); // drop ".x"
+        Optional<SemanticVersion> lower = parseVersionish(prefix);
+        if (lower.isEmpty()) {
+            return Optional.empty();
+        }
+        SemanticVersion from = lower.get();
+        // "1.21.x" → prefix parsed as 1.21.0 → vary patch → until 1.22.0
+        // "1.x" → prefix 1.0.0 → vary minor → until 2.0.0
+        String[] parts = prefix.split("\\.", -1);
+        SemanticVersion until;
+        if (parts.length <= 1) {
+            until = SemanticVersion.of(from.major() + 1, 0, 0);
+        } else if (parts.length == 2) {
+            until = SemanticVersion.of(from.major(), from.minor() + 1, 0);
+        } else {
+            until = SemanticVersion.of(from.major(), from.minor(), from.patch() + 1);
+        }
+        // For "1.21.x", prefix is "1.21" → 1.21.0, parts.length 2 → until 1.22.0. Correct.
+        return Optional.of(new VersionPredicate(
+                text,
                 List.of(
                         new Term(Operator.GREATER_EQUAL, Optional.of(from), from.toString()),
                         new Term(Operator.LESS, Optional.of(until), until.toString()))));
