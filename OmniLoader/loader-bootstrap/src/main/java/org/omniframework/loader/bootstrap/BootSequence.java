@@ -111,7 +111,7 @@ public final class BootSequence {
         // Windows, pins the files so the instance directory cannot be cleaned. They stay open
         // through launch — the game loads classes from them the whole time it runs — and are
         // closed only after it returns.
-        PartitionRegistry registry = buildPartitions(game, realMods);
+        PartitionRegistry registry = buildPartitions(game, config.libraries(), realMods);
         try {
             GameLauncher launcher = new GameLauncher(registry, ClassTransformer.identity());
             OmniTransformingClassLoader loader = launcher.newClassLoader();
@@ -140,8 +140,17 @@ public final class BootSequence {
         }
     }
 
-    /** Picks a provider and locates the game, recording a typed issue on failure. */
+    /**
+     * The game to boot: the one the launcher handed over if it did, else a provider's discovery.
+     *
+     * <p>A launcher-provided game skips provider selection entirely — the launcher resolved the
+     * stack and knows the jars, so rediscovering them would only add a way to disagree with what
+     * the launcher already decided.
+     */
     private Optional<LocatedGame> locate(BootConfig config, IssueCollector issues) {
+        if (config.providedGame().isPresent()) {
+            return config.providedGame();
+        }
         Optional<GameProvider> provider =
                 GameLauncher.selectProvider(providers, config.gameDirectory(), config.side(), issues);
         return provider.flatMap(chosen -> chosen.locate(config.gameDirectory(), config.side(), issues));
@@ -175,10 +184,11 @@ public final class BootSequence {
         return List.of(minecraft, omniloader);
     }
 
-    /** Game jars plus one per-mod partition per resolved native mod (LDR-4). */
-    private static PartitionRegistry buildPartitions(LocatedGame game, List<ModCandidate> mods) {
+    /** Game jars, the game's libraries, then one per-mod partition per resolved native mod (LDR-4). */
+    private static PartitionRegistry buildPartitions(
+            LocatedGame game, List<Path> libraries, List<ModCandidate> mods) {
         try {
-            PartitionRegistry registry = GameLauncher.partitionsFor(game, List.of());
+            PartitionRegistry registry = GameLauncher.partitionsFor(game, libraries);
             for (ModCandidate mod : mods) {
                 registry.add(Partition.mod(mod.id(), "omni", JarResourceRoot.open(mod.source())));
             }

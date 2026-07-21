@@ -50,12 +50,14 @@ class BootSequenceIntegrationTest {
     private static final String MOD_SIGNAL = "omni.it.boot.mod";
     private static final String GAME_SIGNAL = "omni.it.boot.game";
     private static final String ORDER_SIGNAL = "omni.it.boot.order";
+    private static final String LIB_SIGNAL = "omni.it.boot.lib";
 
     @AfterEach
     void clearSignals() {
         System.clearProperty(MOD_SIGNAL);
         System.clearProperty(GAME_SIGNAL);
         System.clearProperty(ORDER_SIGNAL);
+        System.clearProperty(LIB_SIGNAL);
     }
 
     // ------------------------------------------------------------- fixtures
@@ -141,6 +143,48 @@ class BootSequenceIntegrationTest {
         m.visitEnd();
         w.visitEnd();
         return w.toByteArray();
+    }
+
+    /** A library jar with lib/Helper.touch(), which sets LIB_SIGNAL when called. */
+    private static Path libraryJar(Path dir) throws IOException {
+        ClassWriter w = new ClassWriter(ClassWriter.COMPUTE_FRAMES | ClassWriter.COMPUTE_MAXS);
+        w.visit(Opcodes.V21, Opcodes.ACC_PUBLIC, "lib/Helper", null, "java/lang/Object", null);
+        defaultCtor(w);
+        MethodVisitor m = w.visitMethod(Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC, "touch", "()V", null, null);
+        m.visitCode();
+        m.visitLdcInsn(LIB_SIGNAL);
+        m.visitLdcInsn("yes");
+        m.visitMethodInsn(Opcodes.INVOKESTATIC, "java/lang/System", "setProperty",
+                "(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;", false);
+        m.visitInsn(Opcodes.POP);
+        m.visitInsn(Opcodes.RETURN);
+        m.visitMaxs(0, 0);
+        m.visitEnd();
+        w.visitEnd();
+        return jar(dir, "lib.jar", java.util.Map.of("lib/Helper.class", w.toByteArray()));
+    }
+
+    /** A game jar whose main calls lib.Helper.touch() before recording it ran. */
+    private static Path gameJarCallingLibrary(Path dir) throws IOException {
+        ClassWriter w = new ClassWriter(ClassWriter.COMPUTE_FRAMES | ClassWriter.COMPUTE_MAXS);
+        w.visit(Opcodes.V21, Opcodes.ACC_PUBLIC, "net/minecraft/FakeMain", null, "java/lang/Object", null);
+        defaultCtor(w);
+        MethodVisitor m = w.visitMethod(
+                Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC, "main", "([Ljava/lang/String;)V", null, null);
+        m.visitCode();
+        // The load-bearing line: if the library partition is absent, this is a
+        // NoClassDefFoundError and the launch fails — which is exactly the assertion.
+        m.visitMethodInsn(Opcodes.INVOKESTATIC, "lib/Helper", "touch", "()V", false);
+        m.visitLdcInsn(GAME_SIGNAL);
+        m.visitLdcInsn("yes");
+        m.visitMethodInsn(Opcodes.INVOKESTATIC, "java/lang/System", "setProperty",
+                "(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;", false);
+        m.visitInsn(Opcodes.POP);
+        m.visitInsn(Opcodes.RETURN);
+        m.visitMaxs(0, 0);
+        m.visitEnd();
+        w.visitEnd();
+        return jar(dir, "minecraft.jar", java.util.Map.of("net/minecraft/FakeMain.class", w.toByteArray()));
     }
 
     private static void defaultCtor(ClassWriter w) {
@@ -273,6 +317,35 @@ class BootSequenceIntegrationTest {
                 () -> issues.issues().toString());
         org.junit.jupiter.api.Assertions.assertNull(System.getProperty(GAME_SIGNAL),
                 "the game must not launch when a mod could not be resolved");
+    }
+
+    @Test
+    @DisplayName("a launcher-provided game boots with no provider, and its libraries load")
+    void launcherProvidedGameWithLibraries(@TempDir Path dir) throws IOException {
+        // The B2 path: the launcher already located the game, so it hands over a LocatedGame and
+        // the library jars rather than making the loader discover anything. No provider at all.
+        Path gameDir = dir.resolve("instance");
+        Path modsDir = gameDir.resolve("mods");
+        Files.createDirectories(modsDir);
+        Path game = gameJarCallingLibrary(gameDir.resolve("bin"));
+        Path library = libraryJar(gameDir.resolve("bin"));
+        nativeModJar(modsDir, "examplemod");
+
+        LocatedGame located =
+                new LocatedGame("1.21.1", List.of(game), "net.minecraft.FakeMain", List.of());
+        BootConfig config = new BootConfig(
+                gameDir, modsDir, GameSide.CLIENT, List.of(), List.of(library), Optional.of(located));
+
+        // Providers empty on purpose: a provided game must not need one.
+        Optional<BootResult> result = new BootSequence(List.of()).run(config, new IssueCollector());
+
+        assertTrue(result.isPresent(), "a launcher-provided game must boot without a provider");
+        assertEquals("yes", System.getProperty(LIB_SIGNAL),
+                "the game called into a library class — if this is unset the library was not "
+                        + "threaded into a partition and the launch would have failed");
+        assertEquals("yes", System.getProperty(GAME_SIGNAL));
+        assertEquals("yes", System.getProperty(MOD_SIGNAL));
+        assertEquals(List.of("examplemod"), result.get().loadedMods());
     }
 
     @Test
