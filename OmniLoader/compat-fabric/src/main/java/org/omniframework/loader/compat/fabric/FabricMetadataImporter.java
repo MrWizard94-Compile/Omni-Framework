@@ -60,7 +60,8 @@ public final class FabricMetadataImporter implements MetadataImporter {
     public Optional<ModMetadata> importMetadata(String manifestText, IssueCollector issues) {
         Json parsed;
         try {
-            parsed = JsonReader.parse(manifestText);
+            // Lenient strings: a few real Fabric packs ship raw newlines in description fields.
+            parsed = JsonReader.parse(manifestText, true);
         } catch (JsonParseException e) {
             issues.add(OmniIssue.error("compat.fabric.manifest-unreadable")
                     .at("fabric.mod.json")

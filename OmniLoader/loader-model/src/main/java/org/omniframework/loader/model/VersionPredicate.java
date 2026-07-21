@@ -185,11 +185,12 @@ public record VersionPredicate(String raw, List<Term> terms) {
 
     /** Parses a version, filling in omitted components: {@code 1.2} becomes {@code 1.2.0}. */
     private static Optional<SemanticVersion> parseVersionish(String text) {
-        Optional<SemanticVersion> exact = SemanticVersion.parse(text);
+        String cleaned = stripFabricDash(text);
+        Optional<SemanticVersion> exact = SemanticVersion.parse(cleaned);
         if (exact.isPresent()) {
             return exact;
         }
-        String[] parts = text.split("\\.", -1);
+        String[] parts = cleaned.split("\\.", -1);
         if (parts.length == 0 || parts.length > 3) {
             return Optional.empty();
         }
@@ -208,59 +209,135 @@ public record VersionPredicate(String raw, List<Term> terms) {
     }
 
     /**
-     * Expands caret and tilde shorthand into explicit bounds.
+     * Expands caret, tilde, Fabric x-wildcards, and Fabric interval notation into explicit
+     * bounds.
      *
      * <p>Kept separate from {@link #parse(String)} so the original text survives for
      * diagnostics: the user wrote {@code ^1.2.3} and should see that in an error, even though
      * the resolver reasons about {@code >=1.2.3, <2.0.0}.
+     *
+     * <p>Fabric Loader also accepts space-separated conjunctions ({@code ">=1.21- <1.21.2-"})
+     * and trailing {@code -} on version components (include pre-releases of that version).
+     * Those are normalized here so real pack manifests stop becoming range-unreadable ANY.
      */
     public static Optional<VersionPredicate> expand(String text) {
         if (text == null) {
             return Optional.empty();
         }
-        String trimmed = text.trim();
-        // Fabric-style "1.21.x" / "21.0.x" → >=N.M.0, <next
-        Optional<VersionPredicate> xRange = expandXWildcard(trimmed);
-        if (xRange.isPresent()) {
-            return xRange;
-        }
-        if (!trimmed.startsWith("^") && !trimmed.startsWith("~")) {
-            return parse(trimmed);
-        }
-        Optional<SemanticVersion> lower = parseVersionish(trimmed.substring(1));
-        if (lower.isEmpty()) {
+        String original = text.trim();
+        if (original.isEmpty()) {
             return Optional.empty();
         }
-        SemanticVersion from = lower.get();
-        SemanticVersion until = trimmed.startsWith("^")
-                ? SemanticVersion.of(from.major() + 1, 0, 0)
-                : SemanticVersion.of(from.major(), from.minor() + 1, 0);
-        return Optional.of(new VersionPredicate(
-                trimmed,
-                List.of(
-                        new Term(Operator.GREATER_EQUAL, Optional.of(from), from.toString()),
-                        new Term(Operator.LESS, Optional.of(until), until.toString()))));
+        // Fabric intervals: spaces separate AND-terms when commas are absent.
+        String normalized = normalizeFabricInterval(original);
+        // Fabric-style "1.21.x" / "21.0.x" → >=N.M.0, <next
+        Optional<VersionPredicate> xRange = expandXWildcard(normalized);
+        if (xRange.isPresent()) {
+            // Preserve author text for diagnostics.
+            return Optional.of(new VersionPredicate(original, xRange.get().terms()));
+        }
+        if (normalized.startsWith("^") || normalized.startsWith("~")) {
+            Optional<SemanticVersion> lower = parseVersionish(stripFabricDash(normalized.substring(1)));
+            if (lower.isEmpty()) {
+                return Optional.empty();
+            }
+            SemanticVersion from = lower.get();
+            SemanticVersion until = normalized.startsWith("^")
+                    ? SemanticVersion.of(from.major() + 1, 0, 0)
+                    : SemanticVersion.of(from.major(), from.minor() + 1, 0);
+            return Optional.of(new VersionPredicate(
+                    original,
+                    List.of(
+                            new Term(Operator.GREATER_EQUAL, Optional.of(from), from.toString()),
+                            new Term(Operator.LESS, Optional.of(until), until.toString()))));
+        }
+        Optional<VersionPredicate> parsed = parse(normalized);
+        if (parsed.isEmpty()) {
+            return Optional.empty();
+        }
+        // Keep the author's original text on the record.
+        return Optional.of(new VersionPredicate(original, parsed.get().terms()));
     }
 
     /**
-     * Expands {@code 1.21.x} / {@code 1.x} into an inclusive lower bound and exclusive upper
-     * bound on the varying component. Fabric manifests write this constantly.
+     * Rewrites Fabric-style intervals into the comma-separated form {@link #parse} understands.
+     * Strips trailing {@code -} from version tokens ({@code 1.21-} → {@code 1.21}).
+     */
+    private static String normalizeFabricInterval(String text) {
+        // Already comma-joined: still strip trailing dashes on each piece.
+        if (text.contains(",")) {
+            String[] pieces = text.split(",", -1);
+            StringBuilder out = new StringBuilder(text.length());
+            for (int i = 0; i < pieces.length; i++) {
+                if (i > 0) {
+                    out.append(", ");
+                }
+                out.append(normalizeTerm(pieces[i].trim()));
+            }
+            return out.toString();
+        }
+        // Space-separated operators: ">=1.21- <1.21.2-" or "~1.21 <1.22"
+        String[] tokens = text.split("\\s+");
+        if (tokens.length <= 1) {
+            return normalizeTerm(text);
+        }
+        StringBuilder out = new StringBuilder(text.length());
+        for (int i = 0; i < tokens.length; i++) {
+            if (i > 0) {
+                out.append(", ");
+            }
+            out.append(normalizeTerm(tokens[i]));
+        }
+        return out.toString();
+    }
+
+    private static String normalizeTerm(String term) {
+        if (term.isEmpty()) {
+            return term;
+        }
+        // Operator + version, or bare version / caret / tilde.
+        if (term.startsWith(">=") || term.startsWith("<=")) {
+            return term.substring(0, 2) + stripFabricDash(term.substring(2));
+        }
+        if (term.startsWith(">") || term.startsWith("<") || term.startsWith("=")
+                || term.startsWith("^") || term.startsWith("~")) {
+            return term.charAt(0) + stripFabricDash(term.substring(1));
+        }
+        return stripFabricDash(term);
+    }
+
+    /** Fabric's trailing {@code -} means "this version including pre-releases"; strip for order. */
+    private static String stripFabricDash(String version) {
+        String v = version.trim();
+        while (v.endsWith("-") && v.length() > 1) {
+            v = v.substring(0, v.length() - 1);
+        }
+        return v;
+    }
+
+    /**
+     * Expands {@code 1.21.x} / {@code 1.21.*} / {@code 1.x} into an inclusive lower bound and
+     * exclusive upper bound on the varying component. Fabric manifests write these constantly.
      */
     private static Optional<VersionPredicate> expandXWildcard(String text) {
-        if (!text.endsWith(".x") && !text.endsWith(".X") && !text.equalsIgnoreCase("x")) {
+        String normalized = text;
+        if (normalized.endsWith(".*")) {
+            normalized = normalized.substring(0, normalized.length() - 2) + ".x";
+        }
+        if (!normalized.endsWith(".x")
+                && !normalized.endsWith(".X")
+                && !normalized.equalsIgnoreCase("x")) {
             return Optional.empty();
         }
-        if (text.equalsIgnoreCase("x") || text.equalsIgnoreCase(".x")) {
+        if (normalized.equalsIgnoreCase("x") || normalized.equalsIgnoreCase(".x")) {
             return Optional.of(any());
         }
-        String prefix = text.substring(0, text.length() - 2); // drop ".x"
+        String prefix = normalized.substring(0, normalized.length() - 2); // drop ".x"
         Optional<SemanticVersion> lower = parseVersionish(prefix);
         if (lower.isEmpty()) {
             return Optional.empty();
         }
         SemanticVersion from = lower.get();
-        // "1.21.x" → prefix parsed as 1.21.0 → vary patch → until 1.22.0
-        // "1.x" → prefix 1.0.0 → vary minor → until 2.0.0
         String[] parts = prefix.split("\\.", -1);
         SemanticVersion until;
         if (parts.length <= 1) {
@@ -270,7 +347,6 @@ public record VersionPredicate(String raw, List<Term> terms) {
         } else {
             until = SemanticVersion.of(from.major(), from.minor(), from.patch() + 1);
         }
-        // For "1.21.x", prefix is "1.21" → 1.21.0, parts.length 2 → until 1.22.0. Correct.
         return Optional.of(new VersionPredicate(
                 text,
                 List.of(

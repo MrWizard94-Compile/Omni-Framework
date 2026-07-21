@@ -7,14 +7,19 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * A strict RFC 8259 JSON reader.
+ * A JSON reader with a strict RFC 8259 mode and a Fabric-compat lenient mode.
  *
- * <p>Deliberately strict: no comments, no trailing commas, no unquoted keys, no single quotes,
- * no NaN or Infinity. A mod manifest is a contract, and a parser that quietly accepts
- * near-JSON teaches authors to write files that other tools reject. Depth is bounded so a
- * hostile manifest cannot exhaust the stack (SOUL §9 — manifests are untrusted input).
+ * <p>Strict mode (default): no comments, no trailing commas, no unquoted keys, no single
+ * quotes, no NaN or Infinity, no unescaped control characters in strings. Native
+ * {@code omni.mod.json} stays strict — a parser that quietly accepts near-JSON teaches
+ * authors to write files other tools reject.
  *
- * <p>Not thread-safe; construct one per document. Use {@link #parse(String)}.
+ * <p>Lenient mode exists only for third-party {@code fabric.mod.json}: a handful of shipped
+ * packs (Better End, etc.) put raw newlines inside description strings. Fabric Loader still
+ * loads those jars; refusing them here made popular mods vanish as "not installed".
+ *
+ * <p>Depth is bounded so a hostile manifest cannot exhaust the stack (SOUL §9 — manifests
+ * are untrusted input). Not thread-safe; construct one per document.
  */
 public final class JsonReader {
 
@@ -25,21 +30,34 @@ public final class JsonReader {
     private static final int MAX_DEPTH = 64;
 
     private final String source;
+    private final boolean lenientStrings;
     private int index;
     private int line = 1;
     private int column = 1;
 
-    private JsonReader(String source) {
+    private JsonReader(String source, boolean lenientStrings) {
         this.source = source;
+        this.lenientStrings = lenientStrings;
     }
 
     /**
-     * Parses a complete JSON document.
+     * Parses a complete strict JSON document.
      *
      * @throws JsonParseException if the text is not exactly one well-formed JSON value
      */
     public static Json parse(String text) {
-        JsonReader reader = new JsonReader(Objects.requireNonNull(text, "text"));
+        return parse(text, false);
+    }
+
+    /**
+     * Parses a JSON document. When {@code lenientStrings} is true, unescaped control
+     * characters (notably raw newlines) are kept as literal content instead of rejected —
+     * matching what Fabric Loader tolerates in wild {@code fabric.mod.json} files.
+     *
+     * @throws JsonParseException if the text is not a single parseable JSON value
+     */
+    public static Json parse(String text, boolean lenientStrings) {
+        JsonReader reader = new JsonReader(Objects.requireNonNull(text, "text"), lenientStrings);
         reader.skipWhitespace();
         Json value = reader.readValue(0);
         reader.skipWhitespace();
@@ -146,7 +164,13 @@ public final class JsonReader {
                 continue;
             }
             if (c < 0x20) {
-                throw error("unescaped control character in string");
+                if (!lenientStrings) {
+                    throw error("unescaped control character in string");
+                }
+                // Fabric-compat: keep raw CR/LF/TAB inside string content.
+                text.append(c);
+                advance();
+                continue;
             }
             text.append(c);
             advance();

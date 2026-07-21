@@ -63,7 +63,7 @@ public final class BootSequence {
      * the API surface version Omni claims to host — not a claim that stock Fabric
      * Loader 0.18.x is embedded.
      */
-    public static final String HOSTED_FABRIC_LOADER_VERSION = "0.18.5";
+    public static final String HOSTED_FABRIC_LOADER_VERSION = "0.18.6";
 
     private final List<GameProvider> providers;
     private final List<CompatLayer> layers;

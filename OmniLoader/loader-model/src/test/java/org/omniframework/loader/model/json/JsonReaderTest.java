@@ -96,8 +96,18 @@ class JsonReaderTest {
     }
 
     @Test
-    @DisplayName("unescaped control characters in strings are rejected")
+    @DisplayName("unescaped control characters in strings are rejected in strict mode")
     void rejectsRawControlCharacters() {
         assertThrows(JsonParseException.class, () -> JsonReader.parse("\"line\nbreak\""));
+    }
+
+    @Test
+    @DisplayName("lenient mode keeps raw newlines so Fabric packs with broken descriptions still import")
+    void lenientAllowsRawNewlinesInStrings() {
+        Json value = JsonReader.parse("{\"description\": \"line\nbreak\", \"id\": \"x\"}", true);
+        assertEquals("line\nbreak", value.asObject().orElseThrow().get("description")
+                .flatMap(Json::asString).orElseThrow());
+        assertEquals("x", value.asObject().orElseThrow().get("id")
+                .flatMap(Json::asString).orElseThrow());
     }
 }

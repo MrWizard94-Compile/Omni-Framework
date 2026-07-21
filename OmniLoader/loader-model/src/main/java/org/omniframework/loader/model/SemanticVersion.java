@@ -80,20 +80,28 @@ public record SemanticVersion(
             rest = rest.substring(0, dash);
         }
         String[] core = rest.split("\\.", -1);
-        // Accept 1–3 numeric components: "21" → 21.0.0, "1.21" → 1.21.0.
-        // Minecraft/Java manifests write these constantly; requiring three
-        // components made ">=21" fail against platform java "21".
-        if (core.length == 0 || core.length > 3) {
+        // Accept 1–N numeric components, using the first three for ordering:
+        // "21" → 21.0.0, "1.21" → 1.21.0, "0.12.15.4" → 0.12.15 (Fabric often
+        // ships 4-part versions; ignoring the 4th is better than non-semver
+        // which made ">=0.10.3" fail against "0.12.15.4+1.21").
+        if (core.length == 0) {
             return Optional.empty();
         }
+        int limit = Math.min(core.length, 3);
         int[] numbers = new int[3];
-        for (int i = 0; i < core.length; i++) {
+        for (int i = 0; i < limit; i++) {
             if (!isNumericIdentifier(core[i])) {
                 return Optional.empty();
             }
             try {
                 numbers[i] = Integer.parseInt(core[i]);
             } catch (NumberFormatException overflow) {
+                return Optional.empty();
+            }
+        }
+        // Extra trailing components must still be numeric (e.g. 0.12.15.4), else reject.
+        for (int i = 3; i < core.length; i++) {
+            if (!isNumericIdentifier(core[i])) {
                 return Optional.empty();
             }
         }

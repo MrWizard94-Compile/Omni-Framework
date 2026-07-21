@@ -49,7 +49,7 @@ public final class FabricEcosystemClaimer implements EcosystemClaimer {
 
     private static Optional<Identity> parseIdentity(String text) {
         try {
-            Optional<Json.Obj> root = JsonReader.parse(text).asObject();
+            Optional<Json.Obj> root = JsonReader.parse(text, true).asObject();
             if (root.isEmpty()) {
                 return Optional.empty();
             }

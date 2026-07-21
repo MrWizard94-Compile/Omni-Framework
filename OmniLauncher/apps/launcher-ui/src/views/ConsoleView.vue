@@ -109,8 +109,23 @@ onUnmounted(stop);
       role="log"
       aria-live="polite"
     >
-      <p v-if="!tail || tail.lines.length === 0" class="text-slate-600">No output yet.</p>
-      <p v-for="(line, index) in tail?.lines ?? []" :key="index" class="whitespace-pre-wrap">
+      <p v-if="!tail" class="text-slate-600">No output yet.</p>
+      <p
+        v-else-if="tail.lines.length === 0"
+        class="text-slate-600"
+      >
+        Log file is empty or unreadable.
+        <span v-if="tail.path" class="block mt-1 text-slate-500">{{ tail.path }}</span>
+      </p>
+      <p
+        v-for="(line, index) in tail?.lines ?? []"
+        :key="index"
+        class="whitespace-pre-wrap"
+        :class="{
+          'text-red-400': line.includes('ERROR') || line.includes('BOOT FAILED'),
+          'text-amber-300': line.includes('WARNING') && !line.includes('ERROR'),
+        }"
+      >
         {{ line }}
       </p>
     </div>

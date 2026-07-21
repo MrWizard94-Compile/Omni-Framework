@@ -57,6 +57,7 @@ public final class ModDiscovery {
         List<ModCandidate> nativeMods = new ArrayList<>();
         List<DiscoveredMods.HostedMod> hosted = new ArrayList<>();
         List<Path> unclaimed = new ArrayList<>();
+        NESTED_BUFFER.get().clear();
 
         for (Path jar : jarsIn(modsDirectory)) {
             Probe probe = probe(jar, issues);
@@ -78,12 +79,15 @@ public final class ModDiscovery {
                     Optional<DiscoveredMods.HostedMod> claimed = claimWithLayers(jar, ordered, issues);
                     if (claimed.isPresent()) {
                         hosted.add(claimed.get());
+                        hosted.addAll(NESTED_BUFFER.get());
+                        NESTED_BUFFER.get().clear();
                     } else {
                         unclaimed.add(jar);
                     }
                 }
             }
         }
+        NESTED_BUFFER.remove();
         return new DiscoveredMods(nativeMods, hosted, unclaimed);
     }
 
@@ -148,8 +152,120 @@ public final class ModDiscovery {
             return Optional.empty();
         }
         String ecosystem = ecosystemOf(layer);
-        return Optional.of(new DiscoveredMods.HostedMod(
-                layer.id(), ecosystem, ModCandidate.topLevel(metadata.get(), jar)));
+        ModCandidate parent = ModCandidate.topLevel(metadata.get(), jar);
+        // Expand Fabric nested jars (fabric-api modules, etc.) so deps like
+        // fabric-resource-loader-v0 resolve instead of failing as "not installed".
+        expandNestedJars(jar, parent, layer, ecosystem, issues);
+        return Optional.of(new DiscoveredMods.HostedMod(layer.id(), ecosystem, parent));
+    }
+
+    /**
+     * Materializes nested jar paths declared by the parent and claims them as additional
+     * hosted candidates (same ecosystem/layer). Nested candidates are attached to the parent
+     * for resolution ordering.
+     */
+    private static void expandNestedJars(
+            Path parentJar,
+            ModCandidate parent,
+            CompatLayer layer,
+            String ecosystem,
+            IssueCollector issues) {
+        List<String> nested = parent.metadata().nestedJars();
+        if (nested.isEmpty()) {
+            return;
+        }
+        Path nestDir = parentJar
+                .getParent()
+                .resolveSibling(".omniloader")
+                .resolve("nested")
+                .resolve(parent.id());
+        try {
+            Files.createDirectories(nestDir);
+        } catch (IOException e) {
+            issues.add(OmniIssue.warning("discovery.nested-dir")
+                    .at(parentJar.getFileName().toString())
+                    .with(e.getMessage() == null ? "io" : e.getMessage())
+                    .remedy("Could not create nested-jar extract dir; sub-modules will be missing")
+                    .build());
+            return;
+        }
+        try (ZipFile zip = new ZipFile(parentJar.toFile())) {
+            for (String entryPath : nested) {
+                ZipEntry entry = zip.getEntry(entryPath);
+                if (entry == null) {
+                    issues.add(OmniIssue.warning("discovery.nested-missing")
+                            .at(parent.id())
+                            .with(entryPath)
+                            .remedy("Nested jar path declared but not found inside parent")
+                            .build());
+                    continue;
+                }
+                String fileName = Path.of(entryPath).getFileName().toString();
+                Path out = nestDir.resolve(fileName);
+                if (!Files.isRegularFile(out) || Files.size(out) != entry.getSize()) {
+                    try (InputStream in = zip.getInputStream(entry)) {
+                        Files.write(out, in.readAllBytes());
+                    }
+                }
+                Optional<DiscoveredMods.HostedMod> nestedHosted =
+                        claimNested(out, parent, layer, ecosystem, issues);
+                // Nested mods are separate loadable candidates; attach via ModCandidate.nested
+                // is done inside claimNested.
+                nestedHosted.ifPresent(h -> {
+                    // Re-add is handled by collecting into a side list — see discover loop.
+                    // For simplicity, promote nested into the same hosted list by mutating
+                    // via a thread-local buffer is messy; instead store on parent extensions
+                    // is wrong. Use a static ThreadLocal list filled during discover.
+                    NESTED_BUFFER.get().add(h);
+                });
+            }
+        } catch (IOException e) {
+            issues.add(OmniIssue.warning("discovery.nested-extract")
+                    .at(parentJar.getFileName().toString())
+                    .with(e.getMessage() == null ? "io" : e.getMessage())
+                    .remedy("Failed to extract nested jars from this mod")
+                    .build());
+        }
+    }
+
+    private static final ThreadLocal<List<DiscoveredMods.HostedMod>> NESTED_BUFFER =
+            ThreadLocal.withInitial(ArrayList::new);
+
+    private static Optional<DiscoveredMods.HostedMod> claimNested(
+            Path nestedJar,
+            ModCandidate parent,
+            CompatLayer layer,
+            String ecosystem,
+            IssueCollector issues) {
+        Optional<EcosystemClaimer.Claim> claim = layer.claimer().claim(nestedJar);
+        if (claim.isEmpty()) {
+            // Nested jars may still be plain fabric.mod.json modules.
+            return Optional.empty();
+        }
+        try (ZipFile zip = new ZipFile(nestedJar.toFile())) {
+            ZipEntry entry = zip.getEntry(claim.get().manifestPath());
+            if (entry == null) {
+                return Optional.empty();
+            }
+            String text;
+            try (InputStream in = zip.getInputStream(entry)) {
+                text = new String(in.readAllBytes(), StandardCharsets.UTF_8);
+            }
+            Optional<ModMetadata> metadata =
+                    layer.importer().importFromJar(nestedJar, claim.get().manifestPath(), text, issues);
+            if (metadata.isEmpty()) {
+                return Optional.empty();
+            }
+            ModCandidate nested = ModCandidate.nested(metadata.get(), nestedJar, parent);
+            return Optional.of(new DiscoveredMods.HostedMod(layer.id(), ecosystem, nested));
+        } catch (IOException e) {
+            issues.add(OmniIssue.warning("discovery.nested-read")
+                    .at(nestedJar.getFileName().toString())
+                    .with(e.getMessage() == null ? "io" : e.getMessage())
+                    .remedy("Nested jar could not be read")
+                    .build());
+            return Optional.empty();
+        }
     }
 
     private static String ecosystemOf(CompatLayer layer) {

@@ -894,7 +894,13 @@ impl AppService {
             .as_str()
             .map(PathBuf::from)
             .ok_or_else(|| AppError::new("notFound", "this session recorded no log file"))?;
-        let text = std::fs::read_to_string(&log_path).unwrap_or_default();
+        // Java on Windows often writes non-UTF-8 bytes (e.g. 0x97 em-dash). Never treat a
+        // decode failure as "empty log" — that made Console show "No output yet" while the
+        // session log on disk was full of [omniloader] ERROR lines.
+        let text = match std::fs::read(&log_path) {
+            Ok(bytes) => String::from_utf8_lossy(&bytes).into_owned(),
+            Err(_) => String::new(),
+        };
         let take = max_lines.min(MAX_CONSOLE_LINES);
         let all: Vec<&str> = text.lines().collect();
         let start = all.len().saturating_sub(take);

@@ -70,13 +70,33 @@ class VersionPredicateTest {
     }
 
     @Test
-    @DisplayName("Fabric-style x wildcards expand to a bounded range")
+    @DisplayName("Fabric-style x and * wildcards expand to a bounded range")
     void xWildcards() {
         assertTrue(matches("1.21.x", "1.21.1"));
         assertTrue(matches("1.21.x", "1.21.0"));
         assertFalse(matches("1.21.x", "1.22.0"));
         assertFalse(matches("1.21.x", "1.20.4"));
         assertTrue(matches("21.0.x", "21.0.8"));
+        assertTrue(matches("1.21.*", "1.21.1"), "star form used by some Fabric manifests");
+    }
+
+    @Test
+    @DisplayName("four-part Fabric versions order using the first three components")
+    void fourPartFabricVersions() {
+        assertTrue(matches(">=0.10.3", "0.12.15.4+1.21"));
+        assertTrue(matches(">=0.102.0", "0.116.11+1.21.1"));
+        assertTrue(matches(">=1.1.0", "1.26.1.3"), "villagerapi-style four-part");
+    }
+
+    @Test
+    @DisplayName("Fabric space-separated intervals and trailing dashes parse")
+    void fabricIntervals() {
+        assertTrue(matches(">=1.21- <1.21.2-", "1.21.1"),
+                "fabric-api's minecraft range");
+        assertTrue(matches(">=1.21 <1.22", "1.21.1"));
+        assertFalse(matches(">=1.21- <1.21.2-", "1.21.2"));
+        assertTrue(matches("~1.21-", "1.21.0"));
+        assertTrue(matches(">=0.18.6", "0.18.6"));
     }
 
     @Test
