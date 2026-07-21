@@ -22,7 +22,8 @@ use omni_core::install::{
 };
 use omni_core::jobs::{CancelToken, RunOutcome, run};
 use omni_core::launch::{
-    LaunchInputs, accept_server_eula, build_client_command, build_server_command,
+    LaunchInputs, LoaderRuntime, accept_server_eula, build_client_command, build_loader_command,
+    build_server_command,
     spawn_recorded, wait_and_record,
 };
 use omni_core::platform::Platform;
@@ -437,6 +438,71 @@ fn client_command_assembles_args_classpath_and_features() {
     let inputs = LaunchInputs { features, ..inputs };
     let command = build_client_command(&paths, &inputs, &platform).expect("command");
     assert!(command.args.contains(&"--demo".to_owned()));
+}
+
+#[test]
+fn loader_command_boots_through_omniloader_not_vanilla() {
+    // The B2 bridge: a loader-managed launch runs the OmniLoader bootstrap, with the game moved
+    // off the JVM classpath into bootstrap arguments (so it loads transformed, from partitions)
+    // and the game's own arguments preserved verbatim after `--`.
+    let (db, paths, _root) = fresh_env();
+    let (stack, _) = synthetic_world();
+    let id = make_instance(&db, InstanceKind::Client);
+    let instance =
+        db.with_store(|store| store.instance(id)).expect("query").expect("instance");
+    let auth = online_auth("MrWizard94", "069a79f4");
+    let platform = Platform { os_name: "windows", arch: "x86_64" };
+    let inputs = LaunchInputs {
+        instance: &instance,
+        stack: &stack,
+        auth: &auth,
+        java_exe: PathBuf::from("C:/java/bin/java.exe"),
+        memory_mib: 4096,
+        features: BTreeMap::new(),
+        extra_jvm_args: vec![],
+    };
+    let loader = LoaderRuntime {
+        main_class: "org.omniframework.loader.bootstrap.OmniLoaderBootstrap".into(),
+        classpath: vec![
+            PathBuf::from("C:/dist/lib/loader-bootstrap-0.1.0.jar"),
+            PathBuf::from("C:/dist/lib/loader-core-0.1.0.jar"),
+        ],
+    };
+    let command = build_loader_command(&paths, &inputs, &platform, &loader).expect("command");
+
+    let client_sha = sha1_hex(b"client-jar-bytes");
+
+    // 1. -cp is the loader distribution, and the game jar is NOT on it — the game must load
+    //    through the transforming loader from a partition, not untransformed from the classpath.
+    let cp_index = command.args.iter().position(|a| a == "-cp").expect("-cp present");
+    let classpath = &command.args[cp_index + 1];
+    assert!(classpath.contains("loader-bootstrap-0.1.0.jar"), "the loader runtime is the classpath");
+    assert!(!classpath.contains(&client_sha), "the game jar must not ride the JVM classpath");
+
+    // 2. the bootstrap is the JVM main; the game's main is handed over as --game-main.
+    let bootstrap = "org.omniframework.loader.bootstrap.OmniLoaderBootstrap";
+    let main_index = command.args.iter().position(|a| a == bootstrap).expect("bootstrap main");
+    let game_main = command.args.iter().position(|a| a == "--game-main").expect("--game-main");
+    assert_eq!(command.args[game_main + 1], "net.minecraft.client.main.Main");
+    assert!(game_main > main_index, "loader arguments follow the bootstrap main class");
+
+    // 3. the game jar, its libraries, and the boot parameters are bootstrap arguments.
+    let game_jar = command.args.iter().position(|a| a == "--game-jar").expect("--game-jar");
+    assert!(command.args[game_jar + 1].contains(&client_sha), "the game jar is handed to the loader");
+    assert!(command.args.iter().any(|a| a == "--library"), "libraries handed to the loader");
+    assert!(command.args.iter().any(|a| a == "--game-dir"), "the instance dir is handed over");
+    assert_eq!(
+        command.args[command.args.iter().position(|a| a == "--side").unwrap() + 1],
+        "client",
+    );
+
+    // 4. the separator divides loader arguments from the game's own, which follow verbatim.
+    let separator = command.args.iter().position(|a| a == "--").expect("-- separator");
+    let username = command.args.iter().position(|a| a == "MrWizard94").expect("username");
+    assert!(separator > game_jar, "loader arguments come before the separator");
+    assert!(username > separator, "the game's own arguments follow the separator, unchanged");
+    assert_eq!(command.program, PathBuf::from("C:/java/bin/java.exe"));
+    assert_eq!(command.args[0], "-Xmx4096M");
 }
 
 #[test]

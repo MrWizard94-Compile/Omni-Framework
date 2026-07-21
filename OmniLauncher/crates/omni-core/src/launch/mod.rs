@@ -150,47 +150,14 @@ pub fn build_client_command(
     // Classpath: every rule-allowed library of every stack payload, plus the
     // game jar — all pointing into the immutable content cache (hmcl-grade
     // cross-instance sharing; the game dir stays per-instance).
-    let separator = if cfg!(windows) { ";" } else { ":" };
-    let mut classpath_entries: Vec<String> = Vec::new();
-    for payload in &inputs.stack.payloads {
-        for library in &payload.libraries {
-            if rules_allow(&library.rules, platform, &inputs.features) {
-                classpath_entries
-                    .push(cache.object_path(&library.sha1).to_string_lossy().into_owned());
-            }
-        }
-    }
-    let game_jar_sha1 = game
-        .data
-        .get("downloads")
-        .and_then(|downloads| downloads["client"]["sha1"].as_str())
-        .ok_or(CoreError::NotFound { what: "client jar download", id: inputs.instance.id })?;
-    classpath_entries.push(cache.object_path(game_jar_sha1).to_string_lossy().into_owned());
+    let separator = classpath_separator();
+    let (libraries, game_jar) = cache_classpath(inputs, platform, &cache)?;
+    let mut classpath_entries = libraries;
+    classpath_entries.push(game_jar);
     let classpath = classpath_entries.join(separator);
 
-    let auth = auth_values(inputs.auth);
     let game_dir = paths.game_dir(inputs.instance.id);
-    let assets_root = paths.assets_root();
-    let natives_dir = paths.natives_dir(inputs.instance.id);
-    let mut values: BTreeMap<&str, String> = BTreeMap::new();
-    values.insert("auth_player_name", auth.name);
-    values.insert("auth_uuid", auth.uuid);
-    values.insert("auth_access_token", auth.token);
-    values.insert("auth_xuid", String::new());
-    values.insert("clientid", crate::auth::DEV_CLIENT_ID.to_owned());
-    values.insert("user_type", "msa".to_owned());
-    values.insert("version_name", game.version.clone());
-    values.insert("version_type", game.release_type.clone());
-    values.insert("game_directory", game_dir.to_string_lossy().into_owned());
-    values.insert("assets_root", assets_root.to_string_lossy().into_owned());
-    values.insert(
-        "assets_index_name",
-        game.asset_index.as_ref().map(|index| index.id.clone()).unwrap_or_default(),
-    );
-    values.insert("natives_directory", natives_dir.to_string_lossy().into_owned());
-    values.insert("launcher_name", "OmniLauncher".to_owned());
-    values.insert("launcher_version", env!("CARGO_PKG_VERSION").to_owned());
-    values.insert("classpath", classpath);
+    let values = substitution_values(paths, inputs, game, classpath);
 
     let mut args: Vec<String> = vec![format!("-Xmx{}M", heap_mib(inputs.memory_mib))];
     args.extend(inputs.extra_jvm_args.iter().cloned());
@@ -209,6 +176,189 @@ pub fn build_client_command(
             args.push("-cp".to_owned());
             args.push(values["classpath"].clone());
             args.push(main_class);
+            args.extend(legacy.split_whitespace().map(|token| substitute(token, &values)));
+        }
+        (None, None) => {
+            return Err(CoreError::NotFound { what: "launch arguments", id: inputs.instance.id });
+        }
+    }
+
+    Ok(LaunchCommand { program: inputs.java_exe.clone(), args, cwd: game_dir })
+}
+
+/// The platform classpath separator.
+fn classpath_separator() -> &'static str {
+    if cfg!(windows) { ";" } else { ":" }
+}
+
+/// The content-cache paths for a launch: every rule-allowed library, and the client jar.
+///
+/// Shared by the vanilla and loader commands so there is one definition of "what jars a launch
+/// needs" — the vanilla path joins them into `-cp`, the loader path routes them to the
+/// bootstrap as `--game-jar`/`--library`. Two collectors would drift the day a library rule
+/// changed in one and not the other.
+fn cache_classpath(
+    inputs: &LaunchInputs<'_>,
+    platform: &Platform,
+    cache: &ContentCache,
+) -> Result<(Vec<String>, String), CoreError> {
+    let mut libraries: Vec<String> = Vec::new();
+    for payload in &inputs.stack.payloads {
+        for library in &payload.libraries {
+            if rules_allow(&library.rules, platform, &inputs.features) {
+                libraries.push(cache.object_path(&library.sha1).to_string_lossy().into_owned());
+            }
+        }
+    }
+    let game = inputs.stack.game()?;
+    let game_jar_sha1 = game
+        .data
+        .get("downloads")
+        .and_then(|downloads| downloads["client"]["sha1"].as_str())
+        .ok_or(CoreError::NotFound { what: "client jar download", id: inputs.instance.id })?;
+    let game_jar = cache.object_path(game_jar_sha1).to_string_lossy().into_owned();
+    Ok((libraries, game_jar))
+}
+
+/// The `${...}` template values for a launch, given the classpath to bake into them.
+///
+/// Also shared: the game's own arguments (username, uuid, asset paths) are identical whether the
+/// game is launched directly or through the loader, and only `${classpath}` differs — vanilla
+/// bakes the game+libraries, the loader bakes its own runtime.
+fn substitution_values(
+    paths: &Paths,
+    inputs: &LaunchInputs<'_>,
+    game: &omni_meta_format::ComponentPayload,
+    classpath: String,
+) -> BTreeMap<&'static str, String> {
+    let auth = auth_values(inputs.auth);
+    let game_dir = paths.game_dir(inputs.instance.id);
+    let mut values: BTreeMap<&'static str, String> = BTreeMap::new();
+    values.insert("auth_player_name", auth.name);
+    values.insert("auth_uuid", auth.uuid);
+    values.insert("auth_access_token", auth.token);
+    values.insert("auth_xuid", String::new());
+    values.insert("clientid", crate::auth::DEV_CLIENT_ID.to_owned());
+    values.insert("user_type", "msa".to_owned());
+    values.insert("version_name", game.version.clone());
+    values.insert("version_type", game.release_type.clone());
+    values.insert("game_directory", game_dir.to_string_lossy().into_owned());
+    values.insert("assets_root", paths.assets_root().to_string_lossy().into_owned());
+    values.insert(
+        "assets_index_name",
+        game.asset_index.as_ref().map(|index| index.id.clone()).unwrap_or_default(),
+    );
+    values.insert(
+        "natives_directory",
+        paths.natives_dir(inputs.instance.id).to_string_lossy().into_owned(),
+    );
+    values.insert("launcher_name", "OmniLauncher".to_owned());
+    values.insert("launcher_version", env!("CARGO_PKG_VERSION").to_owned());
+    values.insert("classpath", classpath);
+    values
+}
+
+/// The OmniLoader runtime a loader-managed launch boots through (B2).
+///
+/// Resolved by the app layer from the staged loader distribution: the entry point named in
+/// `loader.json` and the jars in the dist's `lib/`. It is the loader's own runtime — not the
+/// game — so it goes on the JVM classpath, while the game and its libraries are handed to the
+/// bootstrap as arguments and end up in the transforming loader's partitions.
+#[derive(Debug, Clone)]
+pub struct LoaderRuntime {
+    /// The bootstrap main class, from the distribution manifest.
+    pub main_class: String,
+    /// The loader distribution's jars (the JVM classpath for the boot).
+    pub classpath: Vec<PathBuf>,
+}
+
+/// Builds a launch that boots the game through OmniLoader rather than directly (B2).
+///
+/// <p>The same command as the vanilla client in every respect the JVM cares about — same heap,
+/// same JVM argument templates (natives path, `--add-opens`, and the rest), same game arguments
+/// after the game's own `main` would have seen them — with three surgical differences:
+///
+/// 1. `-cp` is the loader distribution, not the game. The game runs inside the loader's
+///    transforming class loader, reached from partitions, so it must not also be on the system
+///    classpath where it would load untransformed.
+/// 2. the main class is the bootstrap, not the game's.
+/// 3. the game jar, its libraries, and the boot parameters are passed as bootstrap arguments,
+///    ahead of a `--` separator; everything the game's own `main` expects follows the separator,
+///    verbatim, so the game sees exactly what it would have on a direct launch.
+///
+/// # Errors
+///
+/// [`CoreError::NotFound`] when the stack has no game payload or main class.
+pub fn build_loader_command(
+    paths: &Paths,
+    inputs: &LaunchInputs<'_>,
+    platform: &Platform,
+    loader: &LoaderRuntime,
+) -> Result<LaunchCommand, CoreError> {
+    let game = inputs.stack.game()?;
+    let game_main = game
+        .main_class
+        .clone()
+        .ok_or(CoreError::NotFound { what: "mainClass", id: inputs.instance.id })?;
+    let cache = ContentCache::new(paths.objects_root());
+    let separator = classpath_separator();
+
+    let (libraries, game_jar) = cache_classpath(inputs, platform, &cache)?;
+    let loader_classpath = loader
+        .classpath
+        .iter()
+        .map(|jar| jar.to_string_lossy().into_owned())
+        .collect::<Vec<_>>()
+        .join(separator);
+    let values = substitution_values(paths, inputs, game, loader_classpath);
+
+    let game_dir = paths.game_dir(inputs.instance.id);
+    let mods_dir = game_dir.join("mods");
+    let side = match inputs.instance.kind {
+        crate::store::InstanceKind::Server => "server",
+        crate::store::InstanceKind::Client => "client",
+    };
+
+    // The loader's own arguments, between the bootstrap main and the `--` separator.
+    let mut loader_args: Vec<String> = vec![
+        "--game-dir".to_owned(),
+        game_dir.to_string_lossy().into_owned(),
+        "--mods-dir".to_owned(),
+        mods_dir.to_string_lossy().into_owned(),
+        "--side".to_owned(),
+        side.to_owned(),
+        "--game-version".to_owned(),
+        game.version.clone(),
+        "--game-main".to_owned(),
+        game_main,
+    ];
+    loader_args.push("--game-jar".to_owned());
+    loader_args.push(game_jar);
+    for library in libraries {
+        loader_args.push("--library".to_owned());
+        loader_args.push(library);
+    }
+
+    let mut args: Vec<String> = vec![format!("-Xmx{}M", heap_mib(inputs.memory_mib))];
+    args.extend(inputs.extra_jvm_args.iter().cloned());
+    match (&game.arguments, &game.legacy_arguments) {
+        (Some(arguments), _) => {
+            for argument in &arguments.jvm {
+                push_argument(&mut args, argument, platform, &inputs.features, &values);
+            }
+            args.push(loader.main_class.clone());
+            args.extend(loader_args);
+            args.push("--".to_owned());
+            for argument in &arguments.game {
+                push_argument(&mut args, argument, platform, &inputs.features, &values);
+            }
+        }
+        (None, Some(legacy)) => {
+            args.push("-cp".to_owned());
+            args.push(values["classpath"].clone());
+            args.push(loader.main_class.clone());
+            args.extend(loader_args);
+            args.push("--".to_owned());
             args.extend(legacy.split_whitespace().map(|token| substitute(token, &values)));
         }
         (None, None) => {
