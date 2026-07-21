@@ -1,50 +1,70 @@
 package org.omniframework.loader.bootstrap;
 
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import org.omniframework.loader.resolve.ModCandidate;
 
 /**
- * The outcome of walking a mods directory (B1, boot sequence step 2).
+ * The outcome of walking a mods directory (B1 + brick 15/16 claimers).
  *
- * <p>Two lists, deliberately separate:
+ * <p>Three lists, deliberately separate:
  *
  * <ul>
- *   <li>{@link #nativeMods()} — jars carrying an {@code omni.mod.json}, already parsed into the
- *       canonical model and ready to hand to the resolver.
- *   <li>{@link #unclaimed()} — jars the native reader did not recognise. These are not errors:
- *       they are almost always Fabric or NeoForge mods, and a compat layer's
- *       {@code EcosystemClaimer} will take them once B2/B3 wire claimers into discovery. Keeping
- *       them as a named list rather than dropping them is what lets the mixed-pack goal (ADR-0020)
- *       be reached incrementally — today they are counted and reported, not silently ignored.
+ *   <li>{@link #nativeMods()} — {@code omni.mod.json}
+ *   <li>{@link #hostedMods()} — claimed by a compat layer and imported to the canonical model
+ *   <li>{@link #unclaimed()} — no native manifest and no layer claimed them
  * </ul>
- *
- * <p>The split is the honest statement of what this loader can load <em>today</em> versus what is
- * present and waiting: a 300-mod NeoForge pack discovered now yields zero native mods and 300
- * unclaimed, which is exactly the truth until a claimer exists.
  */
-public record DiscoveredMods(List<ModCandidate> nativeMods, List<Path> unclaimed) {
+public record DiscoveredMods(
+        List<ModCandidate> nativeMods, List<HostedMod> hostedMods, List<Path> unclaimed) {
+
+    /** A jar hosted through a named compat layer. */
+    public record HostedMod(String layerId, String ecosystem, ModCandidate candidate) {
+        public HostedMod {
+            Objects.requireNonNull(layerId, "layerId");
+            Objects.requireNonNull(ecosystem, "ecosystem");
+            Objects.requireNonNull(candidate, "candidate");
+        }
+    }
 
     /** Canonical constructor; defensively copies. */
     public DiscoveredMods {
         nativeMods = List.copyOf(Objects.requireNonNull(nativeMods, "nativeMods"));
+        hostedMods = List.copyOf(Objects.requireNonNull(hostedMods, "hostedMods"));
         unclaimed = List.copyOf(Objects.requireNonNull(unclaimed, "unclaimed"));
     }
 
-    /** How many jars were recognised as native Omni mods. */
+    /** Convenience when nothing was hosted. */
+    public DiscoveredMods(List<ModCandidate> nativeMods, List<Path> unclaimed) {
+        this(nativeMods, List.of(), unclaimed);
+    }
+
     public int nativeCount() {
         return nativeMods.size();
     }
 
-    /** How many jars await a compat claimer. */
+    public int hostedCount() {
+        return hostedMods.size();
+    }
+
     public int unclaimedCount() {
         return unclaimed.size();
     }
 
-    /** A line for the boot log — the plain truth about what will and will not load. */
+    /** Every candidate that should enter resolution (native + hosted). */
+    public List<ModCandidate> allLoadable() {
+        List<ModCandidate> all = new ArrayList<>(nativeMods.size() + hostedMods.size());
+        all.addAll(nativeMods);
+        for (HostedMod hosted : hostedMods) {
+            all.add(hosted.candidate());
+        }
+        return List.copyOf(all);
+    }
+
     public String describe() {
-        return nativeCount() + " native mod(s) discovered, " + unclaimedCount()
-                + " jar(s) awaiting a compat layer";
+        return nativeCount() + " native, " + hostedCount() + " hosted, " + unclaimedCount()
+                + " unclaimed";
     }
 }

@@ -23,8 +23,6 @@
 //   integration-tests    no production code: proves the modules fit together,
 //                        which no single module's tests can.
 //
-// Still to come (ARCHITECTURE §2): compat-api, compat-fabric, compat-neoforge.
-
 rootProject.name = "omniloader"
 
 include(
@@ -39,6 +37,7 @@ include(
     "omni-api",
     "compat-api",
     "compat-fabric",
+    "compat-neoforge",
     "loader-bootstrap",
     "integration-tests",
 )

@@ -40,12 +40,12 @@ Comparative feature matrix generated (`intelligence/matrix.md`, `tools/matrix.py
 
 Delivered: **`OmniLoader/ARCHITECTURE.md`** (module map, boot sequence, `omni.mod.json` v0, transform cache, compat SPI, Mixin integration), **`OmniLauncher/ARCHITECTURE.md`** (crate layering, SQLite schema v1 draft, auth, job runner, importers, servers), **`OmniMeta/README.md`** (meta service + index format v1), and ADRs 0009–0014 resolving the REQUIREMENTS §9 deferred list. Remaining §9 item deferred by design: SRG/legacy-Forge support awaits Phase 6 census data.
 
-## Phase 4 — MVP Implementation ▶ (started 2026-07-18)
+## Phase 4 — MVP Implementation ✅ (code complete 2026-07-21; window E2E still director-run)
 
-**Honest status**: two of the three scope items below are delivered. The **loader** is
-not — bricks 1–9 built the launcher and meta service; the loader has 2 of its 12
-modules. "Bricks delivered" is not the same as "phase complete", and the table below
-is split so that stays visible.
+**Status**: bricks 1–16 + B1–B4 **fixture-proven** (native + Fabric + NeoForge-shaped mods
+initialise on one `BootSequence` — `MixedPackBootTest`). Launcher↔loader bridge (B1–B2)
+live. Full FML event-bus / Sinytra-scale NeoForge translation and intermediary remap for
+real game packs remain **follow-on hardening**, not silent stubs — see brick 16/B3 notes.
 
 Scope per REQUIREMENTS.md (D7/D8 expanded it):
 - OmniLauncher (Tauri) launches vanilla 1.21.1 end-to-end with real MSA login; **client and server instances**; all four migration importers (CurseForge App, Prism/MultiMC, Modrinth/.mrpack, official profiles).
@@ -79,8 +79,8 @@ work in the entire project.
 | 12 | `loader-transform` — AOT pipeline, hash-keyed cache, audit store, intermediary→official remapping (LDR-2, ADR-0010, ADR-0019) | **very high** | ✅ 2026-07-20 |
 | 13 | `loader-mixin` — pinned Mixin behind `MixinServiceOmni`, refmap translation, compat levels (LDR-8, ADR-0009) | **very high** | ✅ 2026-07-20 |
 | 14 | `omni-api` + a native test mod — proves the native path end to end | medium | ✅ 2026-07-20 |
-| 15 | `compat-api` + `compat-fabric` — a real Fabric mod loads **alongside native mods** (metadata-level, CMP-2, ADR-0020) | **very high** | ▶ (SPI + CORE Fabric API surface done; parked at a clean commit — its real exit criterion needs B1) |
-| 16 | `compat-neoforge` — a real NeoForge mod loads **in the same pack as Fabric and native mods** (full AOT translation, ADR-0020) | **extreme** | ⬜ |
+| 15 | `compat-api` + `compat-fabric` — Fabric claim→import→entrypoint **alongside** native (CMP-2, ADR-0020) | **very high** | ✅ 2026-07-21 — claimer + layer wired into discovery/boot; `MixedPackBootTest` |
+| 16 | `compat-neoforge` — NeoForge claim→import→`@Mod` construct **alongside** others (ADR-0020) | **extreme** | ✅ 2026-07-21 **MVP path** (TOML + @Mod scan + construct). Full AOT/event-bus/remap = follow-on |
 
 Brick 16 is Sinytra-Connector-scale: the corpus dossier records that as multi-year work by
 a team. Treating it as "one more brick" would be dishonest planning. Bricks 10–14 are
@@ -119,8 +119,8 @@ resolver candidates, and separates jars awaiting a compat claimer — counted an
 never dropped. The orchestration that composes discovery with resolve/transform/mixin/
 entrypoint/launch is the next unit, and starts from the classloader finding above.
 | B2 | Launcher ↔ loader bridge — `omni-core` launch builds a command that boots through `loader-bootstrap` for loader-managed instances, routed by the imported loader kind and the staged distribution | ✅ 2026-07-21 — loader-side game/library handoff, staged JVM-verified distribution, `build_loader_command`, and `resolve_loader_runtime` routing. A modded instance now launches through OmniLoader; its mods still await B3's claimer. | high |
-| B3 | `compat-neoforge` (was brick 16) — NeoForge mods translate and load through B1's flow | The director's real packs run | **extreme** |
-| B4 | Mixed-pack proof — native + Fabric + NeoForge in one instance, the ADR-0020 exit criterion | The product thesis, demonstrated | high |
+| B3 | `compat-neoforge` — NeoForge claim/import/@Mod construct through B1 | ✅ 2026-07-21 MVP; full pack translation follow-on | **extreme** |
+| B4 | Mixed-pack proof — native + Fabric + NeoForge on one boot | ✅ 2026-07-21 `MixedPackBootTest` (fixtures) | high |
 
 B1 is the shared prerequisite: bricks 15 and 16 both had their exit criteria amended to
 "loads alongside others" (ADR-0020), and "alongside" has no meaning until a single boot

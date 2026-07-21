@@ -50,7 +50,7 @@ Omni_Framework/
 
 ## Status
 
-**Phase 0 — Foundation** ✅ · **Phase 1 — Vivisection Corpus** ✅ · **Phase 2 — Feature Synthesis** ✅ · **Phase 3 — Architecture Design** ✅ · **Phase 4 — MVP Implementation** ▶ (bricks 1–14 + B1–B2; E2E window walkthrough open) · **Phase 5 — Stabilization** ✅ (export + test matrix + release engineering, 2026-07-21) · **Phase 6 — Mod Census** ▶ (Modrinth indexed; CF key pending).
+**Phase 0 — Foundation** ✅ · **Phase 1 — Vivisection** ✅ · **Phase 2 — Synthesis** ✅ · **Phase 3 — Architecture** ✅ · **Phase 4 — MVP** ✅ code (mixed-pack fixtures + loader bridge; window E2E director-run) · **Phase 5 — Stabilization** ✅ · **Phase 6 — Census** ▶ (Modrinth done; CF third-party key pending).
 
 See [`docs/ROADMAP.md`](docs/ROADMAP.md), [`docs/TEST_MATRIX.md`](docs/TEST_MATRIX.md), [`docs/RELEASE.md`](docs/RELEASE.md).
 

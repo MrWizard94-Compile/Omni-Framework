@@ -8,6 +8,13 @@ Versions follow the workspace package version in `Cargo.toml` unless noted.
 
 ### Added
 
+- **Phase 4 — MVP close-out (2026-07-21)**
+  - Fabric + NeoForge compat layers wired into discovery/boot (`FabricCompatLayer`,
+    `NeoForgeCompatLayer`, claimers, TOML/@Mod scan).
+  - `MixedPackBootTest`: native + Fabric + NeoForge fixtures initialise on one
+    `BootSequence` (ADR-0020 fixture exit).
+  - Shared classloader prefixes for `net.fabricmc.api.*` / `net.fabricmc.loader.api.*`.
+
 - **Phase 5 — Stabilization**
   - Instance **export** (ADR-0014): `mrpack`, CurseForge `manifest.json` + overrides,
     and Omni `omni.pack.json` schema 0 (`omni-core::export`, `export_instance` command).

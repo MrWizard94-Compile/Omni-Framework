@@ -1,5 +1,6 @@
 package org.omniframework.loader.compat;
 
+import java.nio.file.Path;
 import java.util.Optional;
 import org.omniframework.loader.diag.IssueCollector;
 import org.omniframework.loader.model.ModMetadata;
@@ -34,4 +35,14 @@ public interface MetadataImporter {
      * @return the canonical metadata, or empty when a blocking problem prevented it
      */
     Optional<ModMetadata> importMetadata(String manifestText, IssueCollector issues);
+
+    /**
+     * Imports with jar context (e.g. NeoForge {@code @Mod} annotation scan).
+     *
+     * <p>Default delegates to {@link #importMetadata}; layers that need the jar override.
+     */
+    default Optional<ModMetadata> importFromJar(
+            Path jar, String manifestPath, String manifestText, IssueCollector issues) {
+        return importMetadata(manifestText, issues);
+    }
 }

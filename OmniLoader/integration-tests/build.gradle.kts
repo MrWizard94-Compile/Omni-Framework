@@ -16,5 +16,8 @@ dependencies {
     testImplementation(project(":omni-api"))
     testImplementation(project(":provider-minecraft"))
     testImplementation(project(":loader-bootstrap"))
+    testImplementation(project(":compat-api"))
+    testImplementation(project(":compat-fabric"))
+    testImplementation(project(":compat-neoforge"))
     testImplementation("org.ow2.asm:asm:9.8")
 }

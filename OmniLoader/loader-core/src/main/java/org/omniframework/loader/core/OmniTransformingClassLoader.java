@@ -64,10 +64,17 @@ public final class OmniTransformingClassLoader extends ClassLoader implements ja
     private static final String[] PARENT_FIRST_PREFIXES = {
         "java.", "javax.", "jdk.", "sun.", "com.sun.", "org.w3c.dom.", "org.xml.sax.",
         "org.omniframework.api.",
+        // Guest loader API surfaces (CMP-2/4): mods implement these interfaces; the
+        // dispatcher holds the same Class objects from the API source, so identity must match.
+        "net.fabricmc.api.",
+        "net.fabricmc.loader.api.",
     };
 
     /** The packages the runtime parent shares from the API source. */
-    private static final List<String> SHARED_API_PREFIXES = List.of("org.omniframework.api.");
+    private static final List<String> SHARED_API_PREFIXES = List.of(
+            "org.omniframework.api.",
+            "net.fabricmc.api.",
+            "net.fabricmc.loader.api.");
 
     private final PartitionRegistry partitions;
     private final ClassTransformer transformer;

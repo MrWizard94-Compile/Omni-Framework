@@ -15,6 +15,10 @@ dependencies {
     api(project(":loader-resolve"))
     api(project(":provider-minecraft"))
     api(project(":omni-api"))
+    // Compat layers are part of the staged runtime so discovery can claim Fabric/NeoForge jars.
+    api(project(":compat-api"))
+    api(project(":compat-fabric"))
+    api(project(":compat-neoforge"))
 }
 
 // ---------------------------------------------------------------------------

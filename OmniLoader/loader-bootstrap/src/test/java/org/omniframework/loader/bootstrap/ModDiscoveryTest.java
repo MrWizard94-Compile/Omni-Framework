@@ -145,9 +145,12 @@ class ModDiscoveryTest {
         DiscoveredMods found = ModDiscovery.discover(dir, issues);
 
         assertEquals(1, found.nativeCount());
+        assertEquals(0, found.hostedCount());
         assertEquals(40, found.unclaimedCount());
         assertFalse(issues.hasErrors());
-        assertTrue(found.describe().contains("1 native") && found.describe().contains("40 jar"),
+        assertTrue(
+                found.describe().contains("1 native")
+                        && found.describe().contains("40 unclaimed"),
                 found::describe);
     }
 }
