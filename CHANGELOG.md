@@ -26,13 +26,19 @@ Versions follow the workspace package version in `Cargo.toml` unless noted.
   - `scripts/checksum-release.ps1` — deterministic SHA-256 manifests for release artifacts.
   - CI workflow `.github/workflows/ci.yml` (Rust, OmniLoader, intelligence).
 
-- **Phase 6 — Mod census (in progress)**
-  - Census pipeline C1/C3; Modrinth 1.21.1 live index (see `intelligence/census/`).
-  - CurseForge half blocked on third-party API key approval.
+- **Phase 6 — Mod census complete (2026-07-21)**
+  - Dual-platform 1.21.1 index: Modrinth 28 260 + CurseForge 10 000; CF enrich 10 000;
+    cross-links 6 825; C4 frozen snapshot (38 260 ≤50k) in `intelligence/census/report.md`.
+  - CF key resolution hardened: `CF_API_KEY` alias, `--cf-api-key-file`, `$$`/quote
+    normalize, `cfc_pat_*` diagnostics (shell mangling was the real 403 cause).
+
+- **Phase 7 — Port-queue foundation (P1)**
+  - `omni_port.db` + license classifier + human-gated outreach drafts (`tools/port_queue.py`,
+    ADR-0023). S+A intake from C4: 6066 rows. Not a full autonomous porter.
 
 ### Changed
 
-- Root / CLAUDE / ROADMAP status for Phase 5 completion and Phase 6 progress.
+- ROADMAP / CLAUDE: Phase 6 closed; Phase 7 P1 landed with honest residual bricks.
 
 ## [0.1.0] — 2026-07-18..2026-07-21 (founding window)
 

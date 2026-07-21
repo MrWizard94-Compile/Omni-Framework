@@ -19,7 +19,6 @@ Usage examples:
 from __future__ import annotations
 
 import argparse
-import os
 import sqlite3
 import sys
 from pathlib import Path
@@ -35,7 +34,9 @@ from census_lib import (
     export_census,
     link_all,
     open_census_db,
+    require_cf_api_key,
     rescore_all,
+    resolve_cf_api_key,
 )
 from census_modrinth import fetch_modrinth
 
@@ -65,19 +66,23 @@ def cmd_fetch(args: argparse.Namespace) -> int:
             resume=not args.no_resume,
         )
     if "curseforge" in platforms:
-        if not (args.cf_api_key or os.environ.get(ENV_API_KEY)):
+        key = resolve_cf_api_key(args.cf_api_key, key_file=args.cf_api_key_file)
+        if not key:
             print(
-                f"curseforge: skipped — set {ENV_API_KEY} or pass --cf-api-key "
-                "(never commit the key).",
+                f"curseforge: skipped — set {ENV_API_KEY}/CF_API_KEY, "
+                "--cf-api-key, or --cf-api-key-file (never commit the key).",
                 file=sys.stderr,
             )
             if args.platforms.strip().lower() == "curseforge":
-                raise CensusError(f"{ENV_API_KEY} is required for a curseforge-only fetch")
+                raise CensusError(
+                    f"{ENV_API_KEY} (or CF_API_KEY / --cf-api-key-file) is "
+                    "required for a curseforge-only fetch"
+                )
         else:
             total += fetch_curseforge(
                 transport,
                 target_version=args.target,
-                api_key=args.cf_api_key,
+                api_key=key,
                 db_path=db_path,
                 max_pages=args.max_pages,
                 resume=not args.no_resume,
@@ -100,15 +105,20 @@ def cmd_enrich(args: argparse.Namespace) -> int:
             force=args.force_enrich,
         )
     if "curseforge" in platforms:
-        key = args.cf_api_key or os.environ.get(ENV_API_KEY)
+        key = resolve_cf_api_key(args.cf_api_key, key_file=args.cf_api_key_file)
         if not key:
             print(
-                f"curseforge enrich: skipped — set {ENV_API_KEY} or pass --cf-api-key",
+                f"curseforge enrich: skipped — set {ENV_API_KEY}/CF_API_KEY or "
+                "--cf-api-key / --cf-api-key-file",
                 file=sys.stderr,
             )
             if args.platforms.strip().lower() == "curseforge":
-                raise CensusError(f"{ENV_API_KEY} is required for curseforge enrich")
+                raise CensusError(
+                    f"{ENV_API_KEY} is required for curseforge enrich"
+                )
         else:
+            # Normalize again through require so mangled keys fail before the loop.
+            key = require_cf_api_key(key)
             total += enrich_curseforge(
                 transport,
                 target_version=args.target,
@@ -252,7 +262,15 @@ def build_parser() -> argparse.ArgumentParser:
         p.add_argument(
             "--cf-api-key",
             default=None,
-            help=f"CurseForge API key (else env {ENV_API_KEY})",
+            help=f"CurseForge API key (else env {ENV_API_KEY} / CF_API_KEY)",
+        )
+        p.add_argument(
+            "--cf-api-key-file",
+            default=None,
+            help=(
+                "path to a file whose first non-comment line is the CF key "
+                f"(else env {ENV_API_KEY}_FILE); avoids shell $ expansion"
+            ),
         )
         p.add_argument("--cap", type=int, default=DEFAULT_CAP, help="export rank cap")
         p.add_argument(

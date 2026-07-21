@@ -29,28 +29,37 @@ cd intelligence
 .venv\Scripts\python -m pip install -r requirements-dev.txt
 ```
 
-**CurseForge** requires a **third-party Core API key** (COMPLIANCE §5). A key you
-mint after only signing up for “CurseForge for Studios” (game-developer console)
-often returns `403 Forbidden: API Key missing or invalid` for Minecraft —
-Studios keys are not automatically Minecraft third-party keys.
+**CurseForge** requires a **Core API key** (COMPLIANCE §5). Our HTTP transport is
+fine (known-good keys get HTTP 200); almost every historical 403 here was a
+**mangled key string** before it left the shell:
 
-1. **Apply** (Overwolf review):  
-   https://forms.monday.com/forms/dce5ccb7afda9a1c21dab1a1aa1d84eb?r=use1  
-   Guide: https://support.curseforge.com/en/support/solutions/articles/9000208346-about-the-curseforge-api-and-how-to-apply-for-a-key
-2. After approval, generate the key at https://console.curseforge.com/
-3. Set it in PowerShell with **single quotes** (`$` is part of the key):
+| Damage | Symptom | Fix |
+|---|---|---|
+| PowerShell `"$2a$10$..."` | `$2a`/`$10` eaten → `$.…` | **single quotes** or key file |
+| Docker Compose `.env` | `$` doubled → `$$2a$$10$$…` | we collapse `$$`→`$` on read |
+| Quotes left in the value | `'$2a$…'` including the quotes | stripped automatically |
+| Wrong env name | only `CF_API_KEY` set | aliases: `CURSEFORGE_API_KEY`, `CF_API_KEY` |
+
+Studios-only keys that are not approved for Minecraft still 403 with a
+*well-shaped* key; apply at the third-party form if that is your case:
+https://forms.monday.com/forms/dce5ccb7afda9a1c21dab1a1aa1d84eb?r=use1  
+Guide: https://support.curseforge.com/en/support/solutions/articles/9000208346-about-the-curseforge-api-and-how-to-apply-for-a-key
 
 ```powershell
-# Single quotes REQUIRED — double quotes corrupt $2a$10$... keys
+# Preferred: key file (shell never sees $)
+Set-Content -NoNewline -Path $env:TEMP\omni-cf.key -Value '$2a$10$...'
+$env:CURSEFORGE_API_KEY_FILE = "$env:TEMP\omni-cf.key"
+# Or env with SINGLE quotes (double quotes corrupt $2a$10$...):
 $env:CURSEFORGE_API_KEY = '$2a$10$...'   # never commit; never log
 # Sanity (expect Length ~60 and Substring(0,7) = $2a$10$):
 $env:CURSEFORGE_API_KEY.Length
 $env:CURSEFORGE_API_KEY.Substring(0, 7)
+# CLI:
+.venv\Scripts\python tools\census_index.py fetch --platforms curseforge --cf-api-key-file $env:TEMP\omni-cf.key --max-pages 1
 ```
 
 Modrinth needs no key. Both clients send a descriptive `User-Agent` and back off
 on HTTP 429.
-
 ## Commands
 
 ```powershell
@@ -81,6 +90,24 @@ Outputs:
 | Census DB | `omni_census.db` | no (git-ignored) |
 | Ranked report | `census/report.md` | yes (reviewable snapshot of last export) |
 | JSON ranks | `census/ranked.json` | no (git-ignored; regenerate) |
+
+## C4 freeze (2026-07-21)
+
+Dual-platform live index closed for Phase 7 intake:
+
+| Metric | Value |
+|---|---:|
+| Modrinth projects | 28 260 |
+| CurseForge projects | 10 000 (Core API search page ceiling @ 1.21.1) |
+| Scored (target) | 38 260 |
+| Enriched | 10 500 (CF all + MR top 500) |
+| File rows | 92 178 |
+| Cross-links | 6 825 (hash / slug / name_author) |
+| Tiers | S 1057 · A 5009 · B 21 320 · C 10 871 · D 3 |
+| Export snapshot | `3` → `census/report.md` (≤50 000 cap) |
+
+Reviewed cut for Phase 7 intake: **S + A** only (6066 queue rows via `port_queue.py intake`).
+B/C/D remain in the ranked export for ranking audit but are not auto-queued for native ports.
 
 ## Tier model (ADR-0022)
 

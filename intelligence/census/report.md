@@ -1,6 +1,6 @@
 # Omni-Framework Mod Census — Minecraft 1.21.1
 
-*Generated 2026-07-21T08:38:24+00:00 · snapshot `2` · cap 50000 · 28260 candidates.*
+*Generated 2026-07-21T12:27:09+00:00 · snapshot `3` · cap 50000 · 38260 candidates.*
 
 Governing decision: ADR-0022. Scores are deterministic from stored project fields (completeness 0.35 / support 0.35 / quality 0.30).
 
@@ -8,13 +8,13 @@ Governing decision: ADR-0022. Scores are deterministic from stored project field
 
 | Tier | Count |
 |------|------:|
-| S | 453 |
-| A | 658 |
-| B | 17180 |
-| C | 9968 |
-| D | 1 |
+| S | 1057 |
+| A | 5009 |
+| B | 21320 |
+| C | 10871 |
+| D | 3 |
 
-CurseForge distribution opt-outs in this export: **0** (kept for ranking; downloads must use the official app — COMPLIANCE §5).
+CurseForge distribution opt-outs in this export: **1365** (kept for ranking; downloads must use the official app — COMPLIANCE §5).
 
 ## Top 50
 
@@ -66,10 +66,10 @@ CurseForge distribution opt-outs in this export: **0** (kept for ranking; downlo
 | 44 | S | 97.3 | modrinth | `item-borders` | Item Borders | 7605368 |  |
 | 45 | S | 97.3 | modrinth | `moogs-voyager-structures` | MVS - Moog's Voyager Structures | 6498235 |  |
 | 46 | S | 97.3 | modrinth | `particle-core` | Particle Core | 12522711 |  |
-| 47 | S | 97.2 | modrinth | `advanced-netherite` | Advanced Netherite | 9561830 |  |
-| 48 | S | 97.2 | modrinth | `journeymap` | JourneyMap | 12662555 |  |
-| 49 | S | 97.2 | modrinth | `galosphere` | Galosphere | 6071166 |  |
-| 50 | S | 97.1 | modrinth | `create-big-cannons` | Create Big Cannons | 6080694 |  |
+| 47 | S | 97.2 | modrinth | `journeymap` | JourneyMap | 12662555 |  |
+| 48 | S | 97.2 | modrinth | `galosphere` | Galosphere | 6071166 |  |
+| 49 | S | 97.1 | modrinth | `create-big-cannons` | Create Big Cannons | 6080694 |  |
+| 50 | S | 97.1 | modrinth | `viafabricplus` | ViaFabricPlus | 6462606 |  |
 
 ## Regenerating
 

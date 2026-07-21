@@ -27,14 +27,18 @@ from census_lib import (
     link_by_hash,
     link_by_name_author,
     link_by_slug,
+    normalize_cf_api_key,
     normalize_identity,
     open_census_db,
+    require_cf_api_key,
     rescore_all,
+    resolve_cf_api_key,
     score_project,
     upsert_file,
     upsert_link,
     upsert_project,
     utc_now_iso,
+    validate_cf_api_key_shape,
 )
 from census_modrinth import fetch_modrinth, hit_to_record
 
@@ -262,7 +266,10 @@ def test_fetch_modrinth_pages_and_resumes(tmp_path: Path) -> None:
 
 
 def test_fetch_curseforge_requires_key(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.delenv("CURSEFORGE_API_KEY", raising=False)
+    for name in ("CURSEFORGE_API_KEY", "CF_API_KEY", "CURSE_FORGE_API_KEY"):
+        monkeypatch.delenv(name, raising=False)
+    for name in ("CURSEFORGE_API_KEY_FILE", "CF_API_KEY_FILE"):
+        monkeypatch.delenv(name, raising=False)
     transport = ScriptedTransport([])
     with pytest.raises(Exception, match="CURSEFORGE_API_KEY"):
         fetch_curseforge(
@@ -274,10 +281,38 @@ def test_fetch_curseforge_requires_key(tmp_path: Path, monkeypatch: pytest.Monke
         )
 
 
+def test_cf_api_key_normalizes_shell_and_compose_damage() -> None:
+    good = "$2a$10$.7CSxLm/lnj5lCBSM5jGQ.3SICSX4j9r661AgoB1Rc4Nw8jCMKcv2"
+    assert normalize_cf_api_key(good) == good
+    assert normalize_cf_api_key(f"'{good}'") == good
+    assert normalize_cf_api_key(f'"{good}"') == good
+    assert normalize_cf_api_key(good.replace("$", "$$")) == good
+    assert normalize_cf_api_key(f"  {good}\n") == good
+    # PowerShell-mangled keys must be flagged, not silently accepted.
+    mangled = "$.7CSxLm/lnj5lCBSM5jGQ.3SICSX4j9r661AgoB1Rc4Nw8jCMKcv2"
+    assert validate_cf_api_key_shape(mangled) is not None
+    with pytest.raises(Exception, match=r"mangled|unusable|PowerShell"):
+        require_cf_api_key(mangled)
+
+
+def test_resolve_cf_api_key_aliases_and_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    for name in ("CURSEFORGE_API_KEY", "CF_API_KEY", "CURSE_FORGE_API_KEY"):
+        monkeypatch.delenv(name, raising=False)
+    good = "$2a$10$.7CSxLm/lnj5lCBSM5jGQ.3SICSX4j9r661AgoB1Rc4Nw8jCMKcv2"
+    monkeypatch.setenv("CF_API_KEY", f"'{good}'")  # quoted + alias
+    assert resolve_cf_api_key() == good
+    monkeypatch.delenv("CF_API_KEY")
+    key_path = tmp_path / "cf.key"
+    key_path.write_text(f"# comment\n{good.replace('$', '$$')}\n", encoding="utf-8")
+    assert resolve_cf_api_key(key_file=key_path) == good
+
+
 def test_fetch_curseforge_indexes_and_flags_opt_out(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setenv("CURSEFORGE_API_KEY", "test-key-not-real")
+    monkeypatch.setenv("CURSEFORGE_API_KEY", "test-key-not-real-but-long-enough-xx")
     payload = {
         "data": [
             _cf_mod(id=1, slug="alpha", allowModDistribution=True),

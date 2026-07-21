@@ -9,7 +9,6 @@ ranking/outreach but are flagged so downloads never bypass the official app
 from __future__ import annotations
 
 import json
-import os
 from dataclasses import replace
 from pathlib import Path
 from typing import Any
@@ -17,6 +16,7 @@ from typing import Any
 from census_enrich import ingest_cf_latest_files
 from census_lib import (
     CF_CLASS_ID_MC_MODS,
+    CF_ENV_API_KEY,
     CF_GAME_ID_MINECRAFT,
     DB_PATH,
     CensusError,
@@ -24,10 +24,12 @@ from census_lib import (
     ProgressCallback,
     ProjectRecord,
     default_progress,
+    describe_cf_api_key,
     encode_query,
     json_get,
     load_fetch_state,
     open_census_db,
+    require_cf_api_key,
     save_fetch_state,
     upsert_project,
     utc_now_iso,
@@ -36,17 +38,9 @@ from census_lib import (
 CF_API = "https://api.curseforge.com/v1"
 # Documented default/max pageSize for search is 50.
 PAGE_SIZE = 50
-ENV_API_KEY = "CURSEFORGE_API_KEY"
-
-
-def require_api_key(explicit: str | None = None) -> str:
-    key = (explicit or os.environ.get(ENV_API_KEY) or "").strip()
-    if not key:
-        raise CensusError(
-            f"CurseForge fetch requires {ENV_API_KEY} in the environment "
-            "(https://console.curseforge.com/). The key is never logged or stored."
-        )
-    return key
+# Back-compat re-exports for census_index / tests.
+ENV_API_KEY = CF_ENV_API_KEY
+require_api_key = require_cf_api_key
 
 
 def _cf_headers(api_key: str) -> dict[str, str]:
@@ -222,14 +216,16 @@ def fetch_curseforge(
     *,
     target_version: str,
     api_key: str | None = None,
+    key_file: str | Path | None = None,
     db_path: Path = DB_PATH,
     max_pages: int | None = None,
     progress: ProgressCallback = default_progress,
     resume: bool = True,
 ) -> int:
     """Page through CF mod search for Minecraft + target game version."""
-    key = require_api_key(api_key)
+    key = require_api_key(api_key, key_file=key_file)
     headers = _cf_headers(key)
+    progress(f"curseforge: using API key ({describe_cf_api_key(key)})")
     conn = open_census_db(db_path)
     try:
         cursor, status = load_fetch_state(conn, "curseforge", target_version)

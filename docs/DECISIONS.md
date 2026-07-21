@@ -303,5 +303,23 @@ The gap never fired because brick 10 booted vanilla (the game links no loader AP
 - Phase 6 has a complete, testable pipeline (`census_index.py run`) independent of Phase 4/5 launcher/loader work.
 - Full live index of both platforms is a long, resume-safe job; smoke runs use `--max-pages`. Enrichment is rate-limit heavy — budget with `--max-enrich`.
 - Launcher in-app browse/install (LNC-9) still needs `omni-platform`; the census does not replace it.
-- Phase 7 consumes `scores.rank` / tiers and license fields; outreach tooling is out of scope here.
+- Phase 7 consumes `scores.rank` / tiers and license fields; outreach tooling is out of scope here (see ADR-0023).
+
+## ADR-0023 — Phase 7 port-queue foundation: license gate + human-gated outreach · 2026-07-21 · Accepted
+
+**Context.** ROADMAP Phase 7 requires a per-mod port queue: license check → author outreach when needed → port → verify → publish. ADR-0003 forbids native ports without license permission or written author yes; a hard no is permanent. Full autonomous porting (rewrite, test suite, publish) is multi-brick work and must not be greenwashed as “done” when only intake exists (SOUL I1).
+
+**Decision.**
+
+1. **Separate port DB.** `intelligence/omni_port.db` (schema `intelligence/porting/schema.sql`), not an extension of census or vivisection DBs. Operational artifact; git-ignored.
+
+2. **Intake from census.** `tools/port_queue.py intake` pulls chosen tiers (default **S,A**) from `omni_census.db` scores after C4 freeze. Re-intake updates metadata but does **not** clobber human status transitions (`refused`, `permitted`, …).
+
+3. **License classifier (stdlib).** Maps SPDX-ish / free-text `license_id` → `permissive` | `weak_copyleft` | `strong_copyleft` | `all_rights` | `unknown` with explicit `port_eligible` / `requires_outreach` flags. Empty or unrecognised → `unknown` + human review — never silent “assume free”.
+
+4. **Outreach is human-gated.** Templates under `porting/templates/` render draft subject/body into the `outreach` table. The tool **never sends** mail or Discord. `respond --response no` sets permanent `refused` (ADR-0003).
+
+5. **Later bricks (not this ADR).** Actual native port execution, mod-test-suite verification, and publish remain separate Phase 7 bricks. Compat layers remain the coverage path for everything not ported.
+
+**Consequences.** Phase 7 can start the day C4 freezes without inventing fake ports. Directors see ranked S/A intake with license reality. Full “autonomous pipeline” remains multi-session work; this ADR closes only the foundation brick (P1).
 

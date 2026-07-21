@@ -209,7 +209,7 @@ Test matrix, zero-warning hardening across all three languages, docs completion,
 
 Phase 4 live-window findings remain tracked as ordinary bugs under the matrix; the formal Phase 5 **exit** is the gates and export surface above, not a second E2E product freeze.
 
-## Phase 6 — Mod Census & Tiering ▶ (started 2026-07-21)
+## Phase 6 — Mod Census & Tiering ✅ (2026-07-21)
 
 Index Modrinth + CurseForge public APIs into the DB. Tier every 1.21.1-relevant mod by **completeness / support / quality**. Output: ranked census capped at ≤50,000 candidates. (Scale reality: Modrinth ≈60k projects, CurseForge ≈180k — the cap is a filtering outcome, not a porting quota.)
 
@@ -218,9 +218,9 @@ Governing decision: **ADR-0022**. Tooling lives under `intelligence/` (separate 
 | Brick | Deliverable | Status |
 |---|---|---|
 | C1 | Census schema + stdlib HTTP + Modrinth/CurseForge indexers + deterministic tier model + ranked export (`tools/census_*.py`, `census/schema.sql`) | ✅ 2026-07-21 |
-| C2 | Full live index for 1.21.1 (both platforms; resume-safe; CF needs `CURSEFORGE_API_KEY`) | ▶ **Modrinth done** (28 260 projects @ 1.21.1, top-500 enriched, 14 710 file hashes, ranked export); CF blocked on director `CURSEFORGE_API_KEY` |
-| C3 | Cross-platform identity: `project_files` hashes, link by hash/slug/name_author, Modrinth+CF enrich (`census_enrich.py`) | ✅ 2026-07-21 |
-| C4 | Frozen ranked snapshot for Phase 7 intake (≤50k, reviewed tier cuts) | ⬜ |
+| C2 | Full live index for 1.21.1 (both platforms; resume-safe) | ✅ 2026-07-21 — **Modrinth 28 260** + **CurseForge 10 000** (CF Core API search page cap @ gameVersion 1.21.1); key handling hardened (`CF_API_KEY` alias, key-file, `$$`/quote normalize) |
+| C3 | Cross-platform identity: `project_files` hashes, link by hash/slug/name_author, Modrinth+CF enrich | ✅ 2026-07-21 — CF enrich **10 000**; MR top **500**; **92 178** files; **6 825** cross-links (hash 531 / slug 5628 / name_author 666) |
+| C4 | Frozen ranked snapshot for Phase 7 intake (≤50k, reviewed tier cuts) | ✅ 2026-07-21 — snapshot `3`, **38 260** candidates ≤50k; tiers **S 1057 / A 5009 / B 21 320 / C 10 871 / D 3**; report `intelligence/census/report.md` |
 
 ```powershell
 cd intelligence
@@ -228,9 +228,19 @@ cd intelligence
 .venv\Scripts\python tools\census_index.py status
 ```
 
-## Phase 7 — Autonomous Porting Pipeline ⬜
+## Phase 7 — Autonomous Porting Pipeline ▶ (foundation 2026-07-21)
 
-Per-mod port queue for top tiers: license check → (if restrictive) author outreach with template → port → verify in mod-test-suite → publish. Compat layers carry everything not (yet) ported. Hard "no" from an author permanently excludes native porting of that mod (ADR-0003).
+Per-mod port queue for top tiers: license check → (if restrictive) author outreach with template → port → verify in mod-test-suite → publish. Compat layers carry everything not (yet) ported. Hard "no" from an author permanently excludes native porting of that mod (ADR-0003). Governing: **ADR-0023**.
+
+| Brick | Deliverable | Status |
+|---|---|---|
+| P1 | License classifier + `omni_port.db` queue + C4 intake + human-gated outreach drafts (`tools/port_queue.py`, `porting/`) | ✅ 2026-07-21 — batch `c4-1.21.1-2026-07-21`: **6066** S+A rows; **641** auto-permitted (permissive); outreach/review for the rest |
+| P2 | Bulk outreach send + CRM (mail/Discord) | ⬜ human process; tool only **drafts** by design |
+| P3 | Native port execution harness | ⬜ |
+| P4 | mod-test-suite verification hook | ⬜ |
+| P5 | Publish / attribution packaging | ⬜ |
+
+**SOUL honesty:** Phase 7 is **not** complete. Only the intake/license foundation (P1) is production-ready. Autonomous rewrite/verify/publish remain multi-session bricks and must not be marked done until they exist as complete, tested systems.
 
 ## Parallel Track — OmniMC (ADR-0017)
 

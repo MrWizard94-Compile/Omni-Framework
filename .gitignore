@@ -17,6 +17,12 @@ intelligence/omni_census.db-wal
 intelligence/omni_census.db-shm
 intelligence/census/ranked.json
 intelligence/census/*.log
+# Phase 7 port queue (ADR-0023): operational; not committed.
+intelligence/omni_port.db
+intelligence/omni_port.db-journal
+intelligence/omni_port.db-wal
+intelligence/omni_port.db-shm
+intelligence/porting/queue_export.json
 
 # Python
 __pycache__/

@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import math
+import os
 import re
 import sqlite3
 import time
@@ -51,9 +52,161 @@ TIER_THRESHOLDS: tuple[tuple[str, float], ...] = (
 CF_GAME_ID_MINECRAFT = 432
 CF_CLASS_ID_MC_MODS = 6
 
+# Env names for the Core API key (primary + aliases used by other Minecraft tools).
+CF_ENV_API_KEY = "CURSEFORGE_API_KEY"
+CF_ENV_API_KEY_ALIASES: tuple[str, ...] = (
+    "CURSEFORGE_API_KEY",
+    "CF_API_KEY",
+    "CURSE_FORGE_API_KEY",
+)
+CF_ENV_API_KEY_FILE = "CURSEFORGE_API_KEY_FILE"
+CF_ENV_API_KEY_FILE_ALIASES: tuple[str, ...] = (
+    "CURSEFORGE_API_KEY_FILE",
+    "CF_API_KEY_FILE",
+)
+
 
 class CensusError(RuntimeError):
     """A census operation failed in a way the operator must fix (not a 404)."""
+
+
+def normalize_cf_api_key(raw: str) -> str:
+    """Undo common shell/compose damage without inventing a different secret.
+
+    Real failure modes that yield CF HTTP 403 with an empty body:
+    - PowerShell double quotes eating ``$2a`` / ``$10`` out of bcrypt-shaped keys
+    - Docker Compose / ``.env`` doubling ``$`` → ``$$2a$$10$$...``
+    - Surrounding single/double quotes left in the value from a hand-edited file
+    - Trailing CR/LF or spaces from copy-paste
+    """
+    key = raw.strip()
+    if len(key) >= 2 and key[0] == key[-1] and key[0] in {"'", '"'}:
+        key = key[1:-1].strip()
+    # Compose escapes a literal $ as $$; collapse runs of $$ so a good key
+    # (three single $) is unchanged while $$2a$$10$$… becomes $2a$10$….
+    while "$$" in key:
+        key = key.replace("$$", "$")
+    return key
+
+
+def describe_cf_api_key(key: str) -> str:
+    """Safe fingerprint for logs/errors — never includes the secret material."""
+    if not key:
+        return "empty"
+    prefix = key[:7] if len(key) >= 7 else key
+    safe_prefix = (
+        prefix
+        if prefix.startswith("$2a$10") or prefix.startswith("$2y$")
+        else "<non-bcrypt>"
+    )
+    looks = key.startswith("$2a$10$") or key.startswith("$2y$10$")
+    return (
+        f"len={len(key)} dollars={key.count('$')} "
+        f"prefix={safe_prefix!r} looks_bcrypt={looks}"
+    )
+
+
+def validate_cf_api_key_shape(key: str) -> str | None:
+    """Return a human fix hint if the key is clearly mangled; else None."""
+    if not key:
+        return "key is empty after normalization"
+    if key.startswith("$$"):
+        return (
+            "key still starts with '$$' — Docker/compose escaping was not fully "
+            "undone; prefer a key file or single-quoted PowerShell assignment"
+        )
+    # Canonical CF console keys are bcrypt digests: $2a$10$ + 53 chars ≈ 60 total.
+    if key.startswith("$2a$10$") or key.startswith("$2y$10$"):
+        if len(key) < 50:
+            return (
+                f"bcrypt-shaped key is too short ({describe_cf_api_key(key)}); "
+                "PowerShell double quotes often eat $2a/$10 — re-set with single "
+                "quotes or use --cf-api-key-file"
+            )
+        return None
+    if key.startswith("$.") or (key.startswith("$") and not key.startswith("$2")):
+        return (
+            f"key looks PowerShell-mangled ({describe_cf_api_key(key)}); "
+            "re-set with single quotes: $env:CURSEFORGE_API_KEY = '$2a$10$...'"
+        )
+    if key.startswith("cfc_pat_"):
+        return (
+            f"key is a cfc_pat_* token ({describe_cf_api_key(key)}), not a Core "
+            "API console key ($2a$10$…). PATs often authorize only a subset of "
+            "endpoints (e.g. categories) and 403 on /mods/search — use the key "
+            "from https://console.curseforge.com/"
+        )
+    if len(key) < 20:
+        return f"key is suspiciously short ({describe_cf_api_key(key)})"
+    return None
+
+
+def _read_cf_key_file(path: Path) -> str:
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError as exc:
+        raise CensusError(f"cannot read CurseForge API key file {path}: {exc}") from exc
+    for line in text.splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        return normalize_cf_api_key(stripped)
+    raise CensusError(f"CurseForge API key file {path} has no non-empty key line")
+
+
+def resolve_cf_api_key(
+    explicit: str | None = None,
+    *,
+    key_file: str | Path | None = None,
+) -> str | None:
+    """Resolve a CF API key from CLI / file / env. Returns None if unset.
+
+    Order: explicit string → key file path / env file aliases → env key aliases.
+    """
+    if explicit is not None and str(explicit).strip():
+        return normalize_cf_api_key(str(explicit))
+
+    file_candidates: list[Path] = []
+    if key_file is not None and str(key_file).strip():
+        file_candidates.append(Path(str(key_file)).expanduser())
+    for env_name in CF_ENV_API_KEY_FILE_ALIASES:
+        raw = os.environ.get(env_name)
+        if raw and raw.strip():
+            file_candidates.append(Path(raw.strip()).expanduser())
+    explicit_file = bool(key_file is not None and str(key_file).strip())
+    for path in file_candidates:
+        if path.is_file():
+            return _read_cf_key_file(path)
+        if explicit_file:
+            raise CensusError(f"CurseForge API key file not found: {path}")
+
+    for env_name in CF_ENV_API_KEY_ALIASES:
+        raw = os.environ.get(env_name)
+        if raw and raw.strip():
+            return normalize_cf_api_key(raw)
+    return None
+
+
+def require_cf_api_key(
+    explicit: str | None = None,
+    *,
+    key_file: str | Path | None = None,
+) -> str:
+    """Like resolve_cf_api_key but raises when missing; hard-fails mangled shapes."""
+    key = resolve_cf_api_key(explicit, key_file=key_file)
+    if not key:
+        raise CensusError(
+            f"CurseForge requires {CF_ENV_API_KEY} (or CF_API_KEY) in the "
+            "environment, --cf-api-key, or --cf-api-key-file "
+            "(https://console.curseforge.com/). The key is never logged or stored."
+        )
+    hint = validate_cf_api_key_shape(key)
+    if hint and (key.startswith("$.") or key.startswith("$$") or len(key) < 20):
+        raise CensusError(
+            f"CurseForge API key looks unusable before any request ({hint}). "
+            f"Fingerprint: {describe_cf_api_key(key)}"
+        )
+    return key
 
 
 class HttpTransport(Protocol):
@@ -1071,19 +1224,56 @@ def json_get(
     if status != 200:
         hint = ""
         if status == 403 and "api.curseforge.com" in url:
-            hint = (
-                "\n\nCurseForge 403 usually means the key is not a *third-party* "
-                "Core API key approved for Minecraft — not a PowerShell quoting bug "
-                "(if the env var is 60 chars and starts with $2a$10$).\n"
-                "  1. Apply: https://forms.monday.com/forms/"
-                "dce5ccb7afda9a1c21dab1a1aa1d84eb?r=use1\n"
-                "  2. Wait for Overwolf approval email, then generate the key at "
-                "https://console.curseforge.com/\n"
-                "  3. Set with *single* quotes so $ is literal:\n"
-                "       $env:CURSEFORGE_API_KEY = '$2a$10$...'\n"
-                "  Docs: https://support.curseforge.com/en/support/solutions/"
-                "articles/9000208346-about-the-curseforge-api-and-how-to-apply-for-a-key"
-            )
+            sent = ""
+            if headers:
+                for hk, hv in headers.items():
+                    if hk.lower() == "x-api-key":
+                        sent = str(hv)
+                        break
+            if sent:
+                shape = describe_cf_api_key(sent)
+                mangled = validate_cf_api_key_shape(sent)
+                looks_console = sent.startswith("$2a$10$") or sent.startswith(
+                    "$2y$10$"
+                )
+                if mangled or not looks_console:
+                    detail = mangled or (
+                        f"not a bcrypt-shaped Core console key ({shape}); "
+                        "expected $2a$10$… from https://console.curseforge.com/"
+                    )
+                    hint = (
+                        f"\n\nCurseForge 403 — API key looks wrong before/at the wire "
+                        f"({shape}): {detail}\n"
+                        "  Fix (pick one):\n"
+                        "    • PowerShell single quotes: "
+                        "$env:CURSEFORGE_API_KEY = '$2a$10$...'\n"
+                        "    • Key file (avoids shell $ expansion):\n"
+                        "        Set-Content -NoNewline cf.key '$2a$10$...'\n"
+                        "        $env:CURSEFORGE_API_KEY_FILE = (Resolve-Path cf.key)\n"
+                        "    • Do not use cfc_pat_* tokens for /mods/search — "
+                        "use the Core API console key\n"
+                        "    • Docker Compose: $$ per literal $ in .env "
+                        "(we also collapse $$ → $ on read)\n"
+                        "  Aliases accepted: CURSEFORGE_API_KEY, CF_API_KEY."
+                    )
+                else:
+                    hint = (
+                        f"\n\nCurseForge 403 with a well-shaped console key ({shape}). "
+                        "Transport is fine for known-good keys; this usually means "
+                        "the key is invalid/revoked or not approved for Minecraft "
+                        "Core API (Studios-only keys often 403 here).\n"
+                        "  1. Confirm at https://console.curseforge.com/\n"
+                        "  2. Third-party apply: https://forms.monday.com/forms/"
+                        "dce5ccb7afda9a1c21dab1a1aa1d84eb?r=use1\n"
+                        "  3. Re-set without shell corruption (single quotes or key file).\n"
+                        "  Docs: https://support.curseforge.com/en/support/solutions/"
+                        "articles/9000208346-about-the-curseforge-api-and-how-to-apply-for-a-key"
+                    )
+            else:
+                hint = (
+                    "\n\nCurseForge 403 and no x-api-key header was attached — "
+                    "check resolve_cf_api_key / --cf-api-key wiring."
+                )
         raise CensusError(f"GET {url} → HTTP {status}: {body[:200]!r}{hint}")
     return json.loads(body.decode("utf-8"))
 
