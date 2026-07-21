@@ -39,5 +39,6 @@ include(
     "omni-api",
     "compat-api",
     "compat-fabric",
+    "loader-bootstrap",
     "integration-tests",
 )

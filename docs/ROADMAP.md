@@ -79,13 +79,52 @@ work in the entire project.
 | 12 | `loader-transform` — AOT pipeline, hash-keyed cache, audit store, intermediary→official remapping (LDR-2, ADR-0010, ADR-0019) | **very high** | ✅ 2026-07-20 |
 | 13 | `loader-mixin` — pinned Mixin behind `MixinServiceOmni`, refmap translation, compat levels (LDR-8, ADR-0009) | **very high** | ✅ 2026-07-20 |
 | 14 | `omni-api` + a native test mod — proves the native path end to end | medium | ✅ 2026-07-20 |
-| 15 | `compat-api` + `compat-fabric` — a real Fabric mod loads **alongside native mods** (metadata-level, CMP-2, ADR-0020) | **very high** | ▶ |
+| 15 | `compat-api` + `compat-fabric` — a real Fabric mod loads **alongside native mods** (metadata-level, CMP-2, ADR-0020) | **very high** | ▶ (SPI + CORE Fabric API surface done; parked at a clean commit — its real exit criterion needs B1) |
 | 16 | `compat-neoforge` — a real NeoForge mod loads **in the same pack as Fabric and native mods** (full AOT translation, ADR-0020) | **extreme** | ⬜ |
 
 Brick 16 is Sinytra-Connector-scale: the corpus dossier records that as multi-year work by
 a team. Treating it as "one more brick" would be dishonest planning. Bricks 10–14 are
 ordinary hard engineering; 15–16 are research-adjacent and should get their own scoping
 pass before anyone commits to a date.
+
+### The missing middle: launcher ↔ loader (bricks B1–B4), scoped 2026-07-20
+
+The first live launch of an imported pack exposed a gap no brick had named: the
+**launcher and OmniLoader are two separate programs**. `omni-core` launches vanilla
+Minecraft from the meta component stack; OmniLoader — everything bricks 10–15 built — is
+never invoked, so a 324-mod NeoForge pack launched as bare 1.21.1 with its mods silently
+ignored. Bricks 15 and 16 assumed a boot they were never wired into.
+
+Director decision (2026-07-20): pursue the full mixed-loader goal (ADR-0020) rather than a
+warn-and-refuse stopgap. That decomposes into:
+
+| # | Brick | What it delivers | Difficulty |
+|---|---|---|---|
+| B1 | `loader-bootstrap` — a top-level module with a real `main`, orchestrating discover → resolve → transform → mixin → entrypoint → launch as ONE flow | The first time bricks 10–14 run composed rather than in isolation; boots vanilla + native mods headlessly | **very high** |
+
+**B1 finding (2026-07-20): the transforming classloader's parent is wrong for a real modded
+boot.** `OmniTransformingClassLoader`'s parent is `getPlatformClassLoader()` (JDK only), and
+its parent-first list shares `org.omniframework.loader.*` but not `org.omniframework.api.*`.
+A native mod's entrypoint implements omni-api's `ModInitializer`; loaded through the
+transforming loader it cannot resolve that type — the platform parent has neither omni-api
+nor the loader runtime. Never fired yet: brick 10 booted vanilla (no mod links the API) and
+brick 14 dispatched via a test-local loader. The first real modded boot would hit a baffling
+`ClassNotFoundException`. B1's orchestration is blocked on introducing a proper loader-runtime
+parent that exposes `org.omniframework.loader.*` and `org.omniframework.api.*` with shared
+identity — a correction to brick 10's core classloader, done deliberately, not rushed.
+
+**B1 delivered so far (2026-07-20): the discovery stage** (`loader-bootstrap` module,
+`ModDiscovery` + `DiscoveredMods`). Walks a mods folder, parses native `omni.mod.json` into
+resolver candidates, and separates jars awaiting a compat claimer — counted and reported,
+never dropped. The orchestration that composes discovery with resolve/transform/mixin/
+entrypoint/launch is the next unit, and starts from the classloader finding above.
+| B2 | Launcher ↔ loader bridge — `omni-core` launch builds a command that boots through `loader-bootstrap` (loader jars + game on the classpath) for loader-managed instances, and the import adds a loader component to the stack | A modded instance launches through OmniLoader instead of vanilla | high |
+| B3 | `compat-neoforge` (was brick 16) — NeoForge mods translate and load through B1's flow | The director's real packs run | **extreme** |
+| B4 | Mixed-pack proof — native + Fabric + NeoForge in one instance, the ADR-0020 exit criterion | The product thesis, demonstrated | high |
+
+B1 is the shared prerequisite: bricks 15 and 16 both had their exit criteria amended to
+"loads alongside others" (ADR-0020), and "alongside" has no meaning until a single boot
+flow exists to load them into. So B1 comes before finishing either compat layer.
 
 **Neither is done alone (ADR-0020).** The product thesis is mixed packs — any mod family
 together in one instance — so each layer's exit criterion is its ecosystem loading
