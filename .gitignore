@@ -10,6 +10,13 @@ intelligence/omni_intel.db-journal
 intelligence/omni_intel.db-wal
 intelligence/omni_intel.db-shm
 
+# Phase 6 census (ADR-0022): network-sourced, resumable; not committed.
+intelligence/omni_census.db
+intelligence/omni_census.db-journal
+intelligence/omni_census.db-wal
+intelligence/omni_census.db-shm
+intelligence/census/ranked.json
+
 # Python
 __pycache__/
 *.py[cod]

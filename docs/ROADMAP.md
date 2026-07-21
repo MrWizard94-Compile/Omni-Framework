@@ -200,9 +200,24 @@ path needs no Microsoft account at all and is exercised end to end by
 
 Test matrix, zero-warning hardening across all three languages, docs completion, release engineering (SOUL §34): signed/checksummed artifacts, changelogs, upgrade paths.
 
-## Phase 6 — Mod Census & Tiering ⬜
+## Phase 6 — Mod Census & Tiering ▶ (started 2026-07-21)
 
 Index Modrinth + CurseForge public APIs into the DB. Tier every 1.21.1-relevant mod by **completeness / support / quality**. Output: ranked census capped at ≤50,000 candidates. (Scale reality: Modrinth ≈60k projects, CurseForge ≈180k — the cap is a filtering outcome, not a porting quota.)
+
+Governing decision: **ADR-0022**. Tooling lives under `intelligence/` (separate from the vivisection DB):
+
+| Brick | Deliverable | Status |
+|---|---|---|
+| C1 | Census schema + stdlib HTTP + Modrinth/CurseForge indexers + deterministic tier model + ranked export (`tools/census_*.py`, `census/schema.sql`) | ✅ 2026-07-21 |
+| C2 | Full live index for 1.21.1 (both platforms; resume-safe; CF needs `CURSEFORGE_API_KEY`) | ⬜ |
+| C3 | Cross-platform identity beyond slug match (hashes / name+author) + license enrichment | ⬜ |
+| C4 | Frozen ranked snapshot for Phase 7 intake (≤50k, reviewed tier cuts) | ⬜ |
+
+```powershell
+cd intelligence
+.venv\Scripts\python tools\census_index.py run --target 1.21.1
+.venv\Scripts\python tools\census_index.py status
+```
 
 ## Phase 7 — Autonomous Porting Pipeline ⬜
 

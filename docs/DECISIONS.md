@@ -275,3 +275,31 @@ The gap never fired because brick 10 booted vanilla (the game links no loader AP
 - Native mods that implement `omni-api` load with correct type identity; proven by an integration test that builds a real `ModInitializer` implementor, loads it through the transforming loader, and both asserts assignability to the test's own `ModInitializer` and runs it. The seal is proven by the same suite: a test class and a loader-internal class both remain unreachable.
 - Third-party runtimes that must be shared once bytecode transformation and Mixin run against real mods — ASM, the Mixin runtime (`org.spongepowered.asm.`) — are **not** shared yet. They join the shared set when those stages are wired (B3), deliberately and with their own tests, not speculatively now.
 - The `LoaderRuntimeParent` shared-prefix set is the single point that decides what crosses the seal, so future additions are one reviewed list, not scattered delegation logic.
+
+---
+
+## ADR-0022 — Phase 6 mod census: separate DB, platform clients, tier model · 2026-07-21 · Accepted
+
+**Context.** ROADMAP Phase 6 requires indexing Modrinth + CurseForge public APIs, tiering every 1.21.1-relevant mod by completeness / support / quality, and exporting a ranked census capped at ≤50,000 candidates. LNC-9 also anticipates typed platform clients in `omni-platform` for the launcher. Two design questions: where the census lives, and how scores are defined so Phase 7 outreach is not ranking noise.
+
+**Decision.**
+
+1. **Separate census DB.** `intelligence/omni_census.db` is a new artifact, not an extension of the vivisection DB (`omni_intel.db`). Vivisection remains a pure rebuild of hand-authored TOML (ADR-0004). The census is network-sourced, resumable via `fetch_state` cursors, and re-scoreable without re-fetching. Schema: `intelligence/census/schema.sql`.
+
+2. **Python stdlib clients for Phase 6 batch indexing** (`tools/census_modrinth.py`, `tools/census_curseforge.py`, shared HTTP + tiering in `tools/census_lib.py`). Runtime stays stdlib-only (ADR-0004). LNC-9's Rust `omni-platform` crate remains the launcher ResourceAPI surface and is **not** implemented by this ADR; protocol shapes (project identity, hashes, opt-out) are documented so the Rust clients can share semantics later without a second ranking model.
+
+3. **Target version.** Default and Phase 6 exit filter: **Minecraft 1.21.1** (TGT-1). The schema stores multi-version fields; export always filters to the run's `--target`.
+
+4. **Tier model (deterministic).** Three axes on 0–100, fixed weights: completeness **0.35**, support **0.35**, quality **0.30**. Absolute tier thresholds on the composite: S≥80, A≥65, B≥50, C≥35, else D. Rank order: composite DESC, downloads DESC, project id ASC. Cap default **50_000**. Rationale JSON is stored per score for audit.
+
+5. **Compliance.** CurseForge requires `CURSEFORGE_API_KEY` from the environment (never logged, never stored). `allowModDistribution = false` projects **remain in the census** (Phase 7 still needs them) but are flagged so no download path routes around the official app (COMPLIANCE §5). Modrinth uses the public API with a descriptive User-Agent. Both clients rate-limit and back off on HTTP 429.
+
+6. **Cross-platform links.** Brick 1 links by case-insensitive slug match only (confidence 0.85). Hash-based identity joins can supersede later without schema break.
+
+**Consequences.**
+
+- Phase 6 has a complete, testable pipeline (`census_index.py run`) independent of Phase 4/5 launcher/loader work.
+- Full live index of both platforms is a long, resume-safe job; smoke runs use `--max-pages`.
+- Launcher in-app browse/install (LNC-9) still needs `omni-platform`; the census does not replace it.
+- Phase 7 consumes `scores.rank` / tiers and license fields; outreach tooling is out of scope here.
+

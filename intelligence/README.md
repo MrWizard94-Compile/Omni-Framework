@@ -58,3 +58,15 @@ SELECT slug, name FROM feature_matrix WHERE omni_relevance = 'adopt' ORDER BY fu
 -- Corpus health:
 SELECT * FROM subject_stats;
 ```
+
+## Phase 6 — Mod census (ADR-0022)
+
+Separate pipeline and database from vivisection. See **`census/README.md`**.
+
+```powershell
+# Ranked 1.21.1 census (Modrinth public; CurseForge when CURSEFORGE_API_KEY is set):
+.venv\Scripts\python tools\census_index.py run --target 1.21.1
+.venv\Scripts\python tools\census_index.py status
+```
+
+Artifact: `omni_census.db` (git-ignored). Report: `census/report.md` after export.
