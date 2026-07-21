@@ -14,8 +14,9 @@ The census is network-sourced and resumable; its DB is a separate artifact.
 platform APIs (Modrinth public + CurseForge Core)
         │
         ├── tools/census_index.py fetch   → omni_census.db  (projects + fetch_state)
+        ├── tools/census_index.py enrich  → license/links + project_files hashes (C3)
         ├── tools/census_index.py score   → scores table
-        ├── tools/census_index.py link    → project_links (slug match)
+        ├── tools/census_index.py link    → project_links (hash → slug → name_author)
         └── tools/census_index.py export  → ranked snapshot + census/report.md
 ```
 
@@ -49,9 +50,13 @@ cd intelligence
 
 # Individual stages
 .venv\Scripts\python tools\census_index.py fetch  --target 1.21.1 --platforms modrinth,curseforge
+.venv\Scripts\python tools\census_index.py enrich --target 1.21.1 --max-enrich 500
 .venv\Scripts\python tools\census_index.py score  --target 1.21.1
 .venv\Scripts\python tools\census_index.py link
 .venv\Scripts\python tools\census_index.py export --target 1.21.1 --cap 50000
+
+# Fetch without enrich (long crawls); enrich later in budgeted batches:
+.venv\Scripts\python tools\census_index.py run --target 1.21.1 --platforms modrinth --skip-enrich
 
 # Stats
 .venv\Scripts\python tools\census_index.py status
@@ -94,12 +99,24 @@ CurseForge projects with `allow_distribution = 0` **remain in the census**
 (Phase 7 outreach still needs to see them) but the report flags them so no
 download path ever routes around the official app.
 
+## Cross-platform identity (C3)
+
+| Method | Confidence | Evidence |
+|--------|------------|----------|
+| `hash` | 0.99 | shared sha512 / sha1 / murmur2 on `project_files` |
+| `slug` | 0.85 | case-insensitive slug |
+| `name_author` | 0.70 | normalized title + author (both length ≥ 3) |
+| `manual` | variable | future operator override |
+
+A stronger method upgrades an existing link; a weaker one never downgrades it.
+Hashes need an enrich pass (or CF search `latestFiles` during fetch) first.
+
 ## Tests
 
 ```powershell
 .venv\Scripts\python -m pytest tests\test_census.py
-.venv\Scripts\python -m ruff check tools\census_lib.py tools\census_modrinth.py tools\census_curseforge.py tools\census_index.py tests\test_census.py
-.venv\Scripts\python -m mypy tools\census_lib.py tools\census_modrinth.py tools\census_curseforge.py tools\census_index.py
+.venv\Scripts\python -m ruff check tools\census_lib.py tools\census_modrinth.py tools\census_curseforge.py tools\census_enrich.py tools\census_index.py tests\test_census.py
+.venv\Scripts\python -m mypy tools\census_lib.py tools\census_modrinth.py tools\census_curseforge.py tools\census_enrich.py tools\census_index.py
 ```
 
 All network I/O is behind an injectable transport; CI never hits live APIs.

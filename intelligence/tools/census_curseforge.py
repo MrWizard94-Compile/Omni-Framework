@@ -14,6 +14,7 @@ from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
+from census_enrich import ingest_cf_latest_files
 from census_lib import (
     CF_CLASS_ID_MC_MODS,
     CF_GAME_ID_MINECRAFT,
@@ -306,7 +307,17 @@ def fetch_curseforge(
                         has_target_version=True,
                         target_file_count=max(1, record.target_file_count),
                     )
-                upsert_project(conn, record, fetched_at)
+                project_id = upsert_project(conn, record, fetched_at)
+                # Capture fingerprints from the search payload so hash linking
+                # works even before a full /files enrich pass (C3).
+                file_n = ingest_cf_latest_files(
+                    conn, project_id, mod, target_version=target_version
+                )
+                if file_n and record.target_file_count < file_n:
+                    conn.execute(
+                        "UPDATE projects SET target_file_count = ? WHERE id = ?",
+                        (file_n, project_id),
+                    )
                 total_upserts += 1
                 page_count += 1
 

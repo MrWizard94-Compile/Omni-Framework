@@ -2,15 +2,17 @@
 
 Stages:
   fetch   — pull Modrinth (+ CurseForge when key present) into omni_census.db
+  enrich  — project detail + version/file hashes (C3; resume via enriched_at)
   score   — recompute completeness/support/quality tiers
-  link    — cross-platform slug links
+  link    — cross-platform links: hash, slug, name_author (C3)
   export  — ranked snapshot ≤ cap + report.md / ranked.json
-  run     — fetch → score → link → export
+  run     — fetch → enrich → score → link → export
   status  — print DB counts and fetch_state
 
 Usage examples:
   python tools/census_index.py run --target 1.21.1
   python tools/census_index.py run --target 1.21.1 --platforms modrinth --max-pages 2
+  python tools/census_index.py enrich --target 1.21.1 --max-enrich 500
   python tools/census_index.py status
 """
 
@@ -23,6 +25,7 @@ import sys
 from pathlib import Path
 
 from census_curseforge import ENV_API_KEY, fetch_curseforge
+from census_enrich import enrich_curseforge, enrich_modrinth
 from census_lib import (
     DB_PATH,
     DEFAULT_CAP,
@@ -30,7 +33,7 @@ from census_lib import (
     CensusError,
     UrllibTransport,
     export_census,
-    link_by_slug,
+    link_all,
     open_census_db,
     rescore_all,
 )
@@ -83,6 +86,41 @@ def cmd_fetch(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_enrich(args: argparse.Namespace) -> int:
+    platforms = _parse_platforms(args.platforms)
+    transport = UrllibTransport()
+    db_path = Path(args.db)
+    total = 0
+    if "modrinth" in platforms:
+        total += enrich_modrinth(
+            transport,
+            target_version=args.target,
+            db_path=db_path,
+            max_projects=args.max_enrich,
+            force=args.force_enrich,
+        )
+    if "curseforge" in platforms:
+        key = args.cf_api_key or os.environ.get(ENV_API_KEY)
+        if not key:
+            print(
+                f"curseforge enrich: skipped — set {ENV_API_KEY} or pass --cf-api-key",
+                file=sys.stderr,
+            )
+            if args.platforms.strip().lower() == "curseforge":
+                raise CensusError(f"{ENV_API_KEY} is required for curseforge enrich")
+        else:
+            total += enrich_curseforge(
+                transport,
+                target_version=args.target,
+                api_key=key,
+                db_path=db_path,
+                max_projects=args.max_enrich,
+                force=args.force_enrich,
+            )
+    print(f"enrich complete: {total} project(s)")
+    return 0
+
+
 def cmd_score(args: argparse.Namespace) -> int:
     conn = open_census_db(Path(args.db))
     try:
@@ -96,10 +134,13 @@ def cmd_score(args: argparse.Namespace) -> int:
 def cmd_link(args: argparse.Namespace) -> int:
     conn = open_census_db(Path(args.db))
     try:
-        created = link_by_slug(conn)
+        counts = link_all(conn)
     finally:
         conn.close()
-    print(f"created {created} cross-platform link(s)")
+    print(
+        "links written/upgraded: "
+        + ", ".join(f"{method}={n}" for method, n in counts.items())
+    )
     return 0
 
 
@@ -121,6 +162,9 @@ def cmd_export(args: argparse.Namespace) -> int:
 
 def cmd_run(args: argparse.Namespace) -> int:
     cmd_fetch(args)
+    # Enrich is rate-limit heavy; default run enriches unless --skip-enrich.
+    if not args.skip_enrich:
+        cmd_enrich(args)
     cmd_score(args)
     cmd_link(args)
     return cmd_export(args)
@@ -139,11 +183,23 @@ def cmd_status(args: argparse.Namespace) -> int:
         ).fetchone()
         scores = conn.execute("SELECT COUNT(*) AS c FROM scores").fetchone()
         links = conn.execute("SELECT COUNT(*) AS c FROM project_links").fetchone()
+        files = conn.execute("SELECT COUNT(*) AS c FROM project_files").fetchone()
+        enriched = conn.execute(
+            "SELECT COUNT(*) AS c FROM projects "
+            "WHERE enriched_at IS NOT NULL AND enriched_at != ''"
+        ).fetchone()
         print(f"db: {path}")
         print(f"  projects:          {int(projects['c'])}")
         print(f"  with target flag:  {int(target['c'])}")
+        print(f"  enriched:          {int(enriched['c'])}")
+        print(f"  project_files:     {int(files['c'])}")
         print(f"  scored:            {int(scores['c'])}")
         print(f"  cross-links:       {int(links['c'])}")
+        print("  links by method:")
+        for row in conn.execute(
+            "SELECT method, COUNT(*) AS c FROM project_links GROUP BY method ORDER BY method"
+        ):
+            print(f"    {row['method']}: {int(row['c'])}")
         print("  fetch_state:")
         for row in conn.execute(
             "SELECT platform, target_version, status, message, updated_at "
@@ -209,13 +265,30 @@ def build_parser() -> argparse.ArgumentParser:
             default=str(DB_PATH.parent / "census" / "ranked.json"),
             help="json ranks path",
         )
+        p.add_argument(
+            "--max-enrich",
+            type=int,
+            default=None,
+            help="enrich at most N projects per platform (budget)",
+        )
+        p.add_argument(
+            "--force-enrich",
+            action="store_true",
+            help="re-enrich projects that already have enriched_at",
+        )
+        p.add_argument(
+            "--skip-enrich",
+            action="store_true",
+            help="for run: skip the enrich stage (fetch-only then score)",
+        )
 
     for name, help_text in (
         ("fetch", "index platforms into the census DB"),
+        ("enrich", "detail + file hashes for unscored fields (C3)"),
         ("score", "recompute tiers"),
-        ("link", "slug-based cross-platform links"),
+        ("link", "hash + slug + name_author cross-platform links (C3)"),
         ("export", "write ranked snapshot + report"),
-        ("run", "fetch + score + link + export"),
+        ("run", "fetch + enrich + score + link + export"),
     ):
         p = sub.add_parser(name, help=help_text)
         add_common(p)
@@ -230,6 +303,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         handlers = {
             "fetch": cmd_fetch,
+            "enrich": cmd_enrich,
             "score": cmd_score,
             "link": cmd_link,
             "export": cmd_export,

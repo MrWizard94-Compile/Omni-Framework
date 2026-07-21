@@ -14,13 +14,25 @@ from typing import Any
 
 import pytest
 from census_curseforge import fetch_curseforge, mod_to_record
+from census_enrich import (
+    apply_modrinth_project_detail,
+    enrich_modrinth,
+    version_to_file_records,
+)
 from census_lib import (
     DEFAULT_CAP,
+    FileRecord,
     export_census,
+    link_all,
+    link_by_hash,
+    link_by_name_author,
     link_by_slug,
+    normalize_identity,
     open_census_db,
     rescore_all,
     score_project,
+    upsert_file,
+    upsert_link,
     upsert_project,
     utc_now_iso,
 )
@@ -428,5 +440,331 @@ def test_score_project_from_db_row_roundtrip(tmp_path: Path) -> None:
         from_row = score_project(row, now=FIXED_NOW)
         assert from_row.composite == from_record.composite
         assert from_row.tier == from_record.tier
+    finally:
+        conn.close()
+
+
+# ── C3: enrichment + identity ─────────────────────────────────────────────
+
+
+def test_normalize_identity_strips_noise() -> None:
+    assert normalize_identity("Xaero's Mini-Map!") == "xaerosminimap"
+    assert normalize_identity("  Sodium  ") == "sodium"
+
+
+def test_link_by_hash_cross_platform(tmp_path: Path) -> None:
+    conn = open_census_db(tmp_path / "hash.db")
+    try:
+        mr_id = upsert_project(
+            conn,
+            hit_to_record(_modrinth_hit(slug="sodium-mr"), target_version="1.21.1"),
+            utc_now_iso(),
+        )
+        cf_id = upsert_project(
+            conn,
+            mod_to_record(_cf_mod(slug="sodium-cf", id=99), target_version="1.21.1"),
+            utc_now_iso(),
+        )
+        shared = "a" * 128
+        upsert_file(
+            conn,
+            mr_id,
+            FileRecord(
+                platform_file_id="v1:a.jar",
+                filename="a.jar",
+                game_versions=("1.21.1",),
+                loaders=("fabric",),
+                sha1="b" * 40,
+                sha512=shared,
+                murmur2="",
+                downloads=1,
+                date_published="2026-01-01T00:00:00Z",
+                raw_json="{}",
+            ),
+        )
+        upsert_file(
+            conn,
+            cf_id,
+            FileRecord(
+                platform_file_id="1001",
+                filename="a.jar",
+                game_versions=("1.21.1",),
+                loaders=("fabric",),
+                sha1="c" * 40,
+                sha512=shared,
+                murmur2="12345",
+                downloads=1,
+                date_published="2026-01-01T00:00:00Z",
+                raw_json="{}",
+            ),
+        )
+        conn.commit()
+        written = link_by_hash(conn)
+        assert written == 1
+        row = conn.execute("SELECT method, confidence, evidence FROM project_links").fetchone()
+        assert row["method"] == "hash"
+        assert float(row["confidence"]) == 0.99
+        assert str(row["evidence"]).startswith("sha512:")
+    finally:
+        conn.close()
+
+
+def test_hash_link_upgrades_weaker_slug_link(tmp_path: Path) -> None:
+    conn = open_census_db(tmp_path / "upgrade.db")
+    try:
+        mr_id = upsert_project(
+            conn,
+            hit_to_record(_modrinth_hit(slug="same"), target_version="1.21.1"),
+            utc_now_iso(),
+        )
+        cf_id = upsert_project(
+            conn,
+            mod_to_record(_cf_mod(slug="same", id=7), target_version="1.21.1"),
+            utc_now_iso(),
+        )
+        assert upsert_link(conn, mr_id, cf_id, method="slug", confidence=0.85, evidence="same")
+        shared = "d" * 128
+        upsert_file(
+            conn,
+            mr_id,
+            FileRecord(
+                platform_file_id="m",
+                filename="m.jar",
+                game_versions=("1.21.1",),
+                loaders=("fabric",),
+                sha1="",
+                sha512=shared,
+                murmur2="",
+                downloads=0,
+                date_published="",
+                raw_json="{}",
+            ),
+        )
+        upsert_file(
+            conn,
+            cf_id,
+            FileRecord(
+                platform_file_id="c",
+                filename="c.jar",
+                game_versions=("1.21.1",),
+                loaders=("fabric",),
+                sha1="",
+                sha512=shared,
+                murmur2="",
+                downloads=0,
+                date_published="",
+                raw_json="{}",
+            ),
+        )
+        conn.commit()
+        assert link_by_hash(conn) == 1
+        row = conn.execute("SELECT method, confidence FROM project_links").fetchone()
+        assert row["method"] == "hash"
+        assert float(row["confidence"]) == 0.99
+        # Weaker name_author must not downgrade.
+        assert (
+            upsert_link(
+                conn, mr_id, cf_id, method="name_author", confidence=0.70, evidence="x"
+            )
+            is False
+        )
+    finally:
+        conn.close()
+
+
+def test_link_by_name_author(tmp_path: Path) -> None:
+    conn = open_census_db(tmp_path / "name.db")
+    try:
+        upsert_project(
+            conn,
+            hit_to_record(
+                _modrinth_hit(
+                    project_id="m1",
+                    slug="mr-slug",
+                    title="Cool Mod",
+                    author="AuthorOne",
+                ),
+                target_version="1.21.1",
+            ),
+            utc_now_iso(),
+        )
+        upsert_project(
+            conn,
+            mod_to_record(
+                _cf_mod(
+                    id=55,
+                    slug="cf-slug",
+                    name="Cool Mod",
+                    authors=[{"name": "AuthorOne"}],
+                ),
+                target_version="1.21.1",
+            ),
+            utc_now_iso(),
+        )
+        conn.commit()
+        assert link_by_name_author(conn) == 1
+        row = conn.execute("SELECT method FROM project_links").fetchone()
+        assert row["method"] == "name_author"
+    finally:
+        conn.close()
+
+
+def test_version_to_file_records_filters_target() -> None:
+    version = {
+        "id": "ver1",
+        "game_versions": ["1.21.1", "1.21"],
+        "loaders": ["fabric"],
+        "downloads": 9,
+        "date_published": "2026-01-02T00:00:00Z",
+        "files": [
+            {
+                "filename": "mod.jar",
+                "hashes": {"sha1": "aa" * 20, "sha512": "bb" * 64},
+                "primary": True,
+            }
+        ],
+    }
+    recs = version_to_file_records(version, target_version="1.21.1")
+    assert len(recs) == 1
+    assert recs[0].sha512 == "bb" * 64
+    assert version_to_file_records(version, target_version="1.20.1") == []
+
+
+def test_enrich_modrinth_writes_license_and_files(tmp_path: Path) -> None:
+    db = tmp_path / "en.db"
+    conn = open_census_db(db)
+    try:
+        upsert_project(
+            conn,
+            hit_to_record(
+                _modrinth_hit(
+                    project_id="proj1",
+                    slug="enrich-me",
+                    license="",
+                    description="short",
+                    source_url="",
+                ),
+                target_version="1.21.1",
+            ),
+            utc_now_iso(),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    detail = {
+        "id": "proj1",
+        "title": "Enrich Me",
+        "description": "short",
+        "body": "A much longer body describing the mod with enough text. " * 4,
+        "license": {"id": "MIT"},
+        "project_type": "mod",
+        "categories": ["utility"],
+        "loaders": ["fabric"],
+        "game_versions": ["1.21.1"],
+        "client_side": "optional",
+        "server_side": "optional",
+        "downloads": 5000,
+        "followers": 100,
+        "published": "2024-01-01T00:00:00Z",
+        "updated": "2026-07-01T00:00:00Z",
+        "source_url": "https://example.invalid/src",
+        "issues_url": "https://example.invalid/issues",
+        "icon_url": "https://example.invalid/i.png",
+    }
+    versions = [
+        {
+            "id": "v1",
+            "game_versions": ["1.21.1"],
+            "loaders": ["fabric"],
+            "downloads": 12,
+            "date_published": "2026-06-01T00:00:00Z",
+            "files": [
+                {
+                    "filename": "enrich-me.jar",
+                    "hashes": {"sha1": "11" * 20, "sha512": "22" * 64},
+                }
+            ],
+        }
+    ]
+    transport = ScriptedTransport(
+        [
+            ("/project/proj1/version", 200, {}, json.dumps(versions).encode()),
+            ("/project/proj1", 200, {}, json.dumps(detail).encode()),
+        ]
+    )
+    n = enrich_modrinth(
+        transport,
+        target_version="1.21.1",
+        db_path=db,
+        progress=lambda _m: None,
+    )
+    assert n == 1
+    conn = open_census_db(db)
+    try:
+        row = conn.execute("SELECT * FROM projects WHERE slug='enrich-me'").fetchone()
+        assert row["license_id"] == "MIT"
+        assert row["source_url"] == "https://example.invalid/src"
+        assert str(row["enriched_at"]) != ""
+        assert int(row["target_file_count"]) == 1
+        files = conn.execute("SELECT sha512 FROM project_files").fetchall()
+        assert len(files) == 1
+        assert files[0]["sha512"] == "22" * 64
+    finally:
+        conn.close()
+
+
+def test_link_all_runs_three_methods(tmp_path: Path) -> None:
+    conn = open_census_db(tmp_path / "all.db")
+    try:
+        upsert_project(
+            conn,
+            hit_to_record(_modrinth_hit(slug="shared"), target_version="1.21.1"),
+            utc_now_iso(),
+        )
+        upsert_project(
+            conn,
+            mod_to_record(_cf_mod(slug="shared", id=1), target_version="1.21.1"),
+            utc_now_iso(),
+        )
+        conn.commit()
+        counts = link_all(conn)
+        assert counts["slug"] == 1
+        assert "hash" in counts and "name_author" in counts
+    finally:
+        conn.close()
+
+
+def test_apply_modrinth_detail_prefers_longer_description(tmp_path: Path) -> None:
+    conn = open_census_db(tmp_path / "desc.db")
+    try:
+        pid = upsert_project(
+            conn,
+            hit_to_record(
+                _modrinth_hit(project_id="d1", description="short"),
+                target_version="1.21.1",
+            ),
+            utc_now_iso(),
+        )
+        apply_modrinth_project_detail(
+            conn,
+            pid,
+            {
+                "title": "T",
+                "body": "long body " * 20,
+                "license": {"id": "Apache-2.0"},
+                "loaders": ["fabric"],
+                "game_versions": ["1.21.1"],
+                "client_side": "required",
+                "server_side": "unsupported",
+                "downloads": 1,
+                "followers": 1,
+            },
+            target_version="1.21.1",
+        )
+        conn.commit()
+        row = conn.execute("SELECT description, license_id FROM projects").fetchone()
+        assert "long body" in row["description"]
+        assert row["license_id"] == "Apache-2.0"
     finally:
         conn.close()

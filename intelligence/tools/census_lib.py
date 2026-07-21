@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import math
+import re
 import sqlite3
 import time
 import urllib.error
@@ -186,18 +187,108 @@ class ScoreBreakdown:
     rationale: dict[str, Any]
 
 
+@dataclass(frozen=True)
+class FileRecord:
+    """One published file/version artifact belonging to a census project."""
+
+    platform_file_id: str
+    filename: str
+    game_versions: tuple[str, ...]
+    loaders: tuple[str, ...]
+    sha1: str
+    sha512: str
+    murmur2: str
+    downloads: int
+    date_published: str
+    raw_json: str
+
+
 def utc_now_iso() -> str:
     return datetime.now(UTC).replace(microsecond=0).isoformat()
 
 
+def _table_columns(conn: sqlite3.Connection, table: str) -> set[str]:
+    return {str(row[1]) for row in conn.execute(f"PRAGMA table_info({table})")}
+
+
+def migrate_census_schema(conn: sqlite3.Connection) -> None:
+    """Bring an existing census DB up to the current schema without a wipe.
+
+    CREATE IF NOT EXISTS covers new tables. Column adds and CHECK expansions
+    need explicit migration because SQLite will not alter them in place.
+    """
+    if "projects" in {
+        str(r[0]) for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")
+    }:
+        cols = _table_columns(conn, "projects")
+        if "enriched_at" not in cols:
+            conn.execute(
+                "ALTER TABLE projects ADD COLUMN enriched_at TEXT NOT NULL DEFAULT ''"
+            )
+
+    # Expand project_links.method CHECK (slug → +hash +name_author).
+    row = conn.execute(
+        "SELECT sql FROM sqlite_master WHERE type='table' AND name='project_links'"
+    ).fetchone()
+    if row is not None:
+        sql = str(row[0] or "")
+        if "name_author" not in sql or "evidence" not in sql:
+            conn.execute("ALTER TABLE project_links RENAME TO project_links_legacy")
+            conn.execute(
+                """
+                CREATE TABLE project_links (
+                    id            INTEGER PRIMARY KEY,
+                    left_id       INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+                    right_id      INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+                    method        TEXT NOT NULL CHECK (
+                                      method IN ('slug', 'hash', 'name_author', 'manual')
+                                  ),
+                    confidence    REAL NOT NULL CHECK (confidence BETWEEN 0 AND 1),
+                    evidence      TEXT NOT NULL DEFAULT '',
+                    UNIQUE (left_id, right_id),
+                    CHECK (left_id < right_id)
+                )
+                """
+            )
+            legacy_cols = _table_columns(conn, "project_links_legacy")
+            if "evidence" in legacy_cols:
+                conn.execute(
+                    """
+                    INSERT INTO project_links(id, left_id, right_id, method, confidence, evidence)
+                    SELECT id, left_id, right_id, method, confidence, evidence
+                    FROM project_links_legacy
+                    """
+                )
+            else:
+                conn.execute(
+                    """
+                    INSERT INTO project_links(id, left_id, right_id, method, confidence, evidence)
+                    SELECT id, left_id, right_id, method, confidence, ''
+                    FROM project_links_legacy
+                    """
+                )
+            conn.execute("DROP TABLE project_links_legacy")
+
+
 def open_census_db(path: Path = DB_PATH) -> sqlite3.Connection:
-    """Open (or create) the census DB and apply schema."""
+    """Open (or create) the census DB and apply schema + migrations."""
     path.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(path)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
+    # Column adds must happen *before* schema.sql indexes that reference them;
+    # CREATE TABLE IF NOT EXISTS will not alter an existing projects table.
+    tables = {
+        str(r[0]) for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")
+    }
+    if "projects" in tables and "enriched_at" not in _table_columns(conn, "projects"):
+        conn.execute(
+            "ALTER TABLE projects ADD COLUMN enriched_at TEXT NOT NULL DEFAULT ''"
+        )
+        conn.commit()
     schema = SCHEMA_PATH.read_text(encoding="utf-8")
     conn.executescript(schema)
+    migrate_census_schema(conn)
     conn.commit()
     return conn
 
@@ -292,6 +383,48 @@ def upsert_project(conn: sqlite3.Connection, project: ProjectRecord, fetched_at:
     ).fetchone()
     assert row is not None
     return int(row["id"])
+
+
+def upsert_file(conn: sqlite3.Connection, project_id: int, file_rec: FileRecord) -> None:
+    """Insert or replace one project file/hash row."""
+    conn.execute(
+        """
+        INSERT INTO project_files (
+            project_id, platform_file_id, filename, game_versions_json, loaders_json,
+            sha1, sha512, murmur2, downloads, date_published, raw_json
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(project_id, platform_file_id) DO UPDATE SET
+            filename = excluded.filename,
+            game_versions_json = excluded.game_versions_json,
+            loaders_json = excluded.loaders_json,
+            sha1 = excluded.sha1,
+            sha512 = excluded.sha512,
+            murmur2 = excluded.murmur2,
+            downloads = excluded.downloads,
+            date_published = excluded.date_published,
+            raw_json = excluded.raw_json
+        """,
+        (
+            project_id,
+            file_rec.platform_file_id,
+            file_rec.filename,
+            json.dumps(list(file_rec.game_versions), ensure_ascii=False),
+            json.dumps(list(file_rec.loaders), ensure_ascii=False),
+            file_rec.sha1.lower(),
+            file_rec.sha512.lower(),
+            file_rec.murmur2,
+            file_rec.downloads,
+            file_rec.date_published,
+            file_rec.raw_json,
+        ),
+    )
+
+
+def mark_enriched(conn: sqlite3.Connection, project_id: int, when: str | None = None) -> None:
+    conn.execute(
+        "UPDATE projects SET enriched_at = ? WHERE id = ?",
+        (when or utc_now_iso(), project_id),
+    )
 
 
 def save_fetch_state(
@@ -591,6 +724,64 @@ def rescore_all(
     return len(scored)
 
 
+def normalize_identity(text: str) -> str:
+    """Collapse a title/author to a comparable token (lowercase alnum only)."""
+    return re.sub(r"[^a-z0-9]+", "", text.lower())
+
+
+def upsert_link(
+    conn: sqlite3.Connection,
+    left_id: int,
+    right_id: int,
+    *,
+    method: str,
+    confidence: float,
+    evidence: str = "",
+) -> bool:
+    """Insert or upgrade a cross-platform link. Returns True if row written/upgraded."""
+    if left_id == right_id:
+        return False
+    a, b = (left_id, right_id) if left_id < right_id else (right_id, left_id)
+    existing = conn.execute(
+        "SELECT confidence, method FROM project_links WHERE left_id = ? AND right_id = ?",
+        (a, b),
+    ).fetchone()
+    if existing is None:
+        conn.execute(
+            """
+            INSERT INTO project_links(left_id, right_id, method, confidence, evidence)
+            VALUES (?, ?, ?, ?, ?)
+            """,
+            (a, b, method, confidence, evidence),
+        )
+        return True
+    if float(existing["confidence"]) < confidence:
+        conn.execute(
+            """
+            UPDATE project_links
+            SET method = ?, confidence = ?, evidence = ?
+            WHERE left_id = ? AND right_id = ?
+            """,
+            (method, confidence, evidence, a, b),
+        )
+        return True
+    return False
+
+
+def _cross_platform_pairs(
+    members: list[tuple[int, str]],
+) -> list[tuple[int, int]]:
+    """Return sorted (left, right) pairs where platforms differ."""
+    pairs: list[tuple[int, int]] = []
+    for i, (left_id, left_plat) in enumerate(members):
+        for right_id, right_plat in members[i + 1 :]:
+            if left_plat == right_plat:
+                continue
+            a, b = (left_id, right_id) if left_id < right_id else (right_id, left_id)
+            pairs.append((a, b))
+    return pairs
+
+
 def link_by_slug(conn: sqlite3.Connection) -> int:
     """Link projects that share a case-insensitive slug across platforms."""
     rows = conn.execute(
@@ -601,31 +792,107 @@ def link_by_slug(conn: sqlite3.Connection) -> int:
         by_slug.setdefault(str(row["slug_l"]), []).append(
             (int(row["id"]), str(row["platform"]))
         )
-    created = 0
-    for group in by_slug.values():
-        if len(group) < 2:
+    written = 0
+    for slug, group in by_slug.items():
+        if len({p for _id, p in group}) < 2:
             continue
-        platforms = {platform for _pid, platform in group}
-        if len(platforms) < 2:
-            continue
-        # Pair every cross-platform combination (usually one MR + one CF).
-        ids = sorted(pid for pid, _ in group)
-        for i, left in enumerate(ids):
-            for right in ids[i + 1 :]:
-                left_platform = next(p for pid, p in group if pid == left)
-                right_platform = next(p for pid, p in group if pid == right)
-                if left_platform == right_platform:
-                    continue
-                cur = conn.execute(
-                    """
-                    INSERT OR IGNORE INTO project_links(left_id, right_id, method, confidence)
-                    VALUES (?, ?, 'slug', 0.85)
-                    """,
-                    (left, right),
-                )
-                created += cur.rowcount
+        for left, right in _cross_platform_pairs(group):
+            if upsert_link(
+                conn, left, right, method="slug", confidence=0.85, evidence=slug
+            ):
+                written += 1
     conn.commit()
-    return created
+    return written
+
+
+def link_by_hash(conn: sqlite3.Connection) -> int:
+    """Link projects that share a file hash across platforms (confidence 0.99).
+
+    Preference order for evidence: sha512 → sha1 → murmur2. Empty hashes ignored.
+    """
+    written = 0
+    for column in ("sha512", "sha1", "murmur2"):
+        rows = conn.execute(
+            f"""
+            SELECT f.{column} AS hv, p.id AS project_id, p.platform
+            FROM project_files f
+            JOIN projects p ON p.id = f.project_id
+            WHERE f.{column} != ''
+            """
+        ).fetchall()
+        by_hash: dict[str, list[tuple[int, str]]] = {}
+        for row in rows:
+            by_hash.setdefault(str(row["hv"]), []).append(
+                (int(row["project_id"]), str(row["platform"]))
+            )
+        for hv, group in by_hash.items():
+            # De-dupe project ids while keeping a platform.
+            seen: dict[int, str] = {}
+            for pid, platform in group:
+                seen[pid] = platform
+            members = list(seen.items())
+            if len({p for _id, p in members}) < 2:
+                continue
+            evidence = f"{column}:{hv[:24]}"
+            for left, right in _cross_platform_pairs(members):
+                if upsert_link(
+                    conn,
+                    left,
+                    right,
+                    method="hash",
+                    confidence=0.99,
+                    evidence=evidence,
+                ):
+                    written += 1
+    conn.commit()
+    return written
+
+
+def link_by_name_author(conn: sqlite3.Connection) -> int:
+    """Link projects with identical normalized title+author across platforms.
+
+    Requires both sides to have non-trivial author and title (length ≥ 3 after
+    normalize). Confidence 0.70 — weaker than slug/hash; never upgrades a
+    stronger existing link (upsert_link enforces that).
+    """
+    rows = conn.execute(
+        "SELECT id, platform, title, author FROM projects"
+    ).fetchall()
+    by_key: dict[str, list[tuple[int, str]]] = {}
+    for row in rows:
+        title_n = normalize_identity(str(row["title"] or ""))
+        author_n = normalize_identity(str(row["author"] or ""))
+        if len(title_n) < 3 or len(author_n) < 3:
+            continue
+        key = f"{title_n}|{author_n}"
+        by_key.setdefault(key, []).append((int(row["id"]), str(row["platform"])))
+    written = 0
+    for key, group in by_key.items():
+        if len({p for _id, p in group}) < 2:
+            continue
+        for left, right in _cross_platform_pairs(group):
+            if upsert_link(
+                conn,
+                left,
+                right,
+                method="name_author",
+                confidence=0.70,
+                evidence=key[:80],
+            ):
+                written += 1
+    conn.commit()
+    return written
+
+
+def link_all(conn: sqlite3.Connection) -> dict[str, int]:
+    """Run all automatic linkers; return per-method write counts."""
+    # Hash first so a later slug pass cannot overwrite a stronger link
+    # (upsert only upgrades confidence).
+    return {
+        "hash": link_by_hash(conn),
+        "slug": link_by_slug(conn),
+        "name_author": link_by_name_author(conn),
+    }
 
 
 def export_census(

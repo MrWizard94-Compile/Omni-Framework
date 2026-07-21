@@ -209,8 +209,8 @@ Governing decision: **ADR-0022**. Tooling lives under `intelligence/` (separate 
 | Brick | Deliverable | Status |
 |---|---|---|
 | C1 | Census schema + stdlib HTTP + Modrinth/CurseForge indexers + deterministic tier model + ranked export (`tools/census_*.py`, `census/schema.sql`) | ✅ 2026-07-21 |
-| C2 | Full live index for 1.21.1 (both platforms; resume-safe; CF needs `CURSEFORGE_API_KEY`) | ⬜ |
-| C3 | Cross-platform identity beyond slug match (hashes / name+author) + license enrichment | ⬜ |
+| C2 | Full live index for 1.21.1 (both platforms; resume-safe; CF needs `CURSEFORGE_API_KEY`) | ▶ **Modrinth done** (28 260 projects @ 1.21.1, top-500 enriched, 14 710 file hashes, ranked export); CF blocked on director `CURSEFORGE_API_KEY` |
+| C3 | Cross-platform identity: `project_files` hashes, link by hash/slug/name_author, Modrinth+CF enrich (`census_enrich.py`) | ✅ 2026-07-21 |
 | C4 | Frozen ranked snapshot for Phase 7 intake (≤50k, reviewed tier cuts) | ⬜ |
 
 ```powershell

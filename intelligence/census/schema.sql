@@ -7,6 +7,9 @@
 --
 -- Target game version for Phase 6 is Minecraft 1.21.1 (TGT-1). Rows may later
 -- hold other versions; the ranked export always filters to the run's target.
+--
+-- open_census_db() also runs migrate_census_schema() so existing DBs pick up
+-- project_files, enriched_at, and expanded link methods without a wipe.
 
 PRAGMA foreign_keys = ON;
 
@@ -49,12 +52,15 @@ CREATE TABLE IF NOT EXISTS projects (
     target_file_count     INTEGER NOT NULL DEFAULT 0,
     raw_json              TEXT NOT NULL DEFAULT '',    -- last platform payload (debug)
     fetched_at            TEXT NOT NULL,               -- ISO-8601 when row was written
+    -- Set when detail/version enrichment has run for this project (C3).
+    enriched_at           TEXT NOT NULL DEFAULT '',
     UNIQUE (platform, platform_project_id)
 );
 
 CREATE INDEX IF NOT EXISTS idx_projects_slug ON projects(slug);
 CREATE INDEX IF NOT EXISTS idx_projects_target ON projects(has_target_version);
 CREATE INDEX IF NOT EXISTS idx_projects_downloads ON projects(downloads DESC);
+CREATE INDEX IF NOT EXISTS idx_projects_enriched ON projects(enriched_at);
 
 -- Per-project score breakdown. Recomputed by the tierer; never fetched.
 CREATE TABLE IF NOT EXISTS scores (
@@ -72,37 +78,62 @@ CREATE TABLE IF NOT EXISTS scores (
 CREATE INDEX IF NOT EXISTS idx_scores_rank ON scores(rank);
 CREATE INDEX IF NOT EXISTS idx_scores_tier ON scores(tier);
 
--- Cross-platform identity links (same mod on both stores). Brick-1 links by
--- exact slug match (case-insensitive); later bricks may add hash/name links.
+-- File-level hashes for cross-platform identity (C3) and Phase 7 license work.
+-- Populated by enrichment (Modrinth versions) and CF search latestFiles.
+CREATE TABLE IF NOT EXISTS project_files (
+    id                 INTEGER PRIMARY KEY,
+    project_id         INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    platform_file_id   TEXT NOT NULL,
+    filename           TEXT NOT NULL DEFAULT '',
+    game_versions_json TEXT NOT NULL DEFAULT '[]',
+    loaders_json       TEXT NOT NULL DEFAULT '[]',
+    sha1               TEXT NOT NULL DEFAULT '',       -- lowercase hex
+    sha512             TEXT NOT NULL DEFAULT '',       -- lowercase hex
+    murmur2            TEXT NOT NULL DEFAULT '',       -- decimal string (CurseForge)
+    downloads          INTEGER NOT NULL DEFAULT 0,
+    date_published     TEXT NOT NULL DEFAULT '',
+    raw_json           TEXT NOT NULL DEFAULT '',
+    UNIQUE (project_id, platform_file_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_files_sha512 ON project_files(sha512);
+CREATE INDEX IF NOT EXISTS idx_files_sha1 ON project_files(sha1);
+CREATE INDEX IF NOT EXISTS idx_files_murmur2 ON project_files(murmur2);
+
+-- Cross-platform identity links (same mod on both stores).
+-- method: slug | hash | name_author | manual (confidence ordered high→low for ties)
 CREATE TABLE IF NOT EXISTS project_links (
     id            INTEGER PRIMARY KEY,
     left_id       INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
     right_id      INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
-    method        TEXT NOT NULL CHECK (method IN ('slug', 'manual')),
+    method        TEXT NOT NULL CHECK (
+                      method IN ('slug', 'hash', 'name_author', 'manual')
+                  ),
     confidence    REAL NOT NULL CHECK (confidence BETWEEN 0 AND 1),
+    evidence      TEXT NOT NULL DEFAULT '',            -- e.g. sha512 prefix or slug
     UNIQUE (left_id, right_id),
     CHECK (left_id < right_id)
 );
 
 -- Resumable fetch checkpoints (platform page cursors). Survives interrupt.
 CREATE TABLE IF NOT EXISTS fetch_state (
-    platform      TEXT NOT NULL,
+    platform       TEXT NOT NULL,
     target_version TEXT NOT NULL,
-    cursor_json   TEXT NOT NULL DEFAULT '{}',
-    status        TEXT NOT NULL CHECK (status IN ('running', 'done', 'failed')),
-    message       TEXT NOT NULL DEFAULT '',
-    updated_at    TEXT NOT NULL,
+    cursor_json    TEXT NOT NULL DEFAULT '{}',
+    status         TEXT NOT NULL CHECK (status IN ('running', 'done', 'failed')),
+    message        TEXT NOT NULL DEFAULT '',
+    updated_at     TEXT NOT NULL,
     PRIMARY KEY (platform, target_version)
 );
 
 -- Ranked census export snapshot (the ≤50_000 candidate set for one run).
 CREATE TABLE IF NOT EXISTS census_snapshot (
-    id             INTEGER PRIMARY KEY,
-    target_version TEXT NOT NULL,
-    generated_at   TEXT NOT NULL,
-    cap            INTEGER NOT NULL,
+    id              INTEGER PRIMARY KEY,
+    target_version  TEXT NOT NULL,
+    generated_at    TEXT NOT NULL,
+    cap             INTEGER NOT NULL,
     candidate_count INTEGER NOT NULL,
-    notes          TEXT NOT NULL DEFAULT ''
+    notes           TEXT NOT NULL DEFAULT ''
 );
 
 CREATE TABLE IF NOT EXISTS census_snapshot_rows (

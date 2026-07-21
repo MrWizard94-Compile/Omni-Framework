@@ -294,12 +294,14 @@ The gap never fired because brick 10 booted vanilla (the game links no loader AP
 
 5. **Compliance.** CurseForge requires `CURSEFORGE_API_KEY` from the environment (never logged, never stored). `allowModDistribution = false` projects **remain in the census** (Phase 7 still needs them) but are flagged so no download path routes around the official app (COMPLIANCE §5). Modrinth uses the public API with a descriptive User-Agent. Both clients rate-limit and back off on HTTP 429.
 
-6. **Cross-platform links.** Brick 1 links by case-insensitive slug match only (confidence 0.85). Hash-based identity joins can supersede later without schema break.
+6. **Cross-platform links (C3).** Automatic linkers, highest confidence wins: **hash** (shared sha512/sha1/murmur2 on `project_files`, 0.99) → **slug** (case-insensitive, 0.85) → **name_author** (normalized title+author, 0.70) → **manual**. Evidence string stored for audit. Weaker methods never downgrade a stronger link.
+
+7. **Enrichment (C3).** Search hits are sparse (short descriptions, often missing license). `census_enrich` fills license/links/body from Modrinth project detail and stores version file hashes for the target game version; CurseForge uses `/mods/{id}/files` when a key is present, and search `latestFiles` fingerprints are ingested during fetch. Resume via `projects.enriched_at`.
 
 **Consequences.**
 
 - Phase 6 has a complete, testable pipeline (`census_index.py run`) independent of Phase 4/5 launcher/loader work.
-- Full live index of both platforms is a long, resume-safe job; smoke runs use `--max-pages`.
+- Full live index of both platforms is a long, resume-safe job; smoke runs use `--max-pages`. Enrichment is rate-limit heavy — budget with `--max-enrich`.
 - Launcher in-app browse/install (LNC-9) still needs `omni-platform`; the census does not replace it.
 - Phase 7 consumes `scores.rank` / tiers and license fields; outreach tooling is out of scope here.
 

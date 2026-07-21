@@ -16,6 +16,7 @@ intelligence/omni_census.db-journal
 intelligence/omni_census.db-wal
 intelligence/omni_census.db-shm
 intelligence/census/ranked.json
+intelligence/census/*.log
 
 # Python
 __pycache__/
