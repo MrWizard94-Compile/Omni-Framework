@@ -59,14 +59,23 @@ SELECT slug, name FROM feature_matrix WHERE omni_relevance = 'adopt' ORDER BY fu
 SELECT * FROM subject_stats;
 ```
 
-## Phase 6 — Mod census (ADR-0022)
+## Phase 6 — Mod census (ADR-0022) ✅
 
-Separate pipeline and database from vivisection. See **`census/README.md`**.
+Separate pipeline and database from vivisection. See **`census/README.md`** (C4 freeze notes).
 
 ```powershell
-# Ranked 1.21.1 census (Modrinth public; CurseForge when CURSEFORGE_API_KEY is set):
+# Ranked 1.21.1 census (Modrinth public; CF via CURSEFORGE_API_KEY / --cf-api-key-file):
 .venv\Scripts\python tools\census_index.py run --target 1.21.1
 .venv\Scripts\python tools\census_index.py status
 ```
 
 Artifact: `omni_census.db` (git-ignored). Report: `census/report.md` after export.
+
+## Phase 7 — Port queue foundation (ADR-0023) ▶ P1 only
+
+See **`porting/README.md`**. Intake S/A from census; human-gated outreach drafts.
+
+```powershell
+.venv\Scripts\python tools\port_queue.py intake --batch-label c4-1.21.1 --tiers S,A
+.venv\Scripts\python tools\port_queue.py status
+```
