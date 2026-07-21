@@ -11,9 +11,14 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
+import net.fabricmc.api.ClientModInitializer;
+import net.fabricmc.api.DedicatedServerModInitializer;
+import net.fabricmc.api.EnvType;
 import org.omniframework.api.ModInitializer;
 import org.omniframework.loader.compat.CompatLayer;
 import org.omniframework.loader.compat.fabric.FabricCompatLayer;
+import org.omniframework.loader.compat.fabric.impl.FabricLoaderHolder;
+import org.omniframework.loader.compat.fabric.impl.OmniFabricLoader;
 import org.omniframework.loader.compat.neoforge.NeoForgeCompatLayer;
 import org.omniframework.loader.core.ClassTransformer;
 import org.omniframework.loader.core.GameLauncher;
@@ -80,12 +85,16 @@ public final class BootSequence {
 
         PartitionRegistry registry = buildPartitions(game, config.libraries(), realMods, ecosystems);
         try {
+            // Identity transformer until intermediary→official mappings are fed at boot
+            // (loader-transform is built; wiring mappings from the launcher is follow-on).
             GameLauncher launcher = new GameLauncher(registry, ClassTransformer.identity());
             OmniTransformingClassLoader loader = launcher.newClassLoader();
             try {
-                dispatchEntrypoints(realMods, ecosystems, loader);
+                installFabricLoader(config, game, realMods);
+                dispatchEntrypoints(realMods, ecosystems, loader, config.side());
                 launcher.launch(loader, game, config.launchArguments());
             } finally {
+                FabricLoaderHolder.reset();
                 closeQuietly(loader);
             }
             return Optional.of(new BootResult(
@@ -95,6 +104,16 @@ public final class BootSequence {
         } finally {
             closeQuietly(registry);
         }
+    }
+
+    private static void installFabricLoader(
+            BootConfig config, LocatedGame game, List<ModCandidate> realMods) {
+        EnvType env =
+                config.side() == GameSide.SERVER ? EnvType.SERVER : EnvType.CLIENT;
+        String[] args = config.launchArguments().toArray(String[]::new);
+        OmniFabricLoader fabricLoader = new OmniFabricLoader(
+                config.gameDirectory(), env, game.version(), args, realMods);
+        FabricLoaderHolder.install(fabricLoader);
     }
 
     private static Map<String, String> ecosystemIndex(DiscoveredMods discovered) {
@@ -194,10 +213,13 @@ public final class BootSequence {
 
     /**
      * Runs entrypoints per ecosystem so Omni and Fabric interfaces never collide on phase
-     * {@code main}.
+     * {@code main}. Side-specific Fabric phases run after {@code main}.
      */
     private static void dispatchEntrypoints(
-            List<ModCandidate> mods, Map<String, String> ecosystems, ClassLoader loader) {
+            List<ModCandidate> mods,
+            Map<String, String> ecosystems,
+            ClassLoader loader,
+            GameSide side) {
         List<ModCandidate> omni = new ArrayList<>();
         List<ModCandidate> fabric = new ArrayList<>();
         List<ModCandidate> neoforge = new ArrayList<>();
@@ -229,6 +251,17 @@ public final class BootSequence {
                     "main",
                     net.fabricmc.api.ModInitializer.class,
                     (metadata, initializer) -> initializer.onInitialize());
+            if (side == GameSide.CLIENT) {
+                dispatcher.run(
+                        "client",
+                        ClientModInitializer.class,
+                        (metadata, initializer) -> initializer.onInitializeClient());
+            } else if (side == GameSide.SERVER) {
+                dispatcher.run(
+                        "server",
+                        DedicatedServerModInitializer.class,
+                        (metadata, initializer) -> initializer.onInitializeServer());
+            }
         }
 
         if (!neoforge.isEmpty()) {

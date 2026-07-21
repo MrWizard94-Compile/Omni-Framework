@@ -709,6 +709,12 @@ impl AppService {
         instance_id: i64,
         account_uuid: &str,
     ) -> Result<i64, AppError> {
+        // Ensure imported / dropped jars are in game/mods before we build the
+        // command — also refreshes enablement and may auto-set importedLoader
+        // when jars exist on a previously vanilla instance.
+        let _stage =
+            crate::import::materialize_instance_mods(&self.paths, &self.db, instance_id)?;
+        // Re-read after materialize (settings may have gained importedLoader).
         let instance = self
             .db
             .with_store(|store| store.instance(instance_id))?
@@ -980,6 +986,19 @@ impl AppService {
             key: candidate.key.clone(),
         };
         let report = importer.import(&self.db, &native)?;
+        // Copy jars from the foreign pack into this instance's private mods/
+        // so OmniLoader has something to discover on launch (must not leave
+        // mods as DB-only inventory).
+        let stage = crate::import::materialize_instance_mods(
+            &self.paths,
+            &self.db,
+            report.instance_id,
+        )?;
+        let mut notes = report.notes;
+        notes.push(format!(
+            "staged {} mod jar(s) into the instance game/mods/ ({} source folder(s) scanned; {} enabled row(s) still missing a jar)",
+            stage.staged, stage.sources_scanned, stage.missing
+        ));
         self.emit(CoreEvent::InstanceChanged { instance_id: Some(report.instance_id) });
         Ok(ImportReportDto {
             instance_id: report.instance_id,
@@ -989,7 +1008,7 @@ impl AppService {
                 .into_iter()
                 .map(|skipped| SkippedDto { item: skipped.item, reason: skipped.reason })
                 .collect(),
-            notes: report.notes,
+            notes,
         })
     }
 

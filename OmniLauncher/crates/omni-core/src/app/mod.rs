@@ -115,13 +115,39 @@ impl Default for AppConfig {
             meta_url: DEFAULT_META_URL.to_owned(),
             client_id: crate::auth::DEV_CLIENT_ID.to_owned(),
             vault_service: "OmniLauncher".to_owned(),
-            // Overridable by env so a dev can point the launcher at the staged
-            // loader distribution (OmniLoader/loader-bootstrap/build/loader-dist)
-            // without a code change — the same shape as data_root reading env.
-            // Absent by default: production supplies a bundled path explicitly.
-            loader_dist_dir: std::env::var_os("OMNI_LOADER_DIST").map(PathBuf::from),
+            // Env wins; otherwise probe common dev/prod locations so a
+            // `cargo tauri dev` session can boot modded packs without a
+            // manual OMNI_LOADER_DIST every time (still overridable).
+            loader_dist_dir: resolve_default_loader_dist(),
         }
     }
+}
+
+/// Resolves the OmniLoader distribution directory.
+///
+/// Order: `OMNI_LOADER_DIST` → walk up from cwd for
+/// `OmniLoader/loader-bootstrap/build/loader-dist` → `None`.
+pub fn resolve_default_loader_dist() -> Option<PathBuf> {
+    if let Some(from_env) = std::env::var_os("OMNI_LOADER_DIST").map(PathBuf::from)
+        && !from_env.as_os_str().is_empty()
+    {
+        return Some(from_env);
+    }
+    let mut dir = std::env::current_dir().ok()?;
+    for _ in 0..8 {
+        let candidate = dir
+            .join("OmniLoader")
+            .join("loader-bootstrap")
+            .join("build")
+            .join("loader-dist");
+        if candidate.join("loader.json").is_file() && candidate.join("lib").is_dir() {
+            return Some(candidate);
+        }
+        if !dir.pop() {
+            break;
+        }
+    }
+    None
 }
 
 /// A command failure, shaped for the UI: a machine-readable `kind` for

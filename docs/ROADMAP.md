@@ -243,6 +243,19 @@ Per-mod port queue for top tiers: license check → (if restrictive) author outr
 
 **SOUL honesty:** Phase 7 is **not** complete. Only the intake/license foundation (P1) is production-ready. Autonomous rewrite/verify/publish remain multi-session bricks and must not be marked done until they exist as complete, tested systems.
 
+### Mod-pack loadability (post–Phase 4 hardening, 2026-07-21)
+
+| Piece | Status |
+|---|---|
+| Stage jars into `game/mods/` on import + launch | ✅ `import::stage` |
+| Route loader-managed launch via OmniLoader (`OMNI_LOADER_DIST`) | ✅ auto-probe monorepo `loader-dist` |
+| Fabric claim + entrypoints + `FabricLoader.getInstance()` | ✅ |
+| Client/server Fabric entrypoint phases | ✅ |
+| Intermediary→official remap on boot | ⬜ (module exists; boot still identity) |
+| Mixin on boot dist | ⬜ (module exists; not staged in boot path) |
+| mrpack remote download of mods | ⬜ |
+| NeoForge event bus / pack AOT | ⬜ |
+
 ## Parallel Track — OmniMC (ADR-0017)
 
 An original pure-Rust voxel game (own code/assets/identity, WASM-native mod API,

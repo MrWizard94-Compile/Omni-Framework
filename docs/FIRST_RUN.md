@@ -69,11 +69,27 @@ cargo run -p omni-core --example server_smoke --release -- --accept-eula --launc
 
 (Only run `--accept-eula` after you have read https://aka.ms/MinecraftEULA.)
 
-### 6. Import (optional)
+### 6. Import a mod pack (Prism / CurseForge app folder)
 
-**Import** a CurseForge/Prism path. Packs map into the store; mods load through
-OmniLoader when the instance is loader-managed (B2). Full NeoForge AOT for huge
-packs is still follow-on engineering.
+1. Build the loader dist once (if you have not):
+   ```powershell
+   cd C:\WPAI\Gaming\Minecraft\Omni_Framework\OmniLoader
+   .\gradlew :loader-bootstrap:loaderDist
+   ```
+   The launcher auto-finds `OmniLoader/loader-bootstrap/build/loader-dist` when
+   started from the monorepo, or set `$env:OMNI_LOADER_DIST` to that path.
+
+2. **Import** → pick a Prism or CurseForge instance folder. Omni copies jars into
+   `%APPDATA%\OmniLauncher\instances\<id>\game\mods\` and records the loader kind.
+
+3. **Install** the instance (vanilla game + Java), then **Launch**.
+
+**Honest limits (2026-07-21):** OmniLoader discovers those jars and runs Fabric
+entrypoints (`main`/`client`) with a real `FabricLoader.getInstance()`. **Bytecode
+is not yet remapped** (intermediary→official) and **Mixin is not yet installed on
+the boot path**, so many published Fabric jars will still crash until that wiring
+lands. Native Omni mods and fixture-class Fabric mods are the reliable path today.
+NeoForge packs are claim+`@Mod` construct only.
 
 ## If something goes wrong
 

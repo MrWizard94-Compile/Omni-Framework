@@ -18,12 +18,16 @@ mod hash;
 mod mrpack;
 mod official;
 mod prism;
+mod stage;
 
 pub use curseforge::CurseForgeImporter;
 pub use hash::{murmur2_fingerprint, scan_mods_dir, ScannedMod};
 pub use mrpack::MrpackImporter;
 pub use official::OfficialImporter;
 pub use prism::PrismImporter;
+pub use stage::{
+    copy_mod_jars, materialize_instance_mods, source_mods_dirs, StageReport,
+};
 
 use std::fmt;
 use std::path::{Path, PathBuf};
