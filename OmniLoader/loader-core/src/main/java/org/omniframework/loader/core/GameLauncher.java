@@ -100,9 +100,23 @@ public final class GameLauncher {
      * @throws GameLaunchException if the main class or method is missing, or the game throws
      */
     public void launch(LocatedGame game, List<String> arguments) {
+        launch(newClassLoader(), game, arguments);
+    }
+
+    /**
+     * Invokes the game's main on a caller-supplied loader.
+     *
+     * <p>The boot sequence needs this: a mod's entrypoints are dispatched before the game starts,
+     * and they must run on the <em>same</em> loader the game will use, or a mod's static state and
+     * the game's view of it would live in two different class namespaces. So the bootstrap builds
+     * one loader with {@link #newClassLoader()}, dispatches entrypoints on it, and hands it here.
+     *
+     * @throws GameLaunchException if the main class or method is missing, or the game throws
+     */
+    public void launch(OmniTransformingClassLoader loader, LocatedGame game, List<String> arguments) {
+        Objects.requireNonNull(loader, "loader");
         Objects.requireNonNull(game, "game");
         Objects.requireNonNull(arguments, "arguments");
-        OmniTransformingClassLoader loader = new OmniTransformingClassLoader(partitions, transformer);
 
         Thread current = Thread.currentThread();
         ClassLoader previous = current.getContextClassLoader();

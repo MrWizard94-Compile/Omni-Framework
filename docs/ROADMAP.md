@@ -100,7 +100,7 @@ warn-and-refuse stopgap. That decomposes into:
 
 | # | Brick | What it delivers | Difficulty |
 |---|---|---|---|
-| B1 | `loader-bootstrap` — a top-level module with a real `main`, orchestrating discover → resolve → transform → mixin → entrypoint → launch as ONE flow | The first time bricks 10–14 run composed rather than in isolation; boots vanilla + native mods headlessly | **very high** |
+| B1 | `loader-bootstrap` — a top-level module with a real `main`, orchestrating locate → discover → resolve → partition → entrypoint → launch as ONE flow | ✅ 2026-07-20 — first time bricks 10/11/14 run composed on one shared loader; native mod + game main both fire in dependency order, proven headlessly. Transform/mixin absent by design (native mods need neither; they arrive with B3). | **very high** |
 
 **B1 finding (2026-07-20): the transforming classloader's parent is wrong for a real modded
 boot.** `OmniTransformingClassLoader`'s parent is `getPlatformClassLoader()` (JDK only), and

@@ -15,5 +15,6 @@ dependencies {
     testImplementation(project(":loader-transform"))
     testImplementation(project(":omni-api"))
     testImplementation(project(":provider-minecraft"))
+    testImplementation(project(":loader-bootstrap"))
     testImplementation("org.ow2.asm:asm:9.8")
 }
