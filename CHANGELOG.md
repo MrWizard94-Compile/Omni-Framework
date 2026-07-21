@@ -16,6 +16,7 @@ Versions follow the workspace package version in `Cargo.toml` unless noted.
   - Shared classloader prefixes for `net.fabricmc.api.*` / `net.fabricmc.loader.api.*`.
   - Dedicated server launch without MSA (`LaunchAuth::DedicatedServer`); CPL-2
     remains client-only. Live `server_smoke --accept-eula --launch` verified.
+  - **Client vanilla 1.21.1 director-confirmed playable** (window + MSA + live meta).
 
 - **Phase 5 — Stabilization**
   - Instance **export** (ADR-0014): `mrpack`, CurseForge `manifest.json` + overrides,

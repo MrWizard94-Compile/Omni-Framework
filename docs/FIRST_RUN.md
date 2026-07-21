@@ -4,9 +4,9 @@ Walkthrough for opening the window on the director's machine (Windows 11).
 **Meta CDN is live** (`https://omnimeta.wpaistudio.net/v1/`). Mojang client-ID
 approval landed 2026-07-20.
 
-Phase 4 **code exit is closed** (bricks 1–16, B1–B4 fixtures, live meta install
-chain). This document is the **client window path** — the one step that still
-needs eyes on a GUI and a real Microsoft account.
+Phase 4 **product exit is closed** (bricks 1–16, B1–B4, live meta, server smoke,
+and **director-confirmed client vanilla 1.21.1** — playable 2026-07-21). This
+document remains the **how-to** for opening the window and re-verifying.
 
 ## Before you start
 
@@ -88,4 +88,4 @@ packs is still follow-on engineering.
 | Launcher install from live meta | ✅ `server_smoke` install (live) |
 | Server spawn without MSA | ✅ DedicatedServer launch path + smoke `--launch` |
 | Mixed-pack loader fixtures | ✅ `MixedPackBootTest` |
-| Client window vanilla 1.21.1 | ▶ **you** — steps 1–4 above |
+| Client window vanilla 1.21.1 | ✅ **director-confirmed playable** (2026-07-21) |

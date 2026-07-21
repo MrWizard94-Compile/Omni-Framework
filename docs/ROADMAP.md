@@ -46,7 +46,8 @@ Delivered: **`OmniLoader/ARCHITECTURE.md`** (module map, boot sequence, `omni.mo
 (`server_smoke`). Dedicated server spawn no longer incorrectly requires MSA (D8 vs CPL-2
 scope clarified: entitlement gates **client play**, not server jar processes). Mixed-pack
 fixtures on one `BootSequence`. Full FML event-bus / pack-scale NeoForge AOT remain
-**follow-on**, not stubs. **Client window** vanilla launch: `docs/FIRST_RUN.md` (director GUI).
+**follow-on**, not stubs. **Client window** vanilla 1.21.1: director-confirmed
+playable (2026-07-21). Re-run steps in `docs/FIRST_RUN.md` anytime.
 
 Scope per REQUIREMENTS.md (D7/D8 expanded it):
 - OmniLauncher (Tauri) launches vanilla 1.21.1 end-to-end with real MSA login; **client and server instances**; all four migration importers (CurseForge App, Prism/MultiMC, Modrinth/.mrpack, official profiles).
@@ -166,8 +167,8 @@ job kept displaying its old failure.
 
 **Exit criterion: CLOSED 2026-07-21 (code + automated paths).** Mojang approval live.
 Server install+spawn against live meta: `server_smoke --accept-eula --launch`. Loader
-mixed fixtures: `MixedPackBootTest`. Client GUI vanilla play remains the director
-walkthrough in `FIRST_RUN.md` (cannot be fully automated — real MSA + window).
+mixed fixtures: `MixedPackBootTest`. Client GUI vanilla 1.21.1: **director-confirmed
+playable** (2026-07-21). Walkthrough retained in `FIRST_RUN.md` for re-verify.
 
 The approval arrived exactly as their process promised — silently. No receipt, no status
 page, no approval notice; the 403 simply stopped. Two probes were run, several hours
