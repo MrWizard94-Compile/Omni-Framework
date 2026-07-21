@@ -52,6 +52,7 @@ fn main() -> ExitCode {
         // Unused on this path: no account is signed in and none is needed.
         client_id: omni_core::auth::DEV_CLIENT_ID.to_owned(),
         vault_service: "OmniLauncher-server-smoke".to_owned(),
+        loader_dist_dir: None,
     };
     let service = match AppService::new(config, Arc::new(NullSink)) {
         Ok(service) => service,

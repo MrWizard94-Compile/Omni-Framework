@@ -77,6 +77,12 @@ pub struct AppConfig {
     pub client_id: String,
     /// Service namespace for OS credential-vault entries.
     pub vault_service: String,
+    /// The staged OmniLoader distribution (its `loader.json` + `lib/`), used to
+    /// boot loader-managed instances through OmniLoader rather than vanilla
+    /// (B2). `None` means no loader runtime is available, so a loader-managed
+    /// instance refuses to launch with a message saying so rather than
+    /// silently running vanilla. Build-config, like `meta_url`.
+    pub loader_dist_dir: Option<PathBuf>,
 }
 
 /// The meta service's production URL (ADR-0016; overridable at build time).
@@ -109,6 +115,11 @@ impl Default for AppConfig {
             meta_url: DEFAULT_META_URL.to_owned(),
             client_id: crate::auth::DEV_CLIENT_ID.to_owned(),
             vault_service: "OmniLauncher".to_owned(),
+            // Overridable by env so a dev can point the launcher at the staged
+            // loader distribution (OmniLoader/loader-bootstrap/build/loader-dist)
+            // without a code change — the same shape as data_root reading env.
+            // Absent by default: production supplies a bundled path explicitly.
+            loader_dist_dir: std::env::var_os("OMNI_LOADER_DIST").map(PathBuf::from),
         }
     }
 }

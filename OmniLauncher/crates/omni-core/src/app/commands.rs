@@ -39,8 +39,8 @@ use crate::install::{
 };
 use crate::jobs::{CancelToken, run};
 use crate::launch::{
-    LaunchInputs, accept_server_eula, build_client_command, build_server_command,
-    spawn_recorded, wait_and_record,
+    LaunchInputs, LoaderRuntime, accept_server_eula, build_client_command, build_loader_command,
+    build_server_command, spawn_recorded, wait_and_record,
 };
 use crate::platform::Platform;
 use crate::store::{ComponentSource, InstanceKind, JobState, NewInstance, StackEntryInput};
@@ -69,6 +69,85 @@ fn resolve_memory_mib(settings: &serde_json::Value) -> u64 {
 
 /// Console tail cap, so a runaway log can never balloon an IPC message.
 const MAX_CONSOLE_LINES: usize = 2000;
+
+/// The mod loader an instance is managed by, if it is not vanilla.
+///
+/// An imported pack records its loader under `importedLoader.kind` (`neoforge`, `fabric`,
+/// `forge`). That is what decides whether a launch boots through OmniLoader or runs the game
+/// directly. A `vanilla` kind, or none at all, is a direct launch.
+fn loader_managed_kind(settings: &serde_json::Value) -> Option<String> {
+    settings["importedLoader"]["kind"]
+        .as_str()
+        .filter(|kind| !kind.eq_ignore_ascii_case("vanilla"))
+        .map(str::to_owned)
+}
+
+/// Resolves the OmniLoader runtime for an instance from the staged distribution.
+///
+/// Three outcomes, each distinct on purpose:
+/// - `Ok(None)` — the instance is vanilla; launch directly.
+/// - `Ok(Some(_))` — loader-managed, and a usable distribution was found.
+/// - `Err(_)` — loader-managed but the runtime is missing or malformed. This is a refusal, not a
+///   fallback: silently running a modded pack as vanilla is the exact "where did my mods go"
+///   failure this whole path exists to end. The message names the loader and what to set.
+fn resolve_loader_runtime(
+    settings: &serde_json::Value,
+    dist_dir: Option<&Path>,
+) -> Result<Option<LoaderRuntime>, AppError> {
+    let Some(kind) = loader_managed_kind(settings) else {
+        return Ok(None);
+    };
+    let dist = dist_dir.ok_or_else(|| {
+        AppError::usage(format!(
+            "this instance uses the {kind} mod loader, but no OmniLoader runtime is configured. \
+             Set OMNI_LOADER_DIST to the staged loader distribution \
+             (OmniLoader/loader-bootstrap/build/loader-dist)."
+        ))
+    })?;
+
+    let manifest_path = dist.join("loader.json");
+    let manifest_text = std::fs::read_to_string(&manifest_path).map_err(|err| {
+        AppError::new(
+            "usage",
+            format!(
+                "the OmniLoader runtime at {} has no readable loader.json ({err}); \
+                 build it with `gradlew :loader-bootstrap:loaderDist`.",
+                dist.display()
+            ),
+        )
+    })?;
+    let manifest: serde_json::Value = serde_json::from_str(&manifest_text)
+        .map_err(|err| AppError::new("usage", format!("loader.json is not valid JSON: {err}")))?;
+    let main_class = manifest["mainClass"]
+        .as_str()
+        .filter(|name| !name.is_empty())
+        .ok_or_else(|| AppError::new("usage", "loader.json has no 'mainClass'".to_owned()))?
+        .to_owned();
+
+    let lib_dir = dist.join("lib");
+    let mut classpath: Vec<PathBuf> = Vec::new();
+    let entries = std::fs::read_dir(&lib_dir).map_err(|err| {
+        AppError::new(
+            "usage",
+            format!("the OmniLoader runtime has no readable lib/ at {} ({err})", lib_dir.display()),
+        )
+    })?;
+    for entry in entries {
+        let path = entry.map_err(|err| AppError::new("usage", err.to_string()))?.path();
+        if path.extension().and_then(|ext| ext.to_str()) == Some("jar") {
+            classpath.push(path);
+        }
+    }
+    if classpath.is_empty() {
+        return Err(AppError::new(
+            "usage",
+            format!("the OmniLoader runtime at {} has no jars in lib/", dist.display()),
+        ));
+    }
+    // Deterministic order so the launch command is stable between runs.
+    classpath.sort();
+    Ok(Some(LoaderRuntime { main_class, classpath }))
+}
 
 // ===========================================================================
 // Instances
@@ -674,7 +753,20 @@ impl AppService {
             extra_jvm_args,
         };
         let command = match instance.kind {
-            InstanceKind::Client => build_client_command(&self.paths, &inputs, &platform)?,
+            InstanceKind::Client => {
+                // A loader-managed instance boots through OmniLoader; a vanilla one runs the game
+                // directly. The loader runtime is resolved from the staged distribution, and a
+                // modded instance with no runtime refuses rather than quietly running vanilla.
+                match resolve_loader_runtime(
+                    &instance.settings,
+                    self.config.loader_dist_dir.as_deref(),
+                )? {
+                    Some(loader) => {
+                        build_loader_command(&self.paths, &inputs, &platform, &loader)?
+                    }
+                    None => build_client_command(&self.paths, &inputs, &platform)?,
+                }
+            }
             InstanceKind::Server => build_server_command(&self.db, &self.paths, &inputs)
                 .map_err(|err| match err {
                     crate::CoreError::NotFound { what: "server EULA acceptance", .. } => {
@@ -927,5 +1019,107 @@ mod memory_tests {
         // A 10 GB modpack allocation is legitimate and must survive unchanged.
         assert_eq!(resolve_memory_mib(&serde_json::json!({ "memoryMib": 10240 })), 10240);
         assert_eq!(resolve_memory_mib(&serde_json::json!({ "memoryMib": 2048 })), 2048);
+    }
+}
+
+#[cfg(test)]
+mod loader_routing_tests {
+    use super::{loader_managed_kind, resolve_loader_runtime};
+
+    #[test]
+    fn vanilla_settings_are_not_loader_managed() {
+        assert_eq!(loader_managed_kind(&serde_json::json!({})), None);
+        assert_eq!(
+            loader_managed_kind(&serde_json::json!({ "importedLoader": { "kind": "vanilla" } })),
+            None,
+            "an explicit vanilla loader is still a direct launch",
+        );
+    }
+
+    #[test]
+    fn a_mod_loader_is_detected_by_kind() {
+        assert_eq!(
+            loader_managed_kind(&serde_json::json!({ "importedLoader": { "kind": "neoforge" } })),
+            Some("neoforge".to_owned()),
+        );
+        assert_eq!(
+            loader_managed_kind(&serde_json::json!({ "importedLoader": { "kind": "fabric" } })),
+            Some("fabric".to_owned()),
+        );
+    }
+
+    #[test]
+    fn vanilla_instance_resolves_to_no_runtime() {
+        // Ok(None) — launch directly, no loader dist consulted even if one exists.
+        let resolved = resolve_loader_runtime(&serde_json::json!({}), None).expect("ok");
+        assert!(resolved.is_none());
+    }
+
+    #[test]
+    fn modded_instance_without_a_runtime_refuses() {
+        // The core promise: a modded pack with no loader configured errors clearly rather than
+        // silently launching vanilla and eating the mods.
+        let settings = serde_json::json!({ "importedLoader": { "kind": "neoforge" } });
+        let err = resolve_loader_runtime(&settings, None).expect_err("must refuse");
+        assert_eq!(err.kind, "usage");
+        assert!(err.message.contains("neoforge"), "{}", err.message);
+        assert!(err.message.contains("OMNI_LOADER_DIST"), "{}", err.message);
+    }
+
+    #[test]
+    fn a_staged_distribution_resolves_to_a_runtime() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let dist = dir.path();
+        std::fs::write(
+            dist.join("loader.json"),
+            "{\"mainClass\":\"org.omniframework.loader.bootstrap.OmniLoaderBootstrap\",\
+             \"version\":\"0.1.0\"}",
+        )
+        .expect("write manifest");
+        let lib = dist.join("lib");
+        std::fs::create_dir_all(&lib).expect("lib dir");
+        std::fs::write(lib.join("loader-bootstrap-0.1.0.jar"), b"jar").expect("jar a");
+        std::fs::write(lib.join("loader-core-0.1.0.jar"), b"jar").expect("jar b");
+        // A non-jar in lib/ must be ignored, not put on the classpath.
+        std::fs::write(lib.join("README.txt"), b"not a jar").expect("txt");
+
+        let settings = serde_json::json!({ "importedLoader": { "kind": "neoforge" } });
+        let runtime = resolve_loader_runtime(&settings, Some(dist))
+            .expect("ok")
+            .expect("a runtime");
+
+        assert_eq!(
+            runtime.main_class,
+            "org.omniframework.loader.bootstrap.OmniLoaderBootstrap",
+        );
+        assert_eq!(runtime.classpath.len(), 2, "only the two jars, not the README");
+        // Sorted for a stable command between runs.
+        assert!(runtime.classpath[0].ends_with("loader-bootstrap-0.1.0.jar"));
+        assert!(runtime.classpath[1].ends_with("loader-core-0.1.0.jar"));
+    }
+
+    #[test]
+    fn a_broken_distribution_refuses_with_detail() {
+        // Manifest present but lib/ empty: a malformed runtime must not resolve to a launch that
+        // fails cryptically at the JVM. Name the fault instead.
+        let dir = tempfile::tempdir().expect("tempdir");
+        let dist = dir.path();
+        std::fs::write(dist.join("loader.json"), "{\"mainClass\":\"X\",\"version\":\"0\"}")
+            .expect("manifest");
+        std::fs::create_dir_all(dist.join("lib")).expect("empty lib");
+
+        let settings = serde_json::json!({ "importedLoader": { "kind": "fabric" } });
+        let err = resolve_loader_runtime(&settings, Some(dist)).expect_err("must refuse");
+        assert_eq!(err.kind, "usage");
+        assert!(err.message.contains("no jars"), "{}", err.message);
+    }
+
+    #[test]
+    fn a_missing_manifest_refuses() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let settings = serde_json::json!({ "importedLoader": { "kind": "neoforge" } });
+        let err = resolve_loader_runtime(&settings, Some(dir.path())).expect_err("must refuse");
+        assert_eq!(err.kind, "usage");
+        assert!(err.message.contains("loader.json"), "{}", err.message);
     }
 }

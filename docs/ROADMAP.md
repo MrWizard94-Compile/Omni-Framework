@@ -118,7 +118,7 @@ identity — a correction to brick 10's core classloader, done deliberately, not
 resolver candidates, and separates jars awaiting a compat claimer — counted and reported,
 never dropped. The orchestration that composes discovery with resolve/transform/mixin/
 entrypoint/launch is the next unit, and starts from the classloader finding above.
-| B2 | Launcher ↔ loader bridge — `omni-core` launch builds a command that boots through `loader-bootstrap` (loader jars + game on the classpath) for loader-managed instances, and the import adds a loader component to the stack | A modded instance launches through OmniLoader instead of vanilla | high |
+| B2 | Launcher ↔ loader bridge — `omni-core` launch builds a command that boots through `loader-bootstrap` for loader-managed instances, routed by the imported loader kind and the staged distribution | ✅ 2026-07-21 — loader-side game/library handoff, staged JVM-verified distribution, `build_loader_command`, and `resolve_loader_runtime` routing. A modded instance now launches through OmniLoader; its mods still await B3's claimer. | high |
 | B3 | `compat-neoforge` (was brick 16) — NeoForge mods translate and load through B1's flow | The director's real packs run | **extreme** |
 | B4 | Mixed-pack proof — native + Fabric + NeoForge in one instance, the ADR-0020 exit criterion | The product thesis, demonstrated | high |
 

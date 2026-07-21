@@ -90,6 +90,7 @@ fn harness() -> Harness {
         meta_url: "dir://golden".to_owned(),
         client_id: omni_core::auth::DEV_CLIENT_ID.to_owned(),
         vault_service: "OmniLauncher-test".to_owned(),
+        loader_dist_dir: None,
     };
     let vault = Arc::new(MemoryVault::new());
     let service = AppService::with_parts(
@@ -367,6 +368,7 @@ fn a_job_that_fails_before_running_still_reports_failure() {
             meta_url: "dir://empty".to_owned(),
             client_id: omni_core::auth::DEV_CLIENT_ID.to_owned(),
             vault_service: "OmniLauncher-test".to_owned(),
+            loader_dist_dir: None,
         },
         db,
         clock,
