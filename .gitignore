@@ -50,3 +50,6 @@ Desktop.ini
 
 # Scratch data from the server_smoke example (real game artifacts, never committed).
 server-smoke-data/
+
+# The staged loader distribution (build artifact, reproducible from the module).
+OmniLoader/*/build/loader-dist/
