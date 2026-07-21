@@ -13,6 +13,7 @@
 
 use serde::{Deserialize, Serialize};
 
+use crate::export::ExportReport;
 use crate::store::{
     Account, Ecosystem, Instance, InstanceKind, Job, JobState, Mod, PortStatus, StackEntry,
 };
@@ -248,6 +249,34 @@ pub struct SkippedDto {
     pub item: String,
     /// Why.
     pub reason: String,
+}
+
+/// The outcome of an instance export (Phase 5 / ADR-0014).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExportReportDto {
+    /// Format slug: `mrpack`, `curseforge`, or `omni`.
+    pub format: String,
+    /// Primary output path (file or folder).
+    pub path: String,
+    /// Mods included in the export document or overrides.
+    pub mods_exported: usize,
+    /// Human-readable skip reasons.
+    pub skipped: Vec<String>,
+    /// Human-relevant notes.
+    pub notes: Vec<String>,
+}
+
+impl From<ExportReport> for ExportReportDto {
+    fn from(report: ExportReport) -> Self {
+        Self {
+            format: report.format.as_str().to_owned(),
+            path: report.path.display().to_string(),
+            mods_exported: report.mods_exported,
+            skipped: report.skipped,
+            notes: report.notes,
+        }
+    }
 }
 
 /// A tail of a process's captured log (the server console surface).

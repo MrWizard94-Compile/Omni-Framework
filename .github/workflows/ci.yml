@@ -1,0 +1,65 @@
+# Omni-Framework CI — Phase 5 stabilization gate.
+# Mirrors docs/TEST_MATRIX.md "Always" rows (no live network secrets).
+
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  CARGO_TERM_COLOR: always
+  RUSTFLAGS: -D warnings
+
+jobs:
+  rust:
+    name: rust (test + clippy)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+      - name: cargo test --workspace
+        run: cargo test --workspace
+      - name: cargo clippy (silent)
+        run: cargo clippy --workspace --all-targets -- -D warnings
+
+  omniloader:
+    name: omniloader (gradle)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: gradle
+      - name: gradle build
+        working-directory: OmniLoader
+        run: ./gradlew build --no-daemon
+
+  intelligence:
+    name: intelligence (pytest + ruff + mypy)
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: intelligence
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+      - name: install dev tools
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements-dev.txt
+      - name: pytest
+        run: python -m pytest
+      - name: ruff
+        run: python -m ruff check .
+      - name: mypy
+        run: python -m mypy tools

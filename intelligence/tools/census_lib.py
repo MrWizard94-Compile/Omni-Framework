@@ -1069,7 +1069,22 @@ def json_get(
 ) -> Any:
     status, _resp_headers, body = transport.request("GET", url, headers=headers)
     if status != 200:
-        raise CensusError(f"GET {url} → HTTP {status}: {body[:200]!r}")
+        hint = ""
+        if status == 403 and "api.curseforge.com" in url:
+            hint = (
+                "\n\nCurseForge 403 usually means the key is not a *third-party* "
+                "Core API key approved for Minecraft — not a PowerShell quoting bug "
+                "(if the env var is 60 chars and starts with $2a$10$).\n"
+                "  1. Apply: https://forms.monday.com/forms/"
+                "dce5ccb7afda9a1c21dab1a1aa1d84eb?r=use1\n"
+                "  2. Wait for Overwolf approval email, then generate the key at "
+                "https://console.curseforge.com/\n"
+                "  3. Set with *single* quotes so $ is literal:\n"
+                "       $env:CURSEFORGE_API_KEY = '$2a$10$...'\n"
+                "  Docs: https://support.curseforge.com/en/support/solutions/"
+                "articles/9000208346-about-the-curseforge-api-and-how-to-apply-for-a-key"
+            )
+        raise CensusError(f"GET {url} → HTTP {status}: {body[:200]!r}{hint}")
     return json.loads(body.decode("utf-8"))
 
 

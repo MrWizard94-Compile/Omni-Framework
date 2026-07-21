@@ -29,11 +29,23 @@ cd intelligence
 .venv\Scripts\python -m pip install -r requirements-dev.txt
 ```
 
-**CurseForge** requires an API key from [console.curseforge.com](https://console.curseforge.com/)
-(COMPLIANCE §5). Export it before a CF fetch:
+**CurseForge** requires a **third-party Core API key** (COMPLIANCE §5). A key you
+mint after only signing up for “CurseForge for Studios” (game-developer console)
+often returns `403 Forbidden: API Key missing or invalid` for Minecraft —
+Studios keys are not automatically Minecraft third-party keys.
+
+1. **Apply** (Overwolf review):  
+   https://forms.monday.com/forms/dce5ccb7afda9a1c21dab1a1aa1d84eb?r=use1  
+   Guide: https://support.curseforge.com/en/support/solutions/articles/9000208346-about-the-curseforge-api-and-how-to-apply-for-a-key
+2. After approval, generate the key at https://console.curseforge.com/
+3. Set it in PowerShell with **single quotes** (`$` is part of the key):
 
 ```powershell
-$env:CURSEFORGE_API_KEY = "<your key>"   # never commit; never log
+# Single quotes REQUIRED — double quotes corrupt $2a$10$... keys
+$env:CURSEFORGE_API_KEY = '$2a$10$...'   # never commit; never log
+# Sanity (expect Length ~60 and Substring(0,7) = $2a$10$):
+$env:CURSEFORGE_API_KEY.Length
+$env:CURSEFORGE_API_KEY.Substring(0, 7)
 ```
 
 Modrinth needs no key. Both clients send a descriptive `User-Agent` and back off

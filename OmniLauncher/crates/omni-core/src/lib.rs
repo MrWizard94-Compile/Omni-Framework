@@ -39,6 +39,7 @@ pub mod clock;
 pub mod db;
 pub mod error;
 pub mod events;
+pub mod export;
 pub mod import;
 pub mod install;
 pub mod jobs;

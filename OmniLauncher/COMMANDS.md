@@ -164,6 +164,17 @@ Format slugs: `curseforge`, `prism-multimc`, `mrpack`, `official-launcher`. Sour
 are read, never modified or moved. The report lists everything that did *not* map, with
 reasons — migration tools that silently drop content are why users distrust them.
 
+### Export (Phase 5 / ADR-0014)
+
+| Command | Arguments | Returns |
+|---|---|---|
+| `export_instance` | `instanceId`, `format`, `dest`, `includeModFiles` | `ExportReport` |
+
+Format slugs: `mrpack` (file), `curseforge` (directory + `manifest.json`), `omni`
+(`.omnipack.json`). When `includeModFiles` is true, jars under the instance `mods/`
+folder are packed into overrides. No CDN download URLs are invented — packs are
+self-contained or CF-id based. Skips are reported, never silent.
+
 ### Settings
 
 | Command | Arguments | Returns |

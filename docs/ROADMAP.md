@@ -196,9 +196,18 @@ path needs no Microsoft account at all and is exercised end to end by
 `cargo run -p omni-core --example server_smoke` (measured 2026-07-20: cold 17.0s, warm
 6.0s, server jar hash-verified against its content-addressed name).
 
-## Phase 5 — Stabilization ⬜
+## Phase 5 — Stabilization ✅ (2026-07-21)
 
-Test matrix, zero-warning hardening across all three languages, docs completion, release engineering (SOUL §34): signed/checksummed artifacts, changelogs, upgrade paths.
+Test matrix, zero-warning hardening across all three languages, docs completion, release engineering (SOUL §34): signed/checksummed artifacts, changelogs, upgrade paths. **ADR-0014 export writers landed.**
+
+| Brick | Deliverable | Status |
+|---|---|---|
+| S1 | Instance export: `.mrpack`, CurseForge `manifest.json`+overrides, Omni `omni.pack.json` v0 (`omni-core::export`, IPC `export_instance`, golden tests) | ✅ 2026-07-21 |
+| S2 | Test matrix doc (`docs/TEST_MATRIX.md`) + CI workflow (`.github/workflows/ci.yml`) for Rust / Gradle / intelligence | ✅ 2026-07-21 |
+| S3 | Release engineering: `CHANGELOG.md`, `docs/RELEASE.md`, `scripts/checksum-release.ps1`, upgrade-path notes | ✅ 2026-07-21 |
+| S4 | Docs sync (COMMANDS.md, ROADMAP/CLAUDE, root README status) | ✅ 2026-07-21 |
+
+Phase 4 live-window findings remain tracked as ordinary bugs under the matrix; the formal Phase 5 **exit** is the gates and export surface above, not a second E2E product freeze.
 
 ## Phase 6 — Mod Census & Tiering ▶ (started 2026-07-21)
 

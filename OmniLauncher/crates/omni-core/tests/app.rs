@@ -753,6 +753,33 @@ fn import_commands_reject_unknown_formats() {
     assert!(err.message.contains("not-a-format"));
 }
 
+#[test]
+fn export_instance_writes_omni_pack_and_rejects_unknown_format() {
+    let h = harness();
+    let created = h
+        .service
+        .create_instance("To Export", "1.21.1", InstanceKind::Client)
+        .expect("create");
+    let out_dir = tempfile::tempdir().expect("export dir");
+    let dest = out_dir.path().join("out.omnipack.json");
+    let report = h
+        .service
+        .export_instance(created.id, "omni", &dest.to_string_lossy(), false)
+        .expect("export");
+    assert_eq!(report.format, "omni");
+    assert!(std::path::Path::new(&report.path).is_file());
+    let doc: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(&report.path).expect("read")).expect("json");
+    assert_eq!(doc["schema"], 0);
+    assert_eq!(doc["name"], "To Export");
+
+    let err = h
+        .service
+        .export_instance(created.id, "not-a-format", &dest.to_string_lossy(), false)
+        .expect_err("bad format");
+    assert_eq!(err.kind, "usage");
+}
+
 // ===========================================================================
 // Settings + wire contract
 // ===========================================================================

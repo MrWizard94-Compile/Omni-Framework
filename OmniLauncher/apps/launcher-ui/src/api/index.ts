@@ -14,6 +14,7 @@ import type {
   CoreEvent,
   DetectedFormat,
   DeviceCode,
+  ExportReport,
   ImportCandidate,
   ImportReport,
   InstanceDetail,
@@ -112,6 +113,20 @@ export const enumerateImport = (path: string, format: string) =>
 
 export const runImport = (candidate: ImportCandidate) =>
   invoke<ImportReport>("run_import", { candidate });
+
+/** Export instance as mrpack / curseforge / omni (Phase 5 / ADR-0014). */
+export const exportInstance = (
+  instanceId: number,
+  format: string,
+  dest: string,
+  includeModFiles: boolean,
+) =>
+  invoke<ExportReport>("export_instance", {
+    instanceId,
+    format,
+    dest,
+    includeModFiles,
+  });
 
 // --- settings --------------------------------------------------------------
 

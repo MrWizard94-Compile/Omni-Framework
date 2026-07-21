@@ -9,7 +9,7 @@
 use std::sync::Arc;
 
 use omni_core::app::{
-    AccountDto, AppError, AppService, ConsoleTail, DetectedFormat, DeviceCodeDto,
+    AccountDto, AppError, AppService, ConsoleTail, DetectedFormat, DeviceCodeDto, ExportReportDto,
     ImportCandidateDto, ImportReportDto, InstanceDetail, InstanceSummary, JobDto, VersionOption,
 };
 use omni_core::store::InstanceKind;
@@ -371,6 +371,21 @@ pub async fn run_import(
     blocking(Arc::clone(&service), move |s| s.run_import(&candidate)).await
 }
 
+/// Exports an instance to mrpack / curseforge / omni (Phase 5 / ADR-0014).
+#[tauri::command]
+pub async fn export_instance(
+    service: State<'_, Arc<AppService>>,
+    instance_id: i64,
+    format: String,
+    dest: String,
+    include_mod_files: bool,
+) -> Result<ExportReportDto, AppError> {
+    blocking(Arc::clone(&service), move |s| {
+        s.export_instance(instance_id, &format, &dest, include_mod_files)
+    })
+    .await
+}
+
 // ----------------------------------------------------------------- settings
 
 /// A global setting value.
@@ -420,6 +435,7 @@ pub fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static 
         detect_import,
         enumerate_import,
         run_import,
+        export_instance,
         get_setting,
         set_setting,
     ]

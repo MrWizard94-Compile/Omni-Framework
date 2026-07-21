@@ -132,6 +132,15 @@ export interface ImportReport {
   notes: string[];
 }
 
+/** Phase 5 / ADR-0014 export outcome. */
+export interface ExportReport {
+  format: "mrpack" | "curseforge" | "omni" | string;
+  path: string;
+  modsExported: number;
+  skipped: string[];
+  notes: string[];
+}
+
 export interface ConsoleTail {
   path: string;
   lines: string[];

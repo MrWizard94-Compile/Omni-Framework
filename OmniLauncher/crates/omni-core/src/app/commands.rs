@@ -23,12 +23,13 @@ use std::sync::Arc;
 
 use crate::app::dto::{account_dto, job_dto, summary_of};
 use crate::app::{
-    AccountDto, AppError, AppService, ConsoleTail, DetectedFormat, DeviceCodeDto,
+    AccountDto, AppError, AppService, ConsoleTail, DetectedFormat, DeviceCodeDto, ExportReportDto,
     ImportCandidateDto, ImportReportDto, InstanceDetail, InstanceSummary, JobDto, ModDto,
     SkippedDto, VersionOption,
 };
 use crate::auth::{AuthService, LaunchAuth};
 use crate::events::CoreEvent;
+use crate::export::{ExportFormat, ExportInput, export_instance};
 use crate::import::{
     Candidate, Confidence, CurseForgeImporter, ImportFormat, Importer, MrpackImporter,
     OfficialImporter, PrismImporter, detect_all,
@@ -960,6 +961,51 @@ impl AppService {
                 .collect(),
             notes: report.notes,
         })
+    }
+
+    /// Exports an instance to a foreign or Omni pack format (Phase 5 / ADR-0014).
+    ///
+    /// `format` is one of `mrpack`, `curseforge`, `omni`. `dest` is a file path
+    /// for mrpack/omni, or a directory for curseforge. When `include_mod_files`
+    /// is true, jars under the instance's `mods/` folder are packed as overrides.
+    ///
+    /// # Errors
+    ///
+    /// [`AppError`] `usage` for an unknown format; `notFound` for a missing
+    /// instance; `io` / `store` on write failures.
+    pub fn export_instance(
+        &self,
+        instance_id: i64,
+        format: &str,
+        dest: &str,
+        include_mod_files: bool,
+    ) -> Result<ExportReportDto, AppError> {
+        let format = ExportFormat::parse(format).map_err(|err| AppError::usage(err.to_string()))?;
+        let dest_path = PathBuf::from(dest);
+        let (instance, stack, mods) = self.db.with_store(|store| {
+            let instance = store
+                .instance(instance_id)?
+                .ok_or(crate::CoreError::NotFound { what: "instance", id: instance_id })?;
+            let stack = store.component_stack(instance_id)?;
+            let mods = store.mods_for_instance(instance_id)?;
+            Ok((instance, stack, mods))
+        })?;
+        let mods_dir = if include_mod_files {
+            Some(self.paths().instance_dir(instance_id).join("mods"))
+        } else {
+            None
+        };
+        let report = export_instance(
+            format,
+            &ExportInput {
+                instance: &instance,
+                stack: &stack,
+                mods: &mods,
+                mods_dir: mods_dir.as_deref(),
+                dest: &dest_path,
+            },
+        )?;
+        Ok(ExportReportDto::from(report))
     }
 }
 

@@ -5,7 +5,7 @@
 By **Wizard Productions AI Studio** ([wpaistudio.net](https://wpaistudio.net)) · Director: **MrWizard94**
 Target: **Minecraft 1.21.1** first, then forward.
 
-> **SOUL IS LAW.** Every contribution to this repository is governed by [`SOULv2.0.0.md`](SOULv2.0.0.md) — the constitution. Read it before touching anything.
+> **SOUL IS LAW.** Every contribution to this repository is governed by [`SOUL.md`](SOUL.md) — the constitution. Read it before touching anything.
 
 ---
 
@@ -23,7 +23,7 @@ The modding ecosystem is fragmented across loaders (Fabric, NeoForge, Forge, Qui
 
 | Read | To learn |
 |------|----------|
-| [`SOULv2.0.0.md`](SOULv2.0.0.md) | The constitution. Non-negotiable. |
+| [`SOUL.md`](SOUL.md) | The constitution. Non-negotiable. |
 | [`CLAUDE.md`](CLAUDE.md) | AI/contributor onboarding: conventions, current phase, commands. |
 | [`docs/ROADMAP.md`](docs/ROADMAP.md) | The 8-phase program plan and current status. |
 | [`docs/DECISIONS.md`](docs/DECISIONS.md) | Architecture Decision Records (why things are the way they are). |
@@ -34,7 +34,7 @@ The modding ecosystem is fragmented across loaders (Fabric, NeoForge, Forge, Qui
 
 ```
 Omni_Framework/
-├── SOULv2.0.0.md          # The constitution — SOUL IS LAW
+├── SOUL.md                # The constitution — SOUL IS LAW
 ├── CLAUDE.md              # AI onboarding + conventions
 ├── docs/                  # Roadmap, ADRs, compliance
 ├── intelligence/          # Vivisection database, tooling, analyses, dossiers
@@ -50,7 +50,9 @@ Omni_Framework/
 
 ## Status
 
-**Phase 0 — Foundation** ✅ · **Phase 1 — Vivisection Corpus** ✅ (14/14) · **Phase 2 — Feature Synthesis** ✅ ([`docs/REQUIREMENTS.md`](docs/REQUIREMENTS.md) binding) · **Phase 3 — Architecture Design** ✅ (2026-07-18, architecture specs + ADRs 0009–0014) · **Phase 4 — MVP Implementation** ▶ next (first code).
+**Phase 0 — Foundation** ✅ · **Phase 1 — Vivisection Corpus** ✅ · **Phase 2 — Feature Synthesis** ✅ · **Phase 3 — Architecture Design** ✅ · **Phase 4 — MVP Implementation** ▶ (bricks 1–14 + B1–B2; E2E window walkthrough open) · **Phase 5 — Stabilization** ✅ (export + test matrix + release engineering, 2026-07-21) · **Phase 6 — Mod Census** ▶ (Modrinth indexed; CF key pending).
+
+See [`docs/ROADMAP.md`](docs/ROADMAP.md), [`docs/TEST_MATRIX.md`](docs/TEST_MATRIX.md), [`docs/RELEASE.md`](docs/RELEASE.md).
 
 ## Legal
 

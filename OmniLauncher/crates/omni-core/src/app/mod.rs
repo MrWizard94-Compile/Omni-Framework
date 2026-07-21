@@ -39,9 +39,9 @@ mod commands;
 mod dto;
 
 pub use dto::{
-    AccountDto, ConsoleTail, DetectedFormat, DeviceCodeDto, ImportCandidateDto, ImportReportDto,
-    InstanceDetail, InstanceSummary, JobDto, LoaderRef, ModDto, SkippedDto, StackEntryDto,
-    VersionOption,
+    AccountDto, ConsoleTail, DetectedFormat, DeviceCodeDto, ExportReportDto, ImportCandidateDto,
+    ImportReportDto, InstanceDetail, InstanceSummary, JobDto, LoaderRef, ModDto, SkippedDto,
+    StackEntryDto, VersionOption,
 };
 
 use std::collections::BTreeMap;
