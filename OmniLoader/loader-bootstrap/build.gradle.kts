@@ -13,12 +13,18 @@
 dependencies {
     api(project(":loader-core"))
     api(project(":loader-resolve"))
+    api(project(":loader-transform"))
+    api(project(":loader-mixin"))
     api(project(":provider-minecraft"))
     api(project(":omni-api"))
     // Compat layers are part of the staged runtime so discovery can claim Fabric/NeoForge jars.
     api(project(":compat-api"))
     api(project(":compat-fabric"))
     api(project(":compat-neoforge"))
+    // Mixin expects Guava/Gson from the game at runtime; the bootstrap classpath
+    // must supply them before the game partitions exist.
+    implementation("com.google.guava:guava:32.1.2-jre")
+    implementation("com.google.code.gson:gson:2.10.1")
 }
 
 // ---------------------------------------------------------------------------

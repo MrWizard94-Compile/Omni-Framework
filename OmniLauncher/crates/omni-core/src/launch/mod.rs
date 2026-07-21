@@ -12,6 +12,8 @@
 //! self-extracts. Older versions become data + a small extract pass when the
 //! census demands them (TGT-2).
 
+mod mappings;
+
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 use std::process::{Child, Command, Stdio};
@@ -344,6 +346,13 @@ pub fn build_loader_command(
     for library in libraries {
         loader_args.push("--library".to_owned());
         loader_args.push(library);
+    }
+    // Fabric remap: intermediary tiny + Mojang proguard (composed inside OmniLoader).
+    if let Ok(maps) = mappings::ensure_mapping_files(paths, game, &game.version) {
+        loader_args.push("--intermediary-tiny".to_owned());
+        loader_args.push(maps.intermediary_tiny.to_string_lossy().into_owned());
+        loader_args.push("--mojang-mappings".to_owned());
+        loader_args.push(maps.mojang_proguard.to_string_lossy().into_owned());
     }
 
     let mut args: Vec<String> = vec![format!("-Xmx{}M", heap_mib(inputs.memory_mib))];

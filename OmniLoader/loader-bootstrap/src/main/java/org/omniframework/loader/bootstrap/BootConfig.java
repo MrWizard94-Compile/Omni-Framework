@@ -33,6 +33,9 @@ import org.omniframework.loader.provider.LocatedGame;
  * @param launchArguments the arguments handed to the game's {@code main}, in order
  * @param libraries the game's runtime library jars, added as partitions
  * @param providedGame a game the launcher already located, or empty to discover one
+ * @param intermediaryTiny Fabric intermediary Tiny v2 file (optional)
+ * @param mojangProguard Mojang client/server mappings text (optional)
+ * @param composedTiny precomposed intermediary→official Tiny v2 (optional; wins if set)
  */
 public record BootConfig(
         Path gameDirectory,
@@ -40,7 +43,10 @@ public record BootConfig(
         GameSide side,
         List<String> launchArguments,
         List<Path> libraries,
-        Optional<LocatedGame> providedGame) {
+        Optional<LocatedGame> providedGame,
+        Optional<Path> intermediaryTiny,
+        Optional<Path> mojangProguard,
+        Optional<Path> composedTiny) {
 
     /** Canonical constructor; defensively copies. */
     public BootConfig {
@@ -50,6 +56,9 @@ public record BootConfig(
         launchArguments = List.copyOf(Objects.requireNonNull(launchArguments, "launchArguments"));
         libraries = List.copyOf(Objects.requireNonNull(libraries, "libraries"));
         Objects.requireNonNull(providedGame, "providedGame");
+        Objects.requireNonNull(intermediaryTiny, "intermediaryTiny");
+        Objects.requireNonNull(mojangProguard, "mojangProguard");
+        Objects.requireNonNull(composedTiny, "composedTiny");
     }
 
     /**
@@ -60,7 +69,40 @@ public record BootConfig(
      */
     public BootConfig(
             Path gameDirectory, Path modsDirectory, GameSide side, List<String> launchArguments) {
-        this(gameDirectory, modsDirectory, side, launchArguments, List.of(), Optional.empty());
+        this(
+                gameDirectory,
+                modsDirectory,
+                side,
+                launchArguments,
+                List.of(),
+                Optional.empty(),
+                Optional.empty(),
+                Optional.empty(),
+                Optional.empty());
+    }
+
+    /**
+     * Launcher / test shape with provided game and libraries, no mappings.
+     *
+     * <p>Kept for integration tests and callers that do not yet pass mapping paths.
+     */
+    public BootConfig(
+            Path gameDirectory,
+            Path modsDirectory,
+            GameSide side,
+            List<String> launchArguments,
+            List<Path> libraries,
+            Optional<LocatedGame> providedGame) {
+        this(
+                gameDirectory,
+                modsDirectory,
+                side,
+                launchArguments,
+                libraries,
+                providedGame,
+                Optional.empty(),
+                Optional.empty(),
+                Optional.empty());
     }
 
     /** The common provider-mode shape: mods live in {@code <gameDirectory>/mods}. */

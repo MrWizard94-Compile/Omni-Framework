@@ -37,12 +37,14 @@ Versions follow the workspace package version in `Cargo.toml` unless noted.
   - `omni_port.db` + license classifier + human-gated outreach drafts (`tools/port_queue.py`,
     ADR-0023). S+A intake from C4: 6066 rows. Not a full autonomous porter.
 
-- **Mod pack file path (loadable jars)**
+- **Mod pack load path**
   - Import/launch **materializes** mod jars into `instances/<id>/game/mods/` from Prism/CF/…
   - Auto-resolve `OMNI_LOADER_DIST` from monorepo `loader-dist` when env unset.
-  - Boot installs `OmniFabricLoader` + runs Fabric `client`/`server` entrypoint phases.
-  - Still follow-on: intermediary→official remap + Mixin on the live boot path (many
-    published Fabric jars need both).
+  - Boot installs `OmniFabricLoader` + Fabric `client`/`server` entrypoints.
+  - **AOT remap**: launcher fetches Fabric intermediary + Mojang client mappings;
+    OmniLoader composes intermediary→official and runs `TransformService.ensure`.
+  - **Mixin**: `loader-mixin` on bootstrap dist; service install + load-time transformer.
+  - Still open: mrpack remote downloads; NeoForge event-bus / pack AOT; Phase 7 P2–P5.
 
 ### Changed
 

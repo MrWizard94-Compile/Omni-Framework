@@ -251,8 +251,8 @@ Per-mod port queue for top tiers: license check → (if restrictive) author outr
 | Route loader-managed launch via OmniLoader (`OMNI_LOADER_DIST`) | ✅ auto-probe monorepo `loader-dist` |
 | Fabric claim + entrypoints + `FabricLoader.getInstance()` | ✅ |
 | Client/server Fabric entrypoint phases | ✅ |
-| Intermediary→official remap on boot | ⬜ (module exists; boot still identity) |
-| Mixin on boot dist | ⬜ (module exists; not staged in boot path) |
+| Intermediary→official remap on boot | ✅ compose Fabric intermediary Tiny + Mojang proguard; `TransformService.ensure` |
+| Mixin on boot dist | ✅ `loader-mixin` on dist; install + `MixinClassTransformer` (best-effort) |
 | mrpack remote download of mods | ⬜ |
 | NeoForge event bus / pack AOT | ⬜ |
 

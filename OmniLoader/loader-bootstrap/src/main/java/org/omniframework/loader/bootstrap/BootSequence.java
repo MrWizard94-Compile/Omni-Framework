@@ -28,6 +28,13 @@ import org.omniframework.loader.core.PartitionRegistry;
 import org.omniframework.loader.core.entrypoint.EntrypointDispatcher;
 import org.omniframework.loader.core.resource.JarResourceRoot;
 import org.omniframework.loader.diag.IssueCollector;
+import org.omniframework.loader.mixin.CompatibilityLevels;
+import org.omniframework.loader.mixin.MixinClassTransformer;
+import org.omniframework.loader.mixin.MixinServiceOmni;
+import org.omniframework.loader.mixin.OmniAuditTrail;
+import org.omniframework.loader.mixin.OmniBytecodeProvider;
+import org.omniframework.loader.mixin.OmniClassProvider;
+import org.omniframework.loader.mixin.OmniClassTracker;
 import org.omniframework.loader.model.ModMetadata;
 import org.omniframework.loader.model.ModVersion;
 import org.omniframework.loader.provider.GameProvider;
@@ -36,6 +43,7 @@ import org.omniframework.loader.provider.LocatedGame;
 import org.omniframework.loader.resolve.ModCandidate;
 import org.omniframework.loader.resolve.ResolutionResult;
 import org.omniframework.loader.resolve.Resolver;
+import org.omniframework.loader.transform.mapping.MappingSet;
 
 /**
  * Full boot: locate → discover (native + compat claimers) → resolve → partition → entrypoints →
@@ -83,11 +91,16 @@ public final class BootSequence {
                 .filter(candidate -> realModIds.contains(candidate.id()))
                 .toList();
 
+        // AOT remap Fabric/NeoForge jars into official names when mappings are present.
+        MappingSet mappings = BootTransform.loadMappings(config, issues);
+        Path transformCache = config.gameDirectory().resolve(".omniloader").resolve("transform-cache");
+        realMods = BootTransform.ensure(
+                realMods, ecosystems, mappings, config.side(), transformCache, issues);
+
         PartitionRegistry registry = buildPartitions(game, config.libraries(), realMods, ecosystems);
         try {
-            // Identity transformer until intermediary→official mappings are fed at boot
-            // (loader-transform is built; wiring mappings from the launcher is follow-on).
-            GameLauncher launcher = new GameLauncher(registry, ClassTransformer.identity());
+            ClassTransformer transformer = buildLoadTimeTransformer(registry, realMods, issues);
+            GameLauncher launcher = new GameLauncher(registry, transformer);
             OmniTransformingClassLoader loader = launcher.newClassLoader();
             try {
                 installFabricLoader(config, game, realMods);
@@ -103,6 +116,50 @@ public final class BootSequence {
                     discovered.unclaimedCount()));
         } finally {
             closeQuietly(registry);
+        }
+    }
+
+    /**
+     * Installs Mixin (when available on the classpath) and returns a load-time transformer
+     * chain ending with {@link MixinClassTransformer}. Falls back to identity if Mixin cannot
+     * start — fixtures and native-only packs still boot.
+     */
+    private static ClassTransformer buildLoadTimeTransformer(
+            PartitionRegistry registry, List<ModCandidate> realMods, IssueCollector issues) {
+        try {
+            OmniClassTracker tracker = new OmniClassTracker();
+            OmniAuditTrail audit = new OmniAuditTrail();
+            OmniClassProvider classProvider =
+                    new OmniClassProvider(BootSequence.class.getClassLoader(), List.of());
+            OmniBytecodeProvider bytecode =
+                    OmniBytecodeProvider.ofClassLoader(BootSequence.class.getClassLoader());
+            MixinServiceOmni.install(new MixinServiceOmni.Wiring(
+                    classProvider, bytecode, tracker, audit, CompatibilityLevels.forGame(65)));
+            org.spongepowered.asm.launch.MixinBootstrap.init();
+            for (ModCandidate mod : realMods) {
+                for (String config : mod.metadata().mixinConfigs()) {
+                    try {
+                        org.spongepowered.asm.mixin.Mixins.addConfiguration(config);
+                    } catch (RuntimeException e) {
+                        issues.add(org.omniframework.loader.diag.OmniIssue.warning("boot.mixin.config")
+                                .at(mod.id())
+                                .with(config, String.valueOf(e.getMessage()))
+                                .remedy("Mixin config failed to register; the mod may misbehave")
+                                .build());
+                    }
+                }
+            }
+            MixinServiceOmni service = new MixinServiceOmni();
+            MixinClassTransformer mixin =
+                    new MixinClassTransformer(service.createTransformer(), tracker);
+            return mixin;
+        } catch (Throwable t) {
+            issues.add(org.omniframework.loader.diag.OmniIssue.warning("boot.mixin.unavailable")
+                    .at("mixin")
+                    .with(t.getMessage() == null ? t.getClass().getSimpleName() : t.getMessage())
+                    .remedy("Continuing without Mixin application; mods that need mixins will fail")
+                    .build());
+            return ClassTransformer.identity();
         }
     }
 

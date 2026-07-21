@@ -84,12 +84,11 @@ cargo run -p omni-core --example server_smoke --release -- --accept-eula --launc
 
 3. **Install** the instance (vanilla game + Java), then **Launch**.
 
-**Honest limits (2026-07-21):** OmniLoader discovers those jars and runs Fabric
-entrypoints (`main`/`client`) with a real `FabricLoader.getInstance()`. **Bytecode
-is not yet remapped** (intermediary→official) and **Mixin is not yet installed on
-the boot path**, so many published Fabric jars will still crash until that wiring
-lands. Native Omni mods and fixture-class Fabric mods are the reliable path today.
-NeoForge packs are claim+`@Mod` construct only.
+**Boot path (2026-07-21):** OmniLoader stages jars, installs `FabricLoader`, runs
+`main`/`client` entrypoints, **AOT-remaps** hosted jars when intermediary + Mojang
+mappings are available (launcher downloads them on first loader launch), and
+**applies Mixin** when configs register. NeoForge remains construct-only (no
+event bus). mrpack remote mod downloads are still incomplete (folder imports work).
 
 ## If something goes wrong
 

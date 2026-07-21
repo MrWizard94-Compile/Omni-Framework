@@ -95,6 +95,21 @@ public final class MappingSet {
         return methods.size();
     }
 
+    /** Every class rename (source internal name → target internal name). */
+    public Map<String, String> classes() {
+        return classes;
+    }
+
+    /** Every field rename. */
+    public Map<MemberKey, String> fields() {
+        return fields;
+    }
+
+    /** Every method rename. */
+    public Map<MemberKey, String> methods() {
+        return methods;
+    }
+
     /** A one-line summary for logs and cache metadata. */
     public String describe() {
         return sourceNamespace + "→" + targetNamespace + " (" + classes.size() + " classes, "

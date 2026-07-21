@@ -92,6 +92,9 @@ public final class OmniLoaderBootstrap {
         List<Path> libraries = new ArrayList<>();
         String gameVersion = null;
         String gameMain = null;
+        Path intermediaryTiny = null;
+        Path mojangProguard = null;
+        Path composedTiny = null;
 
         int i = 0;
         while (i < args.length) {
@@ -159,6 +162,30 @@ public final class OmniLoaderBootstrap {
                     gameMain = value.get();
                     i += 2;
                 }
+                case "--intermediary-tiny" -> {
+                    Optional<String> value = valueFor(args, i, "--intermediary-tiny");
+                    if (value.isEmpty()) {
+                        return Optional.empty();
+                    }
+                    intermediaryTiny = Path.of(value.get());
+                    i += 2;
+                }
+                case "--mojang-mappings" -> {
+                    Optional<String> value = valueFor(args, i, "--mojang-mappings");
+                    if (value.isEmpty()) {
+                        return Optional.empty();
+                    }
+                    mojangProguard = Path.of(value.get());
+                    i += 2;
+                }
+                case "--mappings" -> {
+                    Optional<String> value = valueFor(args, i, "--mappings");
+                    if (value.isEmpty()) {
+                        return Optional.empty();
+                    }
+                    composedTiny = Path.of(value.get());
+                    i += 2;
+                }
                 case "--" -> {
                     // Everything after the separator is the game's, verbatim.
                     for (int g = i + 1; g < args.length; g++) {
@@ -183,7 +210,15 @@ public final class OmniLoaderBootstrap {
         }
         Path mods = modsDir != null ? modsDir : gameDir.resolve("mods");
         return Optional.of(new BootConfig(
-                gameDir, mods, side, launchArgs, List.copyOf(libraries), provided.get()));
+                gameDir,
+                mods,
+                side,
+                launchArgs,
+                List.copyOf(libraries),
+                provided.get(),
+                Optional.ofNullable(intermediaryTiny),
+                Optional.ofNullable(mojangProguard),
+                Optional.ofNullable(composedTiny)));
     }
 
     /**
