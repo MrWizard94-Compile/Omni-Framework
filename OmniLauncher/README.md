@@ -1,84 +1,48 @@
 # OmniLauncher
 
-**Status: Phase 4 implementation in progress.** The binding design is **[`ARCHITECTURE.md`](ARCHITECTURE.md)** (Phase 3 output, 2026-07-18): crate layering, SQLite schema draft, auth module, job-runner install pipeline, importer set, server instances. This README records the high-level constraints; the architecture doc governs.
+**Status: Phase 4/5 product MVP + LNC-9 platform clients + mrpack CDN download.**
+Binding design: [`ARCHITECTURE.md`](ARCHITECTURE.md). IPC contract:
+[`COMMANDS.md`](COMMANDS.md).
 
-Landed so far (brick order in `../docs/ROADMAP.md` Phase 4):
+## Stack
 
-- **`crates/omni-meta-client`** (2026-07-18) — the LNC-3 meta consumer: hash-chain-verified
-  fetch of the OmniMeta `/v1` tree, content-addressed self-healing cache, offline root
-  fallback with an explicit `Freshness` marker (SVC-2). Transport-abstracted
-  (`HttpSource` for the CDN, `DirSource` for local trees); synchronous by design —
-  `omni-core` wraps it in its async runtime's blocking facility. Tested against the
-  generator's committed golden tree, so both sides of the wire share one fixture.
-- **`crates/omni-core`** (2026-07-19, foundations) — the headless core (LNC-1/LNC-2/D5,
-  ADR-0015): bundled-SQLite database with WAL + forward-only embedded migrations
-  (schema v1: instances as component stacks, mods as entities, accounts holding vault
-  refs only, java runtimes, process sessions, settings, jobs); typed repositories whose
-  enums mirror every CHECK constraint; the resumable job runner with a guarded state
-  machine and a persisted resume point after every step — the "any prefix resumes to
-  completion" property from ARCHITECTURE §8 is a test that runs for every interrupt
-  point; the typed event stream foundation (`CoreEvent`/`EventSink`). Auth, installs,
-  and importers (bricks 4–6) build on these primitives.
-- **`omni-core::auth`** (2026-07-19, brick 4) — the COMPLIANCE §2 chain exactly:
-  device-code + PKCE-loopback Microsoft OAuth (consumers authority), XBL → XSTS with
-  the full `XErr` taxonomy as typed, remedy-bearing errors, Minecraft-services login /
-  entitlement / profile. Tokens live only in the OS credential vault (`keyring`,
-  trait-abstracted; in-memory vault for tests); the ADR-0011 14-day entitlement window
-  is stamped in the vault record AND the accounts row on every verification and slides
-  on silent renewal; `AuthService::launch_gate` is the single CPL-2 authority (online
-  verify → offline-within-window → hard stop; auth refusals never open the offline
-  path). Fixture-driven tests cover the whole chain; `examples/auth_probe.rs` is the
-  live-endpoint probe / dev sign-in CLI (validated against the real device-code
-  endpoint with the ADR-0016 client ID).
-- **`omni-core::{install, launch, platform}`** (2026-07-19, brick 5) — the LNC-5/6
-  pipeline: shared content-addressed sha1 blob cache with self-healing verification
-  (hmcl cross-instance lesson), meta-resolved install plans (client.json rule
-  evaluation, LWJGL requires-closure, official asset layout, auto-Java from the
-  `net.minecraft.java` component with runtime registration), and installs as resumable
-  jobs whose batched phases make a re-run a free repair pass (modrinth-app lesson).
-  Launch: argument assembly for both argument eras with feature flags, classpath over
-  the immutable cache (per-instance game dirs — MUST NOT #4), gated spawn with session
-  logs + process rows, and the D8 server variant behind an explicit, recorded EULA
-  acceptance. Version-scope note: extract-era natives are post-MVP (TGT-1 is 1.21.1,
-  where natives ride the classpath), documented in `launch`.
-- **`omni-core::import`** (2026-07-19, brick 6) — all four MVP migration surfaces
-  (LNC-7, D7) behind one `Importer` trait (`detect → enumerate → import`): CurseForge
-  App (`minecraftinstance.json`), Prism/MultiMC (`mmc-pack.json` + `instance.cfg`),
-  Modrinth `.mrpack`, and official-launcher profiles. Foreign formats stay read-only
-  surfaces — parsed leniently, mapped into instances-as-component-stacks and
-  mods-as-entities, never written back. Every import returns a typed `ImportReport`
-  (what mapped, what didn't, why). Hash recovery scans jars for sha1/sha512 plus the
-  CurseForge murmur2 fingerprint and sniffs each jar's ecosystem from its manifests.
-  **Validated against the director's real 324-mod ATM10 instance: all 324 mods mapped,
-  0 skipped, and all 319 on-disk jars' murmur2 fingerprints matched CurseForge's own
-  recorded values byte-for-byte.**
-- **`omni-core::app` + `apps/`** (2026-07-19, brick 7) — the command API and both thin
-  layers above it. Per ARCHITECTURE §1 the API lives in `omni-core`, so the Tauri shell
-  (`apps/launcher-shell`) is pure wiring — one `#[tauri::command]` per service method,
-  a `WindowSink` that forwards `CoreEvent`s verbatim, least-privilege capabilities — and
-  the whole surface is tested headlessly (`tests/app.rs`, 20 tests) with no window,
-  WebView, network, or credentials. The web UI (`apps/launcher-ui`, Vue 3 + strict TS +
-  Tailwind) renders all six ARCHITECTURE §7 surfaces: instance grid/detail with
-  mods-as-entities and port-status badges, account manager with the device-code panel and
-  entitlement-window countdown, job center with live progress and resume, import wizard
-  with the honest skipped-items report, server console, and settings. The IPC contract is
-  documented in **[`COMMANDS.md`](COMMANDS.md)** and pinned by Rust tests on both the DTO
-  and event wire shapes.
+- **`crates/omni-core`** — headless core (SQLite, jobs, auth, install, launch,
+  import/export, command API)
+- **`crates/omni-meta-client`** — OmniMeta `/v1` consumer (LNC-3)
+- **`crates/omni-platform`** — CurseForge + Modrinth typed clients + `ResourceQuery` (LNC-9)
+- **`apps/launcher-shell`** — Tauri 2 thin command wiring
+- **`apps/launcher-ui`** — Vue 3 + TypeScript + Tailwind surfaces
 
-## What it will be
+## Build / test
 
-The Omni-Framework's desktop launcher: instance management, Microsoft-account login, version/asset pipeline, Java runtime management, and mod-platform integration — synthesized from the best of Prism, MultiMC, ATLauncher, HMCL, Modrinth App, GDLauncher (vivisection evidence in `../intelligence/`).
+```powershell
+# from monorepo root
+cargo test --workspace
+cargo clippy --workspace --all-targets
 
-## Locked constraints (ADRs)
+cd OmniLauncher\apps\launcher-ui
+npm install
+npm run build
 
-- **Stack**: Tauri — Rust core, TypeScript/web UI (ADR-0001). Rationale: smallest footprint beside a game JVM, memory-safe core, best future-proofing signal in the launcher ecosystem.
-- **Auth**: official Microsoft OAuth chain only, tokens in the OS credential vault, no passwords ever (`../docs/COMPLIANCE.md` §2).
-- **Game files**: fetched from Mojang's official CDNs per instance; never redistributed.
-- **Mod downloads**: through official CurseForge/Modrinth APIs so authors keep credit and rewards.
+cd ..\launcher-shell
+cargo tauri dev
+```
 
-## Inputs it is waiting on
+## Recent completeness work
 
-1. Phase 1 complete: launcher feature inventory across all subjects.
-2. Phase 2: director cherry-pick → `../docs/REQUIREMENTS.md`.
-3. Phase 3: ADRs for instance model, meta pipeline, runtime management, UI architecture.
-4. External: Azure client ID + Mojang approval (tracked in `../docs/ROADMAP.md`).
+| Item | Status |
+|------|--------|
+| mrpack `downloads[]` → install job phase `mod-files` | Done |
+| mrpack `overrides/` + `client-overrides/` extract on import | Done |
+| `omni-platform` (Modrinth search/hash; CF search + key/opt-out types) | Done |
+| Export UI (mrpack / CurseForge / Omni) | Done |
+| LNC-10 resource/shader/world folders | Done (`resources` + UI) |
+| CF fingerprint POST + content browse UI | Done (Browse tab + Core API) |
+| System JVM discovery / server.properties UX / boot issue tree | Done |
+| SVC-2 FailoverBlobSource | Done |
+| NeoForge full pack AOT / AT parity | Open (setup lifecycle shipped; pack AOT residual) |
+
+## Auth / compliance
+
+Official Microsoft OAuth only; tokens in the OS vault. See
+`../docs/COMPLIANCE.md` and `../docs/FIRST_RUN.md`.

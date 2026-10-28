@@ -137,21 +137,43 @@ pub fn sync_enabled_flags(dest_mods: &Path, mods: &[Mod]) -> Result<(), CoreErro
             }
             continue;
         }
-        let from = if enabled_path.is_file() {
-            Some(enabled_path)
-        } else if raw_path.is_file()
+        // Disabled in store: never leave a loadable `.jar` on disk.
+        // materialize re-copies from the import source when the enabled name is
+        // missing; if `.jar.disabled` already exists that leaves BOTH files and
+        // OmniLoader would still claim the fresh `.jar`. Drop the loadable copy.
+        if enabled_path.is_file() {
+            if disabled_path.exists() {
+                fs::remove_file(&enabled_path).map_err(|source| CoreError::Io {
+                    action: "remove re-copied disabled mod jar",
+                    path: enabled_path,
+                    source,
+                })?;
+            } else {
+                fs::rename(&enabled_path, &disabled_path).map_err(|source| CoreError::Io {
+                    action: "disable mod jar",
+                    path: enabled_path,
+                    source,
+                })?;
+            }
+            continue;
+        }
+        if raw_path.is_file()
+            && raw_path != disabled_path
             && raw_path.extension().is_none_or(|e| e != "disabled")
         {
-            Some(raw_path)
-        } else {
-            None
-        };
-        if let Some(from) = from.filter(|_| !disabled_path.exists()) {
-            fs::rename(&from, &disabled_path).map_err(|source| CoreError::Io {
-                action: "disable mod jar",
-                path: from,
-                source,
-            })?;
+            if disabled_path.exists() {
+                fs::remove_file(&raw_path).map_err(|source| CoreError::Io {
+                    action: "remove re-copied disabled mod jar",
+                    path: raw_path,
+                    source,
+                })?;
+            } else {
+                fs::rename(&raw_path, &disabled_path).map_err(|source| CoreError::Io {
+                    action: "disable mod jar",
+                    path: raw_path,
+                    source,
+                })?;
+            }
         }
     }
     Ok(())
@@ -280,5 +302,36 @@ mod tests {
         fs::create_dir_all(root.join("minecraft").join("mods")).unwrap();
         let found = source_mods_dirs("prism-multimc", root);
         assert!(found.iter().any(|p| p.ends_with(Path::new("minecraft").join("mods"))));
+    }
+
+    #[test]
+    fn sync_enabled_flags_drops_recopied_jar_when_disabled() {
+        let dir = TempDir::new().expect("tmp");
+        let mods_dir = dir.path().join("mods");
+        fs::create_dir_all(&mods_dir).unwrap();
+        // Prior disable left the disabled name; launch materialize re-copied the
+        // enabled name from the pack source (dest.exists() was false).
+        fs::write(mods_dir.join("indium.jar.disabled"), b"old").unwrap();
+        fs::write(mods_dir.join("indium.jar"), b"fresh").unwrap();
+
+        let row = Mod {
+            id: 1,
+            instance_id: 1,
+            file_name: "indium.jar".into(),
+            sha1: None,
+            sha512: None,
+            murmur2: None,
+            display_name: None,
+            version: None,
+            ecosystem: crate::store::Ecosystem::Fabric,
+            enabled: false,
+            platform: None,
+            platform_project_id: None,
+            platform_file_id: None,
+            port_status: crate::store::PortStatus::Unknown,
+        };
+        sync_enabled_flags(&mods_dir, &[row]).unwrap();
+        assert!(!mods_dir.join("indium.jar").exists(), "loadable jar must be removed");
+        assert!(mods_dir.join("indium.jar.disabled").is_file());
     }
 }

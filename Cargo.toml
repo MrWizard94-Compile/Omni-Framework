@@ -6,8 +6,7 @@
 #   OmniMeta/generator                    omni-meta-gen    — OmniMeta static-tree generator (SVC-1)
 #   OmniLauncher/crates/omni-meta-client  omni-meta-client — launcher-side meta consumer (LNC-3)
 #
-# Remaining OmniLauncher crates (crates/omni-core, crates/omni-platform,
-# apps/launcher-shell) join this workspace as they land — one lockfile, one lint policy.
+# OmniLauncher crates share one lockfile and lint policy with OmniMeta.
 
 [workspace]
 resolver = "3"
@@ -17,6 +16,7 @@ members = [
     "OmniMeta/deploy",
     "OmniLauncher/crates/omni-meta-client",
     "OmniLauncher/crates/omni-core",
+    "OmniLauncher/crates/omni-platform",
     "OmniLauncher/apps/launcher-shell",
 ]
 
@@ -32,6 +32,7 @@ repository = "https://github.com/MrWizard94-Compile/Omni-Framework"
 omni-core = { path = "OmniLauncher/crates/omni-core" }
 omni-meta-client = { path = "OmniLauncher/crates/omni-meta-client" }
 omni-meta-format = { path = "OmniMeta/format" }
+omni-platform = { path = "OmniLauncher/crates/omni-platform" }
 # The desktop shell (ADR-0001). Pinned to the 2.x line; the shell is thin by
 # design, so a major Tauri bump touches wiring only, never logic.
 # No `protocol-asset`: the web layer never reads the filesystem directly. Every

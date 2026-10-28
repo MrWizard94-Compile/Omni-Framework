@@ -186,18 +186,39 @@ public record VersionPredicate(String raw, List<Term> terms) {
     /** Parses a version, filling in omitted components: {@code 1.2} becomes {@code 1.2.0}. */
     private static Optional<SemanticVersion> parseVersionish(String text) {
         String cleaned = stripFabricDash(text);
+        // Trailing dots from incomplete bounds like "21.1."
+        while (cleaned.endsWith(".") && cleaned.length() > 1) {
+            cleaned = cleaned.substring(0, cleaned.length() - 1);
+        }
+        // Trailing "+" from bounds like "3.2.1.+" (NeoForge template fragments)
+        while (cleaned.endsWith("+") && cleaned.length() > 1) {
+            cleaned = cleaned.substring(0, cleaned.length() - 1);
+        }
         Optional<SemanticVersion> exact = SemanticVersion.parse(cleaned);
         if (exact.isPresent()) {
             return exact;
         }
         String[] parts = cleaned.split("\\.", -1);
-        if (parts.length == 0 || parts.length > 3) {
+        if (parts.length == 0) {
             return Optional.empty();
         }
         int[] numbers = {0, 0, 0};
-        for (int i = 0; i < parts.length; i++) {
+        int limit = Math.min(parts.length, 3);
+        for (int i = 0; i < limit; i++) {
+            if (parts[i].isEmpty()) {
+                continue;
+            }
+            // Strip letter suffixes for range bounds (0.5.1.e → 0.5.1)
+            String numeric = parts[i];
+            int cut = 0;
+            while (cut < numeric.length() && Character.isDigit(numeric.charAt(cut))) {
+                cut++;
+            }
+            if (cut == 0) {
+                return Optional.empty();
+            }
             try {
-                numbers[i] = Integer.parseInt(parts[i]);
+                numbers[i] = Integer.parseInt(numeric.substring(0, cut));
             } catch (NumberFormatException notANumber) {
                 return Optional.empty();
             }
@@ -228,28 +249,27 @@ public record VersionPredicate(String raw, List<Term> terms) {
         if (original.isEmpty()) {
             return Optional.empty();
         }
+        // Unresolved Gradle/Forge placeholders cannot be enforced honestly — widen to any
+        // so packs do not mass-fail on "#{exdeorum_version_range}" style templates.
+        if (original.contains("#{") || original.contains("${")) {
+            return Optional.of(any());
+        }
+        // Maven intervals used by NeoForge and dual-loader jars ([1.21.1,), [1.21,1.21.1]).
+        // Must run before comma-split parse, which would treat "[1.21" as an exact bound.
+        Optional<VersionPredicate> maven = parseMavenInterval(original);
+        if (maven.isPresent()) {
+            return Optional.of(new VersionPredicate(original, maven.get().terms()));
+        }
         // Fabric intervals: spaces separate AND-terms when commas are absent.
         String normalized = normalizeFabricInterval(original);
+        // Expand ~ / ^ tokens inside multi-term ranges ("~1.21, <1.21.2") so they are not
+        // misread as a single tilde bound with garbage after the version.
+        normalized = expandCaretTildeTokens(normalized);
         // Fabric-style "1.21.x" / "21.0.x" → >=N.M.0, <next
         Optional<VersionPredicate> xRange = expandXWildcard(normalized);
         if (xRange.isPresent()) {
             // Preserve author text for diagnostics.
             return Optional.of(new VersionPredicate(original, xRange.get().terms()));
-        }
-        if (normalized.startsWith("^") || normalized.startsWith("~")) {
-            Optional<SemanticVersion> lower = parseVersionish(stripFabricDash(normalized.substring(1)));
-            if (lower.isEmpty()) {
-                return Optional.empty();
-            }
-            SemanticVersion from = lower.get();
-            SemanticVersion until = normalized.startsWith("^")
-                    ? SemanticVersion.of(from.major() + 1, 0, 0)
-                    : SemanticVersion.of(from.major(), from.minor() + 1, 0);
-            return Optional.of(new VersionPredicate(
-                    original,
-                    List.of(
-                            new Term(Operator.GREATER_EQUAL, Optional.of(from), from.toString()),
-                            new Term(Operator.LESS, Optional.of(until), until.toString()))));
         }
         Optional<VersionPredicate> parsed = parse(normalized);
         if (parsed.isEmpty()) {
@@ -257,6 +277,41 @@ public record VersionPredicate(String raw, List<Term> terms) {
         }
         // Keep the author's original text on the record.
         return Optional.of(new VersionPredicate(original, parsed.get().terms()));
+    }
+
+    /**
+     * Rewrites each {@code ~x} / {@code ^x} token into explicit {@code >=} / {@code <} bounds
+     * so multi-clause Fabric ranges like {@code ~1.21 <1.21.2} match installed {@code 1.21.1}.
+     */
+    private static String expandCaretTildeTokens(String text) {
+        String[] pieces = text.split(",", -1);
+        StringBuilder out = new StringBuilder(text.length() * 2);
+        for (int i = 0; i < pieces.length; i++) {
+            if (i > 0) {
+                out.append(", ");
+            }
+            String piece = pieces[i].trim();
+            if (piece.startsWith("~") || piece.startsWith("^")) {
+                Optional<SemanticVersion> lower =
+                        parseVersionish(stripFabricDash(piece.substring(1)));
+                if (lower.isEmpty()) {
+                    out.append(piece);
+                    continue;
+                }
+                SemanticVersion from = lower.get();
+                SemanticVersion until = piece.startsWith("^")
+                        ? SemanticVersion.of(from.major() + 1, 0, 0)
+                        : SemanticVersion.of(from.major(), from.minor() + 1, 0);
+                // Preserve pre-release on lower bound so ^1.0.0-beta.4 matches 1.0.0-beta.4
+                // (writing ">=1.0.0" would exclude pre-releases of 1.0.0).
+                out.append(">=").append(from);
+                out.append(", <").append(until.major()).append('.').append(until.minor()).append('.')
+                        .append(until.patch());
+            } else {
+                out.append(piece);
+            }
+        }
+        return out.toString();
     }
 
     /**
@@ -313,6 +368,70 @@ public record VersionPredicate(String raw, List<Term> terms) {
             v = v.substring(0, v.length() - 1);
         }
         return v;
+    }
+
+    /**
+     * Parses a Maven version interval: {@code [1.0,)}, {@code (1.0,2.0]}, {@code [1.21.1]}, …
+     *
+     * <p>Shared by NeoForge import and Fabric dual-loader jars that embed NeoForge-style ranges
+     * in {@code fabric.mod.json}.
+     */
+    public static Optional<VersionPredicate> parseMavenInterval(String text) {
+        if (text == null || text.length() < 2) {
+            return Optional.empty();
+        }
+        char open = text.charAt(0);
+        char close = text.charAt(text.length() - 1);
+        if ((open != '[' && open != '(') || (close != ']' && close != ')')) {
+            return Optional.empty();
+        }
+        boolean lowerInclusive = open == '[';
+        boolean upperInclusive = close == ']';
+        String inner = text.substring(1, text.length() - 1).trim();
+        if (!inner.contains(",")) {
+            if (inner.isEmpty() || !lowerInclusive || !upperInclusive) {
+                return Optional.empty();
+            }
+            return parse(inner);
+        }
+        String[] parts = inner.split(",", -1);
+        if (parts.length != 2) {
+            return Optional.empty();
+        }
+        String lower = parts[0].trim();
+        String upper = parts[1].trim();
+        // Trailing letters on an upper bound (e.g. "1.21z") mean "any build of this minor"
+        // in some pack manifests — open to next minor rather than pinning patch 0.
+        boolean upperLetterWildcard = upper.matches(".*\\d[A-Za-z]+$");
+        StringBuilder omni = new StringBuilder();
+        if (!lower.isEmpty()) {
+            omni.append(lowerInclusive ? ">=" : ">").append(stripFabricDash(lower));
+        }
+        if (!upper.isEmpty()) {
+            if (!omni.isEmpty()) {
+                omni.append(", ");
+            }
+            if (upperLetterWildcard) {
+                Optional<SemanticVersion> u = parseVersionish(stripFabricDash(upper));
+                if (u.isPresent()) {
+                    SemanticVersion next = SemanticVersion.of(u.get().major(), u.get().minor() + 1, 0);
+                    omni.append('<')
+                            .append(next.major())
+                            .append('.')
+                            .append(next.minor())
+                            .append('.')
+                            .append(next.patch());
+                } else {
+                    omni.append(upperInclusive ? "<=" : "<").append(stripFabricDash(upper));
+                }
+            } else {
+                omni.append(upperInclusive ? "<=" : "<").append(stripFabricDash(upper));
+            }
+        }
+        if (omni.isEmpty()) {
+            return Optional.of(any());
+        }
+        return parse(omni.toString());
     }
 
     /**

@@ -9,8 +9,9 @@
 use std::sync::Arc;
 
 use omni_core::app::{
-    AccountDto, AppError, AppService, ConsoleTail, DetectedFormat, DeviceCodeDto, ExportReportDto,
-    ImportCandidateDto, ImportReportDto, InstanceDetail, InstanceSummary, JobDto, VersionOption,
+    AccountDto, AppError, AppService, BootIssueDto, ConsoleTail, ContentHitDto, DetectedFormat,
+    DeviceCodeDto, ExportReportDto, ImportCandidateDto, ImportReportDto, InstanceDetail,
+    InstanceSummary, JavaRuntimeDto, JobDto, ResourceDto, ServerConfigDto, VersionOption,
 };
 use omni_core::store::InstanceKind;
 use tauri::State;
@@ -407,6 +408,118 @@ pub async fn set_setting(
     blocking(Arc::clone(&service), move |s| s.set_setting(&key, &value)).await
 }
 
+// ---------------------------------------------------------------- resources / content / server
+
+/// Lists LNC-10 folder resources.
+#[tauri::command]
+pub async fn list_resources(
+    service: State<'_, Arc<AppService>>,
+    instance_id: i64,
+    kind: String,
+) -> Result<Vec<ResourceDto>, AppError> {
+    blocking(Arc::clone(&service), move |s| s.list_resources(instance_id, &kind)).await
+}
+
+/// Enables or disables a resource pack / shader / datapack / world.
+#[tauri::command]
+pub async fn set_resource_enabled(
+    service: State<'_, Arc<AppService>>,
+    instance_id: i64,
+    kind: String,
+    name: String,
+    enabled: bool,
+) -> Result<(), AppError> {
+    blocking(Arc::clone(&service), move |s| {
+        s.set_resource_enabled(instance_id, &kind, &name, enabled)
+    })
+    .await
+}
+
+/// Content browse search.
+#[tauri::command]
+pub async fn search_content(
+    service: State<'_, Arc<AppService>>,
+    query: String,
+    game_version: Option<String>,
+    limit: u32,
+) -> Result<Vec<ContentHitDto>, AppError> {
+    blocking(Arc::clone(&service), move |s| {
+        s.search_content(&query, game_version.as_deref(), limit)
+    })
+    .await
+}
+
+/// Install content jar into an instance.
+#[tauri::command]
+pub async fn install_content(
+    service: State<'_, Arc<AppService>>,
+    instance_id: i64,
+    file: serde_json::Value,
+) -> Result<String, AppError> {
+    blocking(Arc::clone(&service), move |s| s.install_content(instance_id, &file)).await
+}
+
+/// Resolve a browse project hit to a file and install it into the instance.
+#[tauri::command]
+pub async fn install_browse_hit(
+    service: State<'_, Arc<AppService>>,
+    instance_id: i64,
+    platform: String,
+    project_id: String,
+    game_version: Option<String>,
+) -> Result<String, AppError> {
+    blocking(Arc::clone(&service), move |s| {
+        s.install_browse_hit(instance_id, &platform, &project_id, game_version.as_deref())
+    })
+    .await
+}
+
+/// Identify a local jar via platform fingerprints.
+#[tauri::command]
+pub async fn identify_jar(
+    service: State<'_, Arc<AppService>>,
+    path: String,
+) -> Result<Option<serde_json::Value>, AppError> {
+    blocking(Arc::clone(&service), move |s| s.identify_jar(&path)).await
+}
+
+/// Discover system JVMs.
+#[tauri::command]
+pub async fn discover_java_runtimes(
+    service: State<'_, Arc<AppService>>,
+    register: bool,
+) -> Result<Vec<JavaRuntimeDto>, AppError> {
+    blocking(Arc::clone(&service), move |s| s.discover_java_runtimes(register)).await
+}
+
+/// Server.properties projection.
+#[tauri::command]
+pub async fn get_server_config(
+    service: State<'_, Arc<AppService>>,
+    instance_id: i64,
+) -> Result<ServerConfigDto, AppError> {
+    blocking(Arc::clone(&service), move |s| s.get_server_config(instance_id)).await
+}
+
+/// Write server.properties.
+#[tauri::command]
+pub async fn set_server_config(
+    service: State<'_, Arc<AppService>>,
+    instance_id: i64,
+    config: ServerConfigDto,
+) -> Result<(), AppError> {
+    blocking(Arc::clone(&service), move |s| s.set_server_config(instance_id, config)).await
+}
+
+/// Boot failure issue tree from OmniLoader dump.
+#[tauri::command]
+pub async fn boot_issues(
+    service: State<'_, Arc<AppService>>,
+    instance_id: i64,
+) -> Result<Vec<BootIssueDto>, AppError> {
+    blocking(Arc::clone(&service), move |s| s.boot_issues(instance_id)).await
+}
+
 /// The complete invoke handler — the registry the UI's `invoke()` names map to.
 pub fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static {
     tauri::generate_handler![
@@ -438,6 +551,16 @@ pub fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static 
         export_instance,
         get_setting,
         set_setting,
+        list_resources,
+        set_resource_enabled,
+        search_content,
+        install_content,
+        install_browse_hit,
+        identify_jar,
+        discover_java_runtimes,
+        get_server_config,
+        set_server_config,
+        boot_issues,
     ]
 }
 

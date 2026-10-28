@@ -1,0 +1,47 @@
+# AGENTS — Project Entry Point (Omni_Framework)
+
+**Status:** Level 4 pointer — legacy local constitutions replaced  
+**Pack path (relative):** `../../../AGENTS Constitution/`  
+**Pack version:** see `../../../AGENTS Constitution/VERSION`
+
+This file does **not** duplicate the constitution. Binding quality law lives in the pack.
+
+---
+
+## Binding pack (Level 1–3)
+
+| Role | Path |
+|------|------|
+| **Constitution (SOUL)** | [../../../AGENTS Constitution/AGENTS.md](../../../AGENTS Constitution/AGENTS.md) |
+| **Process (SOP)** | [../../../AGENTS Constitution/SOP.md](../../../AGENTS Constitution/SOP.md) |
+| **Identity / portability** | [../../../AGENTS Constitution/PACK.md](../../../AGENTS Constitution/PACK.md) |
+| **Lock** | [../../../AGENTS Constitution/LOCK.md](../../../AGENTS Constitution/LOCK.md) |
+| **Adopt** | [../../../AGENTS Constitution/ADOPT.md](../../../AGENTS Constitution/ADOPT.md) |
+| **Integrity** | [../../../AGENTS Constitution/INTEGRITY.md](../../../AGENTS Constitution/INTEGRITY.md) |
+
+### Always load
+
+1. This file (project entry)
+2. Pack `AGENTS.md`
+3. Pack `SOP.md`
+4. Pack `constitution/03-DEFINITION-OF-DONE.md`
+5. Pack `standards/ENGINEERING.md`
+6. Pack `standards/TESTING.md`
+7. Pack `standards/DOCUMENTATION.md`
+
+Then load pack modules per the applicability matrix in pack `AGENTS.md`.
+
+### Verify pack
+
+```powershell
+pwsh -File "../../../AGENTS Constitution/tools/verify-pack.ps1"
+```
+
+Must exit 0 after pack install/move/update.
+
+---
+
+## Project-local law (Level 4)
+
+Add project-specific mission, stack pins, and commands below as needed.
+Product docs stay in this repository (README, docs/). Do not weaken pack CONST-* rules without a documented override.

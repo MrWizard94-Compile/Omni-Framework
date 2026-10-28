@@ -14,10 +14,14 @@ import org.omniframework.loader.compat.MetadataImporter;
  * classpath partition, and no-arg construction of the mod class via the shared entrypoint
  * dispatcher.
  *
- * <p><b>What it deliberately does not deliver:</b> full FML language providers, event bus wiring,
- * access transformers, or intermediary/SRG remapping. Those are the Sinytra-scale work tracked
- * as the research tail of B3 — not stubbed here, just out of the Phase 4 fixture exit criterion
- * (a NeoForge-shaped jar loads <em>alongside</em> native and Fabric fixtures).
+ * <p><b>Delivered beyond construct-only:</b> dependency import from {@code [[dependencies.*]]},
+ * a real per-mod {@link net.neoforged.bus.api.IEventBus} via
+ * {@link net.neoforged.fml.javafmlmod.FMLJavaModLoadingContext}, and
+ * {@link org.omniframework.loader.compat.neoforge.bus.ModConstructedEvent} after construction.
+ *
+ * <p><b>Still deferred (pack-scale / Sinytra-class):</b> full FML language providers, game bus
+ * lifecycle events, access transformers, and SRG remapping. Those remain multi-session work;
+ * they are not pretended-complete here.
  */
 public final class NeoForgeCompatLayer implements CompatLayer {
 

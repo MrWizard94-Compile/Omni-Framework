@@ -14,13 +14,22 @@ import JobsView from "./views/JobsView.vue";
 import ImportView from "./views/ImportView.vue";
 import ConsoleView from "./views/ConsoleView.vue";
 import SettingsView from "./views/SettingsView.vue";
+import BrowseView from "./views/BrowseView.vue";
 
-type Surface = "instances" | "accounts" | "jobs" | "import" | "console" | "settings";
+type Surface =
+  | "instances"
+  | "browse"
+  | "accounts"
+  | "jobs"
+  | "import"
+  | "console"
+  | "settings";
 
 const surface = ref<Surface>("instances");
 
 const nav: { id: Surface; label: string }[] = [
   { id: "instances", label: "Instances" },
+  { id: "browse", label: "Browse" },
   { id: "accounts", label: "Accounts" },
   { id: "jobs", label: "Jobs" },
   { id: "import", label: "Import" },
@@ -71,6 +80,7 @@ const nav: { id: Surface; label: string }[] = [
       <div v-if="!store.ready" class="p-8 text-sm text-slate-500">Starting…</div>
       <template v-else>
         <InstancesView v-if="surface === 'instances'" />
+        <BrowseView v-else-if="surface === 'browse'" />
         <AccountsView v-else-if="surface === 'accounts'" />
         <JobsView v-else-if="surface === 'jobs'" />
         <ImportView v-else-if="surface === 'import'" />

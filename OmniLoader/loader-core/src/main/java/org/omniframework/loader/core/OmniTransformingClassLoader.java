@@ -3,15 +3,20 @@ package org.omniframework.loader.core;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.MalformedURLException;
+import java.net.URI;
 import java.net.URL;
+import java.nio.file.Files;
 import java.security.CodeSource;
 import java.security.ProtectionDomain;
 import java.security.cert.Certificate;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Enumeration;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import org.omniframework.loader.core.resource.DirectoryResourceRoot;
+import org.omniframework.loader.core.resource.JarResourceRoot;
 import org.omniframework.loader.core.resource.ResourceRoot;
 
 /**
@@ -68,13 +73,21 @@ public final class OmniTransformingClassLoader extends ClassLoader implements ja
         // dispatcher holds the same Class objects from the API source, so identity must match.
         "net.fabricmc.api.",
         "net.fabricmc.loader.api.",
+        // Hosted NeoForge surface: @Mod constructors call FMLJavaModLoadingContext.get().
+        "net.neoforged.fml.",
+        "net.neoforged.bus.",
+        // Omni-hosted NeoForge events posted into guest listeners (shared identity).
+        "org.omniframework.loader.compat.neoforge.bus.",
     };
 
     /** The packages the runtime parent shares from the API source. */
     private static final List<String> SHARED_API_PREFIXES = List.of(
             "org.omniframework.api.",
             "net.fabricmc.api.",
-            "net.fabricmc.loader.api.");
+            "net.fabricmc.loader.api.",
+            "net.neoforged.fml.",
+            "net.neoforged.bus.",
+            "org.omniframework.loader.compat.neoforge.bus.");
 
     private final PartitionRegistry partitions;
     private final ClassTransformer transformer;
@@ -206,9 +219,15 @@ public final class OmniTransformingClassLoader extends ClassLoader implements ja
     @Override
     public URL getResource(String name) {
         // Resources follow the same rule as classes: ours first, parent as fallback.
-        return partitions.readResource(name).isPresent()
-                ? resourceUrl(name)
-                : getParent().getResource(name);
+        for (Partition partition : partitions.partitions()) {
+            if (partition.root().contains(Objects.requireNonNull(name, "name"))) {
+                URL url = resourceUrl(partition, name);
+                if (url != null) {
+                    return url;
+                }
+            }
+        }
+        return getParent().getResource(name);
     }
 
     @Override
@@ -220,29 +239,54 @@ public final class OmniTransformingClassLoader extends ClassLoader implements ja
 
     @Override
     public Enumeration<URL> getResources(String name) throws IOException {
-        // Only the first match is exposed. Mods that need every copy of a resource are a
-        // future need; inventing an API for it now would be guessing at its shape.
-        URL found = getResource(name);
-        return found == null ? Collections.emptyEnumeration() : Collections.enumeration(java.util.List.of(found));
-    }
-
-    /**
-     * A URL for a resource this loader provides.
-     *
-     * <p>Points at the owning root rather than a synthetic scheme, so anything that prints it
-     * shows a real path a human can go and look at.
-     */
-    private URL resourceUrl(String name) {
+        // ServiceLoader and multi-provider SPI need every META-INF/services entry across all
+        // partitions — first-only hid providers and broke puzzleslib / SLF4J style discovery.
+        Objects.requireNonNull(name, "name");
+        List<URL> found = new ArrayList<>();
         for (Partition partition : partitions.partitions()) {
             if (partition.root().contains(name)) {
-                try {
-                    return partition.root().location().toUri().resolve(name).toURL();
-                } catch (MalformedURLException | IllegalArgumentException unusable) {
-                    return null;
+                URL url = resourceUrl(partition, name);
+                if (url != null) {
+                    found.add(url);
                 }
             }
         }
-        return null;
+        Enumeration<URL> parent = getParent().getResources(name);
+        while (parent.hasMoreElements()) {
+            found.add(parent.nextElement());
+        }
+        return Collections.enumeration(found);
+    }
+
+    /**
+     * A URL for a resource inside one partition root.
+     *
+     * <p>Jar roots must be {@code jar:file:...!/path}. Resolving a path against a file URI for
+     * {@code output.jar} replaces the jar file name and points at a sibling path that does not
+     * exist — exactly the {@code FileNotFoundException} ServiceLoader hits under transform-cache.
+     */
+    private static URL resourceUrl(Partition partition, String name) {
+        ResourceRoot root = partition.root();
+        try {
+            if (root instanceof JarResourceRoot
+                    || (Files.isRegularFile(root.location())
+                            && root.location().getFileName() != null
+                            && root.location().getFileName().toString().endsWith(".jar"))) {
+                // jar:file:/C:/.../output.jar!/META-INF/services/...
+                return URI.create("jar:" + root.location().toUri() + "!/" + name).toURL();
+            }
+            if (root instanceof DirectoryResourceRoot || Files.isDirectory(root.location())) {
+                return root.location().resolve(name).toUri().toURL();
+            }
+            // Fallback: treat location as a base directory URI.
+            URI base = root.location().toUri();
+            if (!base.getPath().endsWith("/")) {
+                base = URI.create(base + "/");
+            }
+            return base.resolve(name).toURL();
+        } catch (MalformedURLException | IllegalArgumentException unusable) {
+            return null;
+        }
     }
 
     /**

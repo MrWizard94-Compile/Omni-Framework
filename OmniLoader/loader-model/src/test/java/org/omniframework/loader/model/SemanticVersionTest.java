@@ -93,6 +93,76 @@ class SemanticVersionTest {
     }
 
     @Test
+    @DisplayName("multi-plus build tags used by real mods still parse (0.7.6+1.21+neoforge)")
+    void multiPlusBuildMetadataParses() {
+        SemanticVersion v = SemanticVersion.parse("0.7.6+1.21+neoforge").orElseThrow();
+        assertEquals(0, v.major());
+        assertEquals(7, v.minor());
+        assertEquals(6, v.patch());
+        assertTrue(v.buildMetadata().isPresent());
+        assertTrue(
+                VersionPredicate.expand(">=0")
+                        .orElseThrow()
+                        .matches(ModVersion.parse("0.7.6+1.21+neoforge")));
+    }
+
+    @Test
+    @DisplayName("letter suffixes on components parse for Create-style versions")
+    void letterSuffixComponentsParse() {
+        assertEquals(2, SemanticVersion.parse("1.11.2b").orElseThrow().patch());
+        assertTrue(VersionPredicate.expand("[1.11.1,)")
+                .orElseThrow()
+                .matches(ModVersion.parse("1.11.2b")));
+        assertTrue(VersionPredicate.expand("[0.5.1.e,)")
+                .orElseThrow()
+                .matches(ModVersion.parse("6.0.10")));
+    }
+
+    @Test
+    @DisplayName("four-part versions order by revision (owo 0.12.15.5-beta > 0.12.15.0)")
+    void fourPartRevisionOrders() {
+        SemanticVersion lower = SemanticVersion.parse("0.12.15.0+1.21").orElseThrow();
+        SemanticVersion higherBeta = SemanticVersion.parse("0.12.15.5-beta.1+1.21").orElseThrow();
+        assertEquals(0, lower.revision());
+        assertEquals(5, higherBeta.revision());
+        assertTrue(higherBeta.compareTo(lower) > 0, "0.12.15.5-beta must sort above 0.12.15.0");
+        assertTrue(VersionPredicate.expand("[0.12.15.0+1.21,)")
+                .orElseThrow()
+                .matches(ModVersion.parse("0.12.15.5-beta.1+1.21")));
+        assertTrue(VersionPredicate.expand("[0.12.15.1-beta.6+1.21,)")
+                .orElseThrow()
+                .matches(ModVersion.parse("0.12.15.5-beta.1+1.21")));
+    }
+
+    @Test
+    @DisplayName("loader channel suffixes are not pre-releases (2.0-NEOFORGE matches [2.0,))")
+    void loaderChannelIsBuildMetadata() {
+        SemanticVersion v = SemanticVersion.parse("2.0-NEOFORGE-1.21.1").orElseThrow();
+        assertFalse(v.isPreRelease());
+        assertTrue(VersionPredicate.expand("[2.0,)")
+                .orElseThrow()
+                .matches(ModVersion.parse("2.0-NEOFORGE-1.21.1")));
+    }
+
+    @Test
+    @DisplayName("hybrid MC-mod versions order by the mod half")
+    void hybridMcModVersions() {
+        SemanticVersion pin = SemanticVersion.parse("1.21.1-1.2.10").orElseThrow();
+        assertEquals(1, pin.major());
+        assertEquals(2, pin.minor());
+        assertEquals(10, pin.patch());
+        assertTrue(VersionPredicate.expand(">=1.21.1-1.2.10")
+                .orElseThrow()
+                .matches(ModVersion.parse("1.3.2")));
+        assertTrue(VersionPredicate.expand(">=1.21-1.3")
+                .orElseThrow()
+                .matches(ModVersion.parse("1.3.2")));
+        assertFalse(VersionPredicate.expand(">=1.21.1-1.2.10")
+                .orElseThrow()
+                .matches(ModVersion.parse("1.1.0")));
+    }
+
+    @Test
     @DisplayName("absurdly long numeric pre-release identifiers do not overflow")
     void hugeNumericIdentifiersCompareSafely() {
         SemanticVersion small = SemanticVersion.parse("1.0.0-1").orElseThrow();

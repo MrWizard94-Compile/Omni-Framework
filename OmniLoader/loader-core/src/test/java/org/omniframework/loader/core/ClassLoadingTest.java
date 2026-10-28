@@ -260,6 +260,61 @@ class ClassLoadingTest {
     }
 
     @Test
+    @DisplayName("jar resource URLs use jar: scheme so ServiceLoader can open SPI files")
+    void jarResourceUrlsUseJarScheme(@TempDir Path dir) throws Exception {
+        // Mimic transform-cache layout: .../hash/output.jar — the old resolve() treated
+        // output.jar as a path segment and pointed at a non-existent sibling META-INF/.
+        Path cacheDir = dir.resolve("c8").resolve("c82cdeadbeef");
+        java.nio.file.Files.createDirectories(cacheDir);
+        Path jar = TestJars.builder()
+                .source("net.example.SpiHost", """
+                        package net.example;
+                        public class SpiHost {}
+                        """)
+                .resource("META-INF/services/net.example.Spi", "net.example.SpiHost\n")
+                .writeTo(cacheDir.resolve("output.jar"));
+        PartitionRegistry registry =
+                registryOf(Partition.mod("spi-mod", "omni", JarResourceRoot.open(jar)));
+
+        try (var loader = new OmniTransformingClassLoader(registry, ClassTransformer.identity())) {
+            var url = loader.getResource("META-INF/services/net.example.Spi");
+            assertNotNull(url, "SPI resource must resolve");
+            assertEquals("jar", url.getProtocol(), "must be jar: not a broken file: sibling path");
+            assertTrue(url.toString().contains("output.jar!/"), url.toString());
+            // Read via the classloader (our open JarFile), not url.openStream() — on Windows
+            // JarURLConnection can pin the temp jar and break @TempDir cleanup.
+            try (var in = loader.getResourceAsStream("META-INF/services/net.example.Spi")) {
+                assertNotNull(in);
+                assertEquals(
+                        "net.example.SpiHost\n",
+                        new String(in.readAllBytes(), StandardCharsets.UTF_8));
+            }
+        }
+    }
+
+    @Test
+    @DisplayName("getResources returns every partition copy for multi-provider SPI")
+    void getResourcesReturnsAllPartitionCopies(@TempDir Path dir) throws Exception {
+        Path a = TestJars.builder()
+                .source("net.a.A", "package net.a; public class A {}")
+                .resource("META-INF/services/net.example.Spi", "net.a.A\n")
+                .writeTo(dir.resolve("a.jar"));
+        Path b = TestJars.builder()
+                .source("net.b.B", "package net.b; public class B {}")
+                .resource("META-INF/services/net.example.Spi", "net.b.B\n")
+                .writeTo(dir.resolve("b.jar"));
+        PartitionRegistry registry = registryOf(
+                Partition.mod("a", "omni", JarResourceRoot.open(a)),
+                Partition.mod("b", "omni", JarResourceRoot.open(b)));
+
+        try (var loader = new OmniTransformingClassLoader(registry, ClassTransformer.identity())) {
+            var urls = java.util.Collections.list(loader.getResources("META-INF/services/net.example.Spi"));
+            assertEquals(2, urls.size(), "both SPI provider files must be visible");
+            assertTrue(urls.stream().allMatch(u -> "jar".equals(u.getProtocol())));
+        }
+    }
+
+    @Test
     @DisplayName("two mods claiming a package is reported, not silently resolved")
     void packageClaimsAreDiagnosed(@TempDir Path dir) throws Exception {
         Path first = jarWith(dir, "a.jar", "shared.pkg.A", "a");

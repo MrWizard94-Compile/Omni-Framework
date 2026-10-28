@@ -281,6 +281,20 @@ class PassBehaviourTest {
         }
 
         @Test
+        @DisplayName("bare intermediary method refs (Invoker style) are rewritten by name+descriptor")
+        void rewritesBareMethodRefs() {
+            // Fabric refmaps often store invoker targets as method_N(desc) without Lowner; —
+            // leaving those as class-name lookups kept method_15021 on official Stats forever.
+            String result = rewrite("""
+                    {"mappings":{"mod/StatsTypeAccessor":{
+                      "register":"method_1()V"}}}
+                    """);
+
+            assertTrue(result.contains("tick()V"), result);
+            assertFalse(result.contains("method_1()V"), result);
+        }
+
+        @Test
         @DisplayName("an identity mapping leaves the refmap alone")
         void identitySkips() {
             PassContext ctx = clientContext();

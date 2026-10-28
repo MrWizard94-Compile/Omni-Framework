@@ -59,9 +59,13 @@ public final class OmniLoaderBootstrap {
 
         IssueCollector issues = new IssueCollector();
         try {
+            BootConfig bootConfig = config.get();
             Optional<BootResult> result =
-                    new BootSequence(GameLauncher.discoverProviders()).run(config.get(), issues);
+                    new BootSequence(GameLauncher.discoverProviders()).run(bootConfig, issues);
             if (result.isEmpty()) {
+                // Belt-and-suspenders: BootSequence dumps on every early failure path; ensure
+                // the JSON handoff exists even if a future path forgets to write it.
+                BootSequence.writeIssueDump(bootConfig, issues);
                 reportIssues(issues);
                 System.exit(1);
                 return;

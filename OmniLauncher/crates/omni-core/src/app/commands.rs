@@ -992,17 +992,26 @@ impl AppService {
             key: candidate.key.clone(),
         };
         let report = importer.import(&self.db, &native)?;
+        // mrpack: extract overrides/ and client-overrides/ into the private game dir.
+        let overrides = crate::install::extract_imported_mrpack_overrides(
+            &self.paths,
+            &self.db,
+            report.instance_id,
+        )?;
         // Copy jars from the foreign pack into this instance's private mods/
         // so OmniLoader has something to discover on launch (must not leave
-        // mods as DB-only inventory).
+        // mods as DB-only inventory). CDN-hosted files download on Install.
         let stage = crate::import::materialize_instance_mods(
             &self.paths,
             &self.db,
             report.instance_id,
         )?;
         let mut notes = report.notes;
+        if overrides > 0 {
+            notes.push(format!("extracted {overrides} override file(s) from the .mrpack"));
+        }
         notes.push(format!(
-            "staged {} mod jar(s) into the instance game/mods/ ({} source folder(s) scanned; {} enabled row(s) still missing a jar)",
+            "staged {} mod jar(s) into the instance game/mods/ ({} source folder(s) scanned; {} enabled row(s) still missing a jar — run Install to fetch CDN files)",
             stage.staged, stage.sources_scanned, stage.missing
         ));
         self.emit(CoreEvent::InstanceChanged { instance_id: Some(report.instance_id) });
@@ -1086,6 +1095,268 @@ impl AppService {
     pub fn set_setting(&self, key: &str, value: &serde_json::Value) -> Result<(), AppError> {
         self.db.with_store(|store| store.set_setting(key, value))?;
         Ok(())
+    }
+
+    // --- LNC-10 resources ----------------------------------------------------
+
+    /// Lists folder resources for an instance.
+    ///
+    /// # Errors
+    ///
+    /// Unknown kind or IO failures.
+    pub fn list_resources(
+        &self,
+        instance_id: i64,
+        kind: &str,
+    ) -> Result<Vec<crate::app::dto::ResourceDto>, AppError> {
+        let kind = crate::resources::ResourceKind::parse(kind)
+            .ok_or_else(|| AppError::usage(format!("unknown resource kind {kind:?}")))?;
+        let _ = crate::resources::ensure_resource_dirs(self.paths(), instance_id);
+        let list = crate::resources::list_resources(self.paths(), instance_id, kind)?;
+        Ok(list.into_iter().map(Into::into).collect())
+    }
+
+    /// Enables or disables a resource by name.
+    ///
+    /// # Errors
+    ///
+    /// Unknown kind, missing resource, or IO failures.
+    pub fn set_resource_enabled(
+        &self,
+        instance_id: i64,
+        kind: &str,
+        name: &str,
+        enabled: bool,
+    ) -> Result<(), AppError> {
+        let kind = crate::resources::ResourceKind::parse(kind)
+            .ok_or_else(|| AppError::usage(format!("unknown resource kind {kind:?}")))?;
+        crate::resources::set_resource_enabled(self.paths(), instance_id, kind, name, enabled)?;
+        self.emit(CoreEvent::InstanceChanged { instance_id: Some(instance_id) });
+        Ok(())
+    }
+
+    // --- LNC-9 content browse ------------------------------------------------
+
+    /// Searches Modrinth + CurseForge (when keyed).
+    ///
+    /// # Errors
+    ///
+    /// Platform transport failures.
+    pub fn search_content(
+        &self,
+        query: &str,
+        game_version: Option<&str>,
+        limit: u32,
+    ) -> Result<Vec<crate::app::dto::ContentHitDto>, AppError> {
+        let cf_key = self
+            .get_setting("cfApiKey")?
+            .and_then(|v| v.as_str().map(str::to_owned));
+        let hits = crate::content_ops::search_content(query, game_version, limit, cf_key)
+            .map_err(|e| AppError::new("network", e.to_string()))?;
+        Ok(hits
+            .into_iter()
+            .map(|h| crate::app::dto::ContentHitDto {
+                platform: h.platform.slug().to_owned(),
+                project_id: h.project_id,
+                slug: h.slug,
+                title: h.title,
+                description: h.description,
+                author: h.author,
+                downloads: h.downloads,
+            })
+            .collect())
+    }
+
+    /// Installs a content file described by a JSON document into instance mods.
+    ///
+    /// Expected keys: `platform`, `projectId`, `fileId`, `fileName`, `downloadUrl`, optional `sha1`.
+    ///
+    /// # Errors
+    ///
+    /// Unknown platform, empty URL, or IO/download failures.
+    pub fn install_content(
+        &self,
+        instance_id: i64,
+        file: &serde_json::Value,
+    ) -> Result<String, AppError> {
+        use omni_platform::VersionFile;
+        let platform_slug = file
+            .get("platform")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| AppError::usage("platform required"))?;
+        let platform = crate::content_ops::platform_from_slug(platform_slug)
+            .ok_or_else(|| AppError::usage(format!("unknown platform {platform_slug:?}")))?;
+        let version = VersionFile {
+            platform,
+            project_id: file
+                .get("projectId")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_owned(),
+            file_id: file.get("fileId").and_then(|v| v.as_str()).unwrap_or("").to_owned(),
+            file_name: file
+                .get("fileName")
+                .and_then(|v| v.as_str())
+                .ok_or_else(|| AppError::usage("fileName required"))?
+                .to_owned(),
+            download_url: file
+                .get("downloadUrl")
+                .and_then(|v| v.as_str())
+                .ok_or_else(|| AppError::usage("downloadUrl required"))?
+                .to_owned(),
+            sha1: file.get("sha1").and_then(|v| v.as_str()).map(str::to_owned),
+            sha512: None,
+            size: None,
+            game_versions: Vec::new(),
+            loaders: Vec::new(),
+        };
+        let path = crate::content_ops::install_content_file(
+            self.paths(),
+            &self.db,
+            instance_id,
+            &version,
+            self.blobs.as_ref(),
+        )
+        .map_err(|e| AppError::new("io", e.to_string()))?;
+        self.emit(CoreEvent::InstanceChanged { instance_id: Some(instance_id) });
+        Ok(path.display().to_string())
+    }
+
+    /// Fingerprint-identifies a local path via platform APIs.
+    ///
+    /// # Errors
+    ///
+    /// IO or platform transport failures.
+    pub fn identify_jar(&self, path: &str) -> Result<Option<serde_json::Value>, AppError> {
+        let bytes = std::fs::read(path).map_err(|e| AppError::new("io", e.to_string()))?;
+        let cf_key = self
+            .get_setting("cfApiKey")?
+            .and_then(|v| v.as_str().map(str::to_owned));
+        let hit = crate::content_ops::identify_local_jar(&bytes, cf_key)
+            .map_err(|e| AppError::new("network", e.to_string()))?;
+        Ok(hit.map(|f| {
+            serde_json::json!({
+                "platform": f.platform.slug(),
+                "projectId": f.project_id,
+                "fileId": f.file_id,
+                "fileName": f.file_name,
+                "downloadUrl": f.download_url,
+                "sha1": f.sha1,
+            })
+        }))
+    }
+
+    // --- LNC-6 JVM discovery -------------------------------------------------
+
+    /// Scans the machine for JVMs and optionally registers them in the store.
+    ///
+    /// # Errors
+    ///
+    /// Discovery or store failures.
+    pub fn discover_java_runtimes(&self, register: bool) -> Result<Vec<crate::app::dto::JavaRuntimeDto>, AppError> {
+        let found = crate::java_discover::discover_system_jvms()
+            .map_err(|e| AppError::new("io", e.to_string()))?;
+        if register {
+            for jvm in &found {
+                self.db.with_store(|store| {
+                    store.upsert_java_runtime(
+                        &jvm.path.to_string_lossy(),
+                        jvm.vendor.as_deref(),
+                        &jvm.version,
+                        &jvm.arch,
+                        jvm.source,
+                        Some(store.clock_now()),
+                    )
+                })?;
+            }
+        }
+        Ok(found.into_iter().map(Into::into).collect())
+    }
+
+    // --- LNC-8 server config -------------------------------------------------
+
+    /// Loads server.properties projection.
+    ///
+    /// # Errors
+    ///
+    /// IO failures reading properties.
+    pub fn get_server_config(&self, instance_id: i64) -> Result<crate::app::dto::ServerConfigDto, AppError> {
+        let cfg = crate::server_config::load_server_config(self.paths(), instance_id)?;
+        Ok(cfg.into())
+    }
+
+    /// Saves server.properties from DTO fields.
+    ///
+    /// # Errors
+    ///
+    /// IO failures writing properties.
+    pub fn set_server_config(
+        &self,
+        instance_id: i64,
+        dto: crate::app::dto::ServerConfigDto,
+    ) -> Result<(), AppError> {
+        let mut cfg = crate::server_config::load_server_config(self.paths(), instance_id)?;
+        cfg.port = dto.port;
+        cfg.motd = dto.motd;
+        cfg.max_players = dto.max_players;
+        cfg.online_mode = dto.online_mode;
+        cfg.difficulty = dto.difficulty;
+        cfg.gamemode = dto.gamemode;
+        cfg.level_name = dto.level_name;
+        crate::server_config::save_server_config(self.paths(), instance_id, &cfg)?;
+        self.emit(CoreEvent::InstanceChanged { instance_id: Some(instance_id) });
+        Ok(())
+    }
+
+    // --- Boot failure tree (LDR-10 handoff) ----------------------------------
+
+    /// Reads the latest OmniLoader issue dump for an instance, if present.
+    ///
+    /// OmniLoader writes `game/logs/omniloader-issues.json` (same tree as the
+    /// game process). That path is `Paths::game_dir(id)/logs/…`, **not**
+    /// `Paths::logs_dir` (launcher-owned process capture logs).
+    ///
+    /// # Errors
+    ///
+    /// IO or JSON parse failures.
+    pub fn boot_issues(&self, instance_id: i64) -> Result<Vec<crate::app::dto::BootIssueDto>, AppError> {
+        let path = crate::boot_issues::issue_dump_path(self.paths(), instance_id);
+        crate::boot_issues::read_issue_dump(&path).map_err(|e| AppError::new("io", e.to_string()))
+    }
+
+    /// Resolves a browse hit to a downloadable file and installs it into the instance.
+    ///
+    /// # Errors
+    ///
+    /// Platform resolve failures or install IO.
+    pub fn install_browse_hit(
+        &self,
+        instance_id: i64,
+        platform: &str,
+        project_id: &str,
+        game_version: Option<&str>,
+    ) -> Result<String, AppError> {
+        let cf_key = self
+            .get_setting("cfApiKey")?
+            .and_then(|v| v.as_str().map(str::to_owned));
+        let file = crate::content_ops::resolve_project_version(
+            platform,
+            project_id,
+            game_version,
+            cf_key,
+        )
+        .map_err(|e| AppError::new("network", e.to_string()))?
+        .ok_or_else(|| AppError::new("not_found", "no installable version for this project"))?;
+        let path = crate::content_ops::install_content_file(
+            self.paths(),
+            &self.db,
+            instance_id,
+            &file,
+            self.blobs.as_ref(),
+        )
+        .map_err(|e| AppError::new("io", e.to_string()))?;
+        self.emit(CoreEvent::InstanceChanged { instance_id: Some(instance_id) });
+        Ok(path.display().to_string())
     }
 }
 

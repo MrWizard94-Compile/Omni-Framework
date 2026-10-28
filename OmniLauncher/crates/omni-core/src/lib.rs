@@ -35,17 +35,25 @@
 
 pub mod app;
 pub mod auth;
+pub mod boot_issues;
 pub mod clock;
+pub mod content_ops;
 pub mod db;
 pub mod error;
 pub mod events;
 pub mod export;
 pub mod import;
 pub mod install;
+pub mod java_discover;
 pub mod jobs;
 pub mod launch;
 pub mod platform;
+pub mod resources;
+pub mod server_config;
 pub mod store;
+
+/// Re-export of the LNC-9 content clients so dependents can use one crate surface.
+pub use omni_platform as content;
 
 pub use clock::{Clock, SystemClock};
 pub use db::Db;

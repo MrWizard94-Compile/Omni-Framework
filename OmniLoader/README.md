@@ -1,20 +1,51 @@
 # OmniLoader
 
-**Status: architecture specified — implementation begins Phase 4.** The binding design is **[`ARCHITECTURE.md`](ARCHITECTURE.md)** (Phase 3 output, 2026-07-18): module map, boot sequence, `omni.mod.json` v0 spec, transform cache, compat-layer SPI, Mixin integration. This directory intentionally contains no code yet per SOUL §1. This README records the high-level constraints; the architecture doc governs.
+**Status: implemented (Phase 4 MVP + boot-hardening).** Binding design:
+[`ARCHITECTURE.md`](ARCHITECTURE.md). Java 21 multi-project under this directory.
 
-## What it will be
+## What it is
 
-The Omni-Framework's mod loader for Minecraft 1.21.1 (Java 21): bootstrap, mod discovery, class transformation, and — its defining feature — **runtime compatibility layers** that load existing Fabric, NeoForge, and Forge mods unmodified, plus a native Omni mod format for new development and licensed ports.
+The Omni-Framework mod loader for Minecraft 1.21.1: bootstrap, discovery,
+resolution, AOT transform cache, Mixin, and runtime compatibility layers that
+host Fabric and NeoForge jars alongside native Omni mods.
 
-## Locked constraints (ADRs)
+## Modules
 
-- **Runtime**: JVM, Java 21 (Minecraft 1.21.1's requirement). Exact toolchain (Gradle setup, mappings strategy) decided in Phase 3 from vivisection evidence.
-- **Compat-first** (ADR-0003): third-party jars are loaded unmodified at runtime on the user's machine — no redistribution, no derivatives. Sinytra Connector is the load-bearing prior art and a Phase 1 vivisection subject.
-- **Native ports** are permission-gated per `../docs/COMPLIANCE.md` §4.
-- **Low-level discipline**: mixins/bytecode work under SOUL §23 — least-invasive approach, documented justification, version-checked, no untracked hacks.
+| Module | Role |
+|--------|------|
+| `loader-bootstrap` | JVM `main`, full boot sequence, `loader-dist` for the launcher |
+| `loader-core` | Transforming classloader, partitions, entrypoints |
+| `loader-model` | Canonical model + `omni.mod.json` v0 |
+| `loader-resolve` | Backtracking resolver (ADR-0018) |
+| `loader-transform` | AOT pipeline, cache, remap, access merge, env strip |
+| `loader-mixin` | Pinned Mixin 0.8.7 + `MixinServiceOmni` |
+| `loader-diag` | Typed `OmniIssue` tree |
+| `compat-fabric` / `compat-neoforge` | Hosted ecosystems (CMP-*) |
+| `omni-api` | Native mod contract (`ModInitializer`, `OmniLoaderApi`) |
 
-## Inputs it is waiting on
+## Build
 
-1. Phase 1 complete: loader architecture inventory (Fabric ✅, Quilt, FancyModLoader, Forge, Mixin, Sinytra).
-2. Phase 2: director cherry-pick → `../docs/REQUIREMENTS.md`.
-3. Phase 3: ADRs for bootstrap chain, mod metadata format, transformation pipeline, compat-layer SPI.
+```powershell
+cd OmniLoader
+.\gradlew build
+.\gradlew :loader-bootstrap:loaderDist
+```
+
+Distribution lands at `loader-bootstrap/build/loader-dist/` (`lib/` + `loader.json`).
+
+## Honest scope notes
+
+- **Fabric path:** claim, import, entrypoints (`main`/`client`/`server`), hosted
+  `FabricLoader`, intermediary→official remap when mappings are supplied.
+- **NeoForge path:** claim, TOML+deps import, `@Mod` construct, **per-mod event
+  bus** + **hosted FML setup lifecycle** (`FMLCommonSetupEvent` then
+  client/server setup via `NeoForgeLifecycle`). Language providers, access
+  transformers, and full pack-scale AOT translation remain residual Sinytra-scale
+  work (boot still runs intermediary→official AOT for hosted jars when mappings
+  are supplied).
+- **Access wideners** are collected on boot and fed into `AccessMergePass`.
+- **`OmniLoaderApi`** is installed before entrypoints run.
+
+## Commands
+
+See root `docs/TEST_MATRIX.md` and `docs/FIRST_RUN.md` for launcher handoff.

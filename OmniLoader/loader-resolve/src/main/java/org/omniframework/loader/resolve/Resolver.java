@@ -79,6 +79,8 @@ public final class Resolver {
             roots.addAll(rule.additionalRequirements(eligible));
         }
 
+        Map<String, List<ModCandidate>> providers = providerIndex(eligible);
+
         Optional<List<OmniIssue>> obvious = explainObviousFailures(roots, byId, eligible);
         if (obvious.isPresent()) {
             List<OmniIssue> all = new ArrayList<>(issues.issues());
@@ -86,11 +88,27 @@ public final class Resolver {
             return ResolutionResult.failure(all);
         }
 
-        Optional<Map<String, ModCandidate>> selection = search(roots, byId);
-        if (selection.isEmpty()) {
-            List<OmniIssue> all = new ArrayList<>(issues.issues());
-            all.add(renderUnsatisfiable(unsatisfiableCore(roots, byId)));
-            return ResolutionResult.failure(all);
+        // Greedy only for large packs: full backtracking is exponential and hangs on BMC3
+        // (1000+ loadable Fabric modules). Search remains for small graphs and tests.
+        Optional<Map<String, ModCandidate>> selection;
+        if (eligible.size() > 200) {
+            GreedyResult greedy = greedySelectDetailed(roots, byId, providers);
+            if (greedy.selection().isEmpty()) {
+                List<OmniIssue> all = new ArrayList<>(issues.issues());
+                all.addAll(explainGreedyFailure(greedy, byId, providers, eligible));
+                return ResolutionResult.failure(all);
+            }
+            selection = greedy.selection();
+        } else {
+            selection = greedySelect(roots, byId, providers);
+            if (selection.isEmpty()) {
+                selection = search(roots, byId, providers);
+            }
+            if (selection.isEmpty()) {
+                List<OmniIssue> all = new ArrayList<>(issues.issues());
+                all.add(renderUnsatisfiable(unsatisfiableCore(roots, byId, providers)));
+                return ResolutionResult.failure(all);
+            }
         }
 
         // One candidate can occupy several ids at once (its own, plus everything it provides),
@@ -136,9 +154,28 @@ public final class Resolver {
         Map<String, List<ModCandidate>> byId = new LinkedHashMap<>();
         for (ModCandidate candidate : candidates) {
             byId.computeIfAbsent(candidate.id(), ignored -> new ArrayList<>()).add(candidate);
+            // Fabric uses hyphens; NeoForge often uses underscores for the same mod
+            // (c2me-base vs c2me_base). Index both forms so deps cross the ecosystems.
+            String alt = alternateSeparatorId(candidate.id());
+            if (!alt.equals(candidate.id())) {
+                byId.computeIfAbsent(alt, ignored -> new ArrayList<>()).add(candidate);
+            }
         }
         byId.values().forEach(list -> list.sort(newestFirst()));
         return byId;
+    }
+
+    /**
+     * Swaps {@code _} and {@code -} so Fabric-style and NeoForge-style ids alias each other.
+     */
+    static String alternateSeparatorId(String id) {
+        if (id.indexOf('_') >= 0) {
+            return id.replace('_', '-');
+        }
+        if (id.indexOf('-') >= 0) {
+            return id.replace('-', '_');
+        }
+        return id;
     }
 
     /**
@@ -269,7 +306,10 @@ public final class Resolver {
      * a bystander and is dropped for good. What survives is irreducible. This costs one re-solve
      * per root, which is affordable precisely because it only runs on the failure path.
      */
-    private List<String> unsatisfiableCore(Set<String> roots, Map<String, List<ModCandidate>> byId) {
+    private List<String> unsatisfiableCore(
+            Set<String> roots,
+            Map<String, List<ModCandidate>> byId,
+            Map<String, List<ModCandidate>> providers) {
         List<String> core = new ArrayList<>(new java.util.TreeSet<>(roots));
         for (String suspect : List.copyOf(core)) {
             if (core.size() <= 1) {
@@ -277,7 +317,7 @@ public final class Resolver {
             }
             List<String> without = new ArrayList<>(core);
             without.remove(suspect);
-            if (search(new LinkedHashSet<>(without), byId).isEmpty()) {
+            if (search(new LinkedHashSet<>(without), byId, providers).isEmpty()) {
                 core = without; // still broken without it, so it was never the problem
             }
         }
@@ -313,60 +353,231 @@ public final class Resolver {
      * always produce the same selection — a resolver that picks differently between runs turns
      * "it worked yesterday" into an unanswerable bug report.
      */
+    private record GreedyResult(
+            Optional<Map<String, ModCandidate>> selection, String failedId, List<ModCandidate> options) {}
+
+    private Optional<Map<String, ModCandidate>> greedySelect(
+            Set<String> roots,
+            Map<String, List<ModCandidate>> byId,
+            Map<String, List<ModCandidate>> providers) {
+        return greedySelectDetailed(roots, byId, providers).selection();
+    }
+
+    /**
+     * Newest-first greedy assignment (no backtracking). Sufficient when each id has a single
+     * viable candidate — the common case for expanded Fabric multi-module packs.
+     */
+    private GreedyResult greedySelectDetailed(
+            Set<String> roots,
+            Map<String, List<ModCandidate>> byId,
+            Map<String, List<ModCandidate>> providers) {
+        Map<String, ModCandidate> selection = new LinkedHashMap<>();
+        java.util.ArrayDeque<String> queue = new java.util.ArrayDeque<>(new java.util.TreeSet<>(roots));
+        java.util.HashSet<String> enqueued = new java.util.HashSet<>(roots);
+        while (!queue.isEmpty()) {
+            String id = queue.removeFirst();
+            if (alreadyOccupied(selection, id)) {
+                continue;
+            }
+            List<ModCandidate> options = candidatesFor(id, byId, providers);
+            ModCandidate pick = null;
+            for (ModCandidate option : options) {
+                if (compatibleWithSelection(option, selection)) {
+                    pick = option;
+                    break;
+                }
+            }
+            if (pick == null) {
+                return new GreedyResult(Optional.empty(), id, options);
+            }
+            for (String key : occupyKeys(pick, id)) {
+                selection.put(key, pick);
+            }
+            for (Dependency dependency : pick.metadata().dependenciesOf(Dependency.Kind.DEPENDS)) {
+                String depId = dependency.modId();
+                if (enqueued.add(depId) && !alreadyOccupied(selection, depId)) {
+                    queue.addLast(depId);
+                }
+            }
+        }
+        return new GreedyResult(Optional.of(selection), "", List.of());
+    }
+
+    /** Typed issues for the first id greedy could not fill. */
+    private static List<OmniIssue> explainGreedyFailure(
+            GreedyResult greedy,
+            Map<String, List<ModCandidate>> byId,
+            Map<String, List<ModCandidate>> providers,
+            List<ModCandidate> eligible) {
+        String failedId = greedy.failedId();
+        List<ModCandidate> options = greedy.options();
+        if (options.isEmpty()) {
+            return List.of(OmniIssue.error("resolve.dependency-missing")
+                    .at(failedId)
+                    .with(failedId)
+                    .remedy("Requires " + failedId + ", which is not installed.")
+                    .build());
+        }
+        // Prefer version-mismatch messages for options that exist but conflict.
+        List<OmniIssue> out = new ArrayList<>();
+        for (ModCandidate option : options) {
+            for (Dependency dependency : option.metadata().dependenciesOf(Dependency.Kind.DEPENDS)) {
+                List<ModCandidate> available = candidatesFor(dependency.modId(), byId, providers);
+                if (available.isEmpty()) {
+                    out.add(OmniIssue.error("resolve.dependency-missing")
+                            .at(option.id())
+                            .with(option.metadata().displayName(), dependency.modId())
+                            .remedy(option.metadata().displayName()
+                                    + " requires "
+                                    + dependency.modId()
+                                    + ", which is not installed.")
+                            .build());
+                    continue;
+                }
+                boolean any = available.stream().anyMatch(a -> satisfies(a, dependency));
+                if (!any) {
+                    String installed = available.stream()
+                            .map(a -> a.version().raw())
+                            .distinct()
+                            .reduce((a, b) -> a + ", " + b)
+                            .orElse("?");
+                    out.add(OmniIssue.error("resolve.dependency-version")
+                            .at(option.id())
+                            .with(
+                                    option.metadata().displayName(),
+                                    dependency.modId(),
+                                    dependency.versions().toString(),
+                                    installed)
+                            .remedy(option.metadata().displayName()
+                                    + " requires "
+                                    + dependency.modId()
+                                    + " "
+                                    + dependency.versions()
+                                    + ", but the installed version is "
+                                    + installed
+                                    + ".")
+                            .build());
+                }
+            }
+        }
+        if (out.isEmpty()) {
+            out.add(OmniIssue.error("resolve.unsatisfiable")
+                    .at(failedId)
+                    .with(failedId)
+                    .remedy("No installed version of "
+                            + failedId
+                            + " is compatible with the rest of the selection.")
+                    .build());
+        }
+        return out;
+    }
+
     private Optional<Map<String, ModCandidate>> search(
-            Set<String> roots, Map<String, List<ModCandidate>> byId) {
+            Set<String> roots,
+            Map<String, List<ModCandidate>> byId,
+            Map<String, List<ModCandidate>> providers) {
         Map<String, ModCandidate> selection = new LinkedHashMap<>();
         List<String> queue = new ArrayList<>(new java.util.TreeSet<>(roots));
-        return assign(queue, 0, selection, byId) ? Optional.of(selection) : Optional.empty();
+        return assign(queue, 0, selection, byId, providers) ? Optional.of(selection) : Optional.empty();
     }
 
     private boolean assign(
             List<String> queue,
             int index,
             Map<String, ModCandidate> selection,
-            Map<String, List<ModCandidate>> byId) {
+            Map<String, List<ModCandidate>> byId,
+            Map<String, List<ModCandidate>> providers) {
         if (index == queue.size()) {
             return true;
         }
         String id = queue.get(index);
-        if (selection.containsKey(id)) {
-            return assign(queue, index + 1, selection, byId);
+        // Skip ids already covered by a selected candidate (own id, _/- alias, or provides).
+        // Without this, Fabric multi-module packs re-assign the same providers for every
+        // provided id and the search tree explodes to multi-minute hangs on BMC3-scale packs.
+        if (alreadyOccupied(selection, id)) {
+            return assign(queue, index + 1, selection, byId, providers);
         }
-        for (ModCandidate option : candidatesOccupying(id, byId)) {
+        for (ModCandidate option : candidatesFor(id, byId, providers)) {
             if (!compatibleWithSelection(option, selection)) {
                 continue;
             }
-            selection.put(id, option);
+            List<String> occupiedKeys = occupyKeys(option, id);
+            for (String key : occupiedKeys) {
+                selection.put(key, option);
+            }
             List<String> extended = new ArrayList<>(queue);
             for (Dependency dependency
                     : option.metadata().dependenciesOf(Dependency.Kind.DEPENDS)) {
-                if (!extended.contains(dependency.modId())) {
+                if (!extended.contains(dependency.modId())
+                        && !alreadyOccupied(selection, dependency.modId())) {
                     extended.add(dependency.modId());
                 }
             }
-            if (assign(extended, index + 1, selection, byId)) {
+            if (assign(extended, index + 1, selection, byId, providers)) {
                 return true;
             }
-            selection.remove(id);
+            for (String key : occupiedKeys) {
+                selection.remove(key);
+            }
         }
         return false;
+    }
+
+    /** Whether some selected candidate already fills {@code id} (including alias/provides). */
+    private static boolean alreadyOccupied(Map<String, ModCandidate> selection, String id) {
+        if (selection.containsKey(id)) {
+            return true;
+        }
+        String alt = alternateSeparatorId(id);
+        if (!alt.equals(id) && selection.containsKey(alt)) {
+            return true;
+        }
+        // Keys only — do not scan every selection value (O(n²) thrash on large packs).
+        return false;
+    }
+
+    /**
+     * Keys under which {@code option} should be recorded so later queue entries for the same
+     * identity (alias or provide) short-circuit.
+     */
+    private static List<String> occupyKeys(ModCandidate option, String requestedId) {
+        List<String> keys = new ArrayList<>();
+        keys.add(requestedId);
+        if (!keys.contains(option.id())) {
+            keys.add(option.id());
+        }
+        String alt = alternateSeparatorId(option.id());
+        if (!alt.equals(option.id()) && !keys.contains(alt)) {
+            keys.add(alt);
+        }
+        for (ProvidedMod provided : option.metadata().provides()) {
+            if (!keys.contains(provided.id())) {
+                keys.add(provided.id());
+            }
+            String pAlt = alternateSeparatorId(provided.id());
+            if (!pAlt.equals(provided.id()) && !keys.contains(pAlt)) {
+                keys.add(pAlt);
+            }
+        }
+        return keys;
     }
 
     /** Candidates that occupy an id, either directly or by providing it. */
     private static List<ModCandidate> candidatesOccupying(
             String id, Map<String, List<ModCandidate>> byId) {
-        List<ModCandidate> direct = byId.getOrDefault(id, List.of());
-        List<ModCandidate> viaProvides = byId.values().stream()
-                .flatMap(List::stream)
-                .filter(candidate -> candidate.metadata().provides().stream()
-                        .anyMatch(provided -> provided.id().equals(id)))
-                .toList();
-        if (viaProvides.isEmpty()) {
-            return direct;
+        // Direct occupancy only — providers are merged in candidatesFor via providerIndex.
+        // Scanning every byId list for provides() here made Fabric multi-module packs (BMC3)
+        // spend minutes per assign step.
+        List<ModCandidate> direct = new ArrayList<>(byId.getOrDefault(id, List.of()));
+        String alt = alternateSeparatorId(id);
+        if (!alt.equals(id)) {
+            for (ModCandidate c : byId.getOrDefault(alt, List.of())) {
+                if (!direct.contains(c)) {
+                    direct.add(c);
+                }
+            }
         }
-        List<ModCandidate> all = new ArrayList<>(direct);
-        viaProvides.stream().filter(candidate -> !all.contains(candidate)).forEach(all::add);
-        return all;
+        return direct;
     }
 
     /**
@@ -413,22 +624,132 @@ public final class Resolver {
 
     /** Whether a candidate satisfies a dependency's id and version range, provides included. */
     private static boolean satisfies(ModCandidate candidate, Dependency dependency) {
-        if (candidate.id().equals(dependency.modId())) {
-            return dependency.matches(candidate.version());
+        if (idsMatch(candidate.id(), dependency.modId())) {
+            return matchesVersion(dependency, candidate.version(), candidate.id());
         }
         for (ProvidedMod provided : candidate.metadata().provides()) {
-            if (provided.id().equals(dependency.modId()) && dependency.matches(provided.version())) {
+            if (idsMatch(provided.id(), dependency.modId())
+                    && matchesVersion(dependency, provided.version(), dependency.modId())) {
                 return true;
             }
         }
         return false;
     }
 
+    /**
+     * Version match with Omni host capability rules for platform identities.
+     *
+     * <p>Stock loaders install an exact NeoForge/Forge build. Omni hosts a capability line
+     * ({@code 21.1.999}, {@code 52.0.999}). Exact pins like {@code neoforge 21.1.216} must
+     * therefore mean "at least this version" against the host identity, not binary equality.
+     * Minecraft exact {@code 1.21} accepts any {@code 1.21.x} patch (common pack authoring).
+     */
+    private static boolean matchesVersion(
+            Dependency dependency, ModVersion installed, String occupiedId) {
+        if (dependency.matches(installed)) {
+            return true;
+        }
+        if (!isPlatformHostId(occupiedId) && !"minecraft".equals(dependency.modId())) {
+            return false;
+        }
+        return matchesPlatformCapability(dependency, installed, occupiedId);
+    }
+
+    private static boolean isPlatformHostId(String id) {
+        return "neoforge".equals(id)
+                || "forge".equals(id)
+                || "fabricloader".equals(id)
+                || "java".equals(id)
+                || "omniloader".equals(id)
+                || "minecraft".equals(id);
+    }
+
+    private static boolean matchesPlatformCapability(
+            Dependency dependency, ModVersion installed, String occupiedId) {
+        if (installed.semantic().isEmpty()) {
+            return false;
+        }
+        var semantic = installed.semantic().get();
+        var terms = dependency.versions().terms();
+        // Minecraft: exact 1.21 accepts 1.21.1 (patch-tolerant equality on two-component pins).
+        if ("minecraft".equals(dependency.modId()) || "minecraft".equals(occupiedId)) {
+            boolean onlyEqual = terms.stream()
+                    .allMatch(t -> t.operator() == org.omniframework.loader.model.VersionPredicate.Operator.EQUAL
+                            || t.operator() == org.omniframework.loader.model.VersionPredicate.Operator.ANY);
+            if (onlyEqual) {
+                for (var term : terms) {
+                    if (term.operator() == org.omniframework.loader.model.VersionPredicate.Operator.ANY) {
+                        continue;
+                    }
+                    if (term.bound().isEmpty()) {
+                        if (!term.rawBound().equals(installed.raw())) {
+                            return false;
+                        }
+                        continue;
+                    }
+                    var bound = term.bound().get();
+                    if (bound.major() != semantic.major() || bound.minor() != semantic.minor()) {
+                        return false;
+                    }
+                    // If the pin specified a non-zero patch, require exact patch; else any patch.
+                    if (bound.patch() != 0 && bound.patch() != semantic.patch()) {
+                        return false;
+                    }
+                }
+                return true;
+            }
+        }
+        // Loader hosts: EQUAL means >= (capability, not bit-identical install).
+        if (isPlatformHostId(occupiedId) && !"minecraft".equals(occupiedId)) {
+            // Connector-style Fabric guests pin fabricloader >=999 as a "Connector present"
+            // marker. Omni hosts Fabric identity without that sentinel number — accept it.
+            if ("fabricloader".equals(occupiedId) || "fabricloader".equals(dependency.modId())) {
+                boolean connectorMarker = terms.stream().anyMatch(t -> t.bound()
+                        .map(b -> b.major() >= 999)
+                        .orElse(false));
+                if (connectorMarker) {
+                    return true;
+                }
+            }
+            for (var term : terms) {
+                if (term.operator() == org.omniframework.loader.model.VersionPredicate.Operator.ANY) {
+                    continue;
+                }
+                if (term.bound().isEmpty()) {
+                    return false;
+                }
+                int cmp = semantic.compareTo(term.bound().get());
+                boolean ok = switch (term.operator()) {
+                    case EQUAL, GREATER_EQUAL -> cmp >= 0;
+                    case GREATER -> cmp > 0;
+                    case LESS -> cmp < 0;
+                    case LESS_EQUAL -> cmp <= 0;
+                    case ANY -> true;
+                };
+                if (!ok) {
+                    return false;
+                }
+            }
+            return true;
+        }
+        return false;
+    }
+
     /** Whether a candidate occupies an id, directly or by providing it. */
     private static boolean occupies(ModCandidate candidate, String id) {
-        return candidate.id().equals(id)
-                || candidate.metadata().provides().stream()
-                        .anyMatch(provided -> provided.id().equals(id));
+        if (idsMatch(candidate.id(), id)) {
+            return true;
+        }
+        return candidate.metadata().provides().stream()
+                .anyMatch(provided -> idsMatch(provided.id(), id));
+    }
+
+    /** Id equality with Fabric/NeoForge separator aliasing ({@code _} ↔ {@code -}). */
+    static boolean idsMatch(String left, String right) {
+        if (left.equals(right)) {
+            return true;
+        }
+        return left.replace('_', '-').equals(right.replace('_', '-'));
     }
 
     /** Candidates available for an id, direct entries first, then providers. */
@@ -449,6 +770,10 @@ public final class Resolver {
         for (ModCandidate candidate : candidates) {
             for (ProvidedMod provided : candidate.metadata().provides()) {
                 index.computeIfAbsent(provided.id(), ignored -> new ArrayList<>()).add(candidate);
+                String alt = alternateSeparatorId(provided.id());
+                if (!alt.equals(provided.id())) {
+                    index.computeIfAbsent(alt, ignored -> new ArrayList<>()).add(candidate);
+                }
             }
         }
         return index;

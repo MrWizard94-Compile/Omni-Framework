@@ -79,7 +79,76 @@ public final class ProguardMappingReader {
         if (classes.isEmpty()) {
             throw new TransformException("proguard mappings contained no class lines");
         }
-        return new ReverseMaps(classes, fields, methods);
+        // Mojang proguard text writes member descriptors with *named* types, while the owner
+        // and member names on the right are obfuscated. Intermediary composition and the
+        // remapper look up members with *obfuscated* type descriptors (inter→obf first).
+        // Rewrite descriptors so both sides agree; otherwise only class renames apply and
+        // mods keep intermediary method_*/field_* names → NoSuchMethodError at runtime.
+        Map<String, String> namedToObf = invertClasses(classes);
+        return new ReverseMaps(
+                classes,
+                rewriteMemberDescriptors(fields, namedToObf),
+                rewriteMemberDescriptors(methods, namedToObf));
+    }
+
+    /**
+     * Builds a {@link MappingSet} that renames obfuscated game classes into Mojang official
+     * names — the runtime namespace OmniLoader uses (D2 / LDR-3).
+     */
+    public static MappingSet toMappingSet(ReverseMaps maps) {
+        Objects.requireNonNull(maps, "maps");
+        MappingSet.Builder out = new MappingSet.Builder("obfuscated", "official");
+        maps.classes().forEach(out::mapClass);
+        for (Map.Entry<MappingSet.MemberKey, String> entry : maps.fields().entrySet()) {
+            MappingSet.MemberKey key = entry.getKey();
+            out.mapField(key.owner(), key.name(), key.descriptor(), entry.getValue());
+        }
+        for (Map.Entry<MappingSet.MemberKey, String> entry : maps.methods().entrySet()) {
+            MappingSet.MemberKey key = entry.getKey();
+            out.mapMethod(key.owner(), key.name(), key.descriptor(), entry.getValue());
+        }
+        return out.build();
+    }
+
+    private static Map<String, String> invertClasses(Map<String, String> obfToNamed) {
+        Map<String, String> namedToObf = new HashMap<>(obfToNamed.size());
+        for (Map.Entry<String, String> entry : obfToNamed.entrySet()) {
+            namedToObf.put(entry.getValue(), entry.getKey());
+        }
+        return namedToObf;
+    }
+
+    private static Map<MappingSet.MemberKey, String> rewriteMemberDescriptors(
+            Map<MappingSet.MemberKey, String> members, Map<String, String> namedToObf) {
+        Map<MappingSet.MemberKey, String> out = new HashMap<>(members.size());
+        for (Map.Entry<MappingSet.MemberKey, String> entry : members.entrySet()) {
+            MappingSet.MemberKey key = entry.getKey();
+            String obfDesc = remapDescriptorTypes(key.descriptor(), namedToObf);
+            out.put(new MappingSet.MemberKey(key.owner(), key.name(), obfDesc), entry.getValue());
+        }
+        return out;
+    }
+
+    /** Rewrites {@code Lnamed/Type;} references inside a descriptor using {@code namedToObf}. */
+    static String remapDescriptorTypes(String descriptor, Map<String, String> namedToObf) {
+        StringBuilder out = new StringBuilder(descriptor.length());
+        for (int i = 0; i < descriptor.length(); i++) {
+            char c = descriptor.charAt(i);
+            if (c == 'L') {
+                int end = descriptor.indexOf(';', i);
+                if (end < 0) {
+                    out.append(c);
+                    continue;
+                }
+                String internal = descriptor.substring(i + 1, end);
+                String mapped = namedToObf.getOrDefault(internal, internal);
+                out.append('L').append(mapped).append(';');
+                i = end;
+            } else {
+                out.append(c);
+            }
+        }
+        return out.toString();
     }
 
     private static String toInternal(String binaryOrInternal) {

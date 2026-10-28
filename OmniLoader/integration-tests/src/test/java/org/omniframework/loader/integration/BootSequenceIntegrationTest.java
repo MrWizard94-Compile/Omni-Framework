@@ -359,4 +359,60 @@ class BootSequenceIntegrationTest {
         assertTrue(issues.errors().stream().anyMatch(i -> i.code().equals("boot.no-provider")),
                 () -> issues.issues().toString());
     }
+
+    @Test
+    @DisplayName("locate failure writes game/logs/omniloader-issues.json with boot.no-provider")
+    void locateFailureWritesIssueDump(@TempDir Path dir) throws IOException {
+        Path gameDir = dir.resolve("game");
+        Files.createDirectories(gameDir);
+        IssueCollector issues = new IssueCollector();
+        Optional<BootResult> result = new BootSequence(List.of())
+                .run(new BootConfig(gameDir, gameDir.resolve("mods"), GameSide.CLIENT, List.of()), issues);
+
+        assertTrue(result.isEmpty());
+        Path dump = gameDir.resolve("logs").resolve("omniloader-issues.json");
+        assertTrue(Files.isRegularFile(dump), "boot-failure dump must exist at " + dump);
+        String json = Files.readString(dump, StandardCharsets.UTF_8);
+        assertTrue(json.contains("boot.no-provider"), () -> "dump missing code: " + json);
+        assertTrue(issues.errors().stream().anyMatch(i -> i.code().equals("boot.no-provider")),
+                () -> issues.issues().toString());
+    }
+
+    @Test
+    @DisplayName("resolve unsat writes game/logs/omniloader-issues.json with dependency codes")
+    void resolveFailureWritesIssueDump(@TempDir Path dir) throws IOException {
+        Path gameDir = dir.resolve("game");
+        Path modsDir = gameDir.resolve("mods");
+        Files.createDirectories(modsDir);
+        // Hard dependency on a mod that is not present → resolution fails on the shipped path.
+        String modClass = "net/example/broken/BrokenInit";
+        String manifest = """
+                { "schema": 0, "id": "needs-missing", "version": "1.0.0", "name": "needs-missing",
+                  "entrypoints": { "main": ["net.example.broken.BrokenInit"] },
+                  "depends": { "omniloader": ">=0.1", "minecraft": "1.21.1", "totally-missing-lib": "*" } }
+                """;
+        jar(modsDir, "needs-missing.jar", java.util.Map.of(
+                "omni.mod.json", manifest.getBytes(StandardCharsets.UTF_8),
+                modClass + ".class", initializerSetting(modClass, MOD_SIGNAL, "needs-missing")));
+
+        Path gameJar = gameJar(gameDir);
+        LocatedGame game = new LocatedGame(
+                "1.21.1", List.of(gameJar), "net.minecraft.FakeMain", List.of());
+        BootConfig config = new BootConfig(
+                gameDir, modsDir, GameSide.CLIENT, List.of(), List.of(), Optional.of(game));
+
+        IssueCollector issues = new IssueCollector();
+        Optional<BootResult> result = new BootSequence(List.of()).run(config, issues);
+
+        assertTrue(result.isEmpty(), () -> "expected resolve failure, got " + result);
+        Path dump = gameDir.resolve("logs").resolve("omniloader-issues.json");
+        assertTrue(Files.isRegularFile(dump), "resolve-failure dump must exist at " + dump);
+        String json = Files.readString(dump, StandardCharsets.UTF_8);
+        assertTrue(
+                json.contains("resolve.dependency-missing")
+                        || json.contains("resolve.unsatisfiable")
+                        || json.contains("resolve."),
+                () -> "dump should carry resolve error codes: " + json);
+        assertFalse(issues.errors().isEmpty(), () -> "collector should hold resolve errors: " + issues.issues());
+    }
 }

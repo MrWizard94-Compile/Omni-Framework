@@ -30,9 +30,9 @@ import org.omniframework.loader.resolve.ModCandidate;
 /**
  * Runtime {@link FabricLoader} installed before hosted entrypoints run.
  *
- * <p>Reports the <em>whole</em> resolved pack (ADR-0020). Entrypoint lookup returns empty here —
- * Omni's {@code EntrypointDispatcher} still owns invocation; this type exists so mods calling
- * {@code FabricLoader.getInstance()} during init do not crash.
+ * <p>Reports the <em>whole</em> resolved pack (ADR-0020). Entrypoint containers are populated
+ * from declared metadata so {@code getEntrypoints}/{@code getEntrypointContainers} answer
+ * during init (deeper host surface); Omni still owns phase ordering via EntrypointDispatcher.
  */
 public final class OmniFabricLoader implements FabricLoader {
 
@@ -42,9 +42,11 @@ public final class OmniFabricLoader implements FabricLoader {
     private final String gameVersion;
     private final String[] launchArguments;
     private final Map<String, ModContainer> modsById;
+    private final Map<String, List<DeclaredEntrypoint>> entrypointsByKey;
     private final ObjectShare objectShare = new SimpleObjectShare();
     private final MappingResolver mappingResolver = new IdentityMappingResolver();
     private volatile Object gameInstance;
+    private volatile ClassLoader entrypointLoader;
 
     public OmniFabricLoader(
             Path gameDir,
@@ -58,14 +60,25 @@ public final class OmniFabricLoader implements FabricLoader {
         this.gameVersion = Objects.requireNonNull(gameVersion, "gameVersion");
         this.launchArguments = launchArguments == null ? new String[0] : launchArguments.clone();
         Map<String, ModContainer> map = new LinkedHashMap<>();
+        Map<String, List<DeclaredEntrypoint>> byKey = new LinkedHashMap<>();
         for (ModCandidate candidate : resolvedMods) {
             SimpleModContainer container = new SimpleModContainer(candidate);
             map.put(candidate.id(), container);
             for (var provided : candidate.metadata().provides()) {
                 map.putIfAbsent(provided.id(), container);
             }
+            for (var ep : candidate.metadata().entrypoints()) {
+                byKey.computeIfAbsent(ep.phase(), ignored -> new ArrayList<>())
+                        .add(new DeclaredEntrypoint(container, ep.value()));
+            }
         }
         this.modsById = Collections.unmodifiableMap(map);
+        this.entrypointsByKey = Collections.unmodifiableMap(byKey);
+    }
+
+    /** Sets the classloader used to materialize entrypoint instances for getEntrypoints. */
+    public void setEntrypointLoader(ClassLoader loader) {
+        this.entrypointLoader = loader;
     }
 
     public void setGameInstance(Object gameInstance) {
@@ -74,17 +87,61 @@ public final class OmniFabricLoader implements FabricLoader {
 
     @Override
     public <T> List<T> getEntrypoints(String key, Class<T> type) {
-        return List.of();
+        return getEntrypointContainers(key, type).stream()
+                .map(EntrypointContainer::getEntrypoint)
+                .toList();
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     public <T> List<EntrypointContainer<T>> getEntrypointContainers(String key, Class<T> type) {
-        return List.of();
+        List<DeclaredEntrypoint> declared = entrypointsByKey.getOrDefault(key, List.of());
+        if (declared.isEmpty() || entrypointLoader == null) {
+            return List.of();
+        }
+        List<EntrypointContainer<T>> out = new ArrayList<>();
+        for (DeclaredEntrypoint decl : declared) {
+            try {
+                Class<?> cls = Class.forName(decl.className, false, entrypointLoader);
+                if (!type.isAssignableFrom(cls)) {
+                    continue;
+                }
+                T instance = (T) cls.getDeclaredConstructor().newInstance();
+                out.add(new SimpleEntrypointContainer<>(decl.container, instance));
+            } catch (ReflectiveOperationException ignored) {
+                // Skip unloadable; boot dispatcher still owns the authoritative path.
+            }
+        }
+        return out;
     }
 
     @Override
     public <T> void invokeEntrypoints(String key, Class<T> type, Consumer<? super T> invoker) {
-        // No-op: boot uses EntrypointDispatcher. Present so API callers do not NPE.
+        for (T entry : getEntrypoints(key, type)) {
+            invoker.accept(entry);
+        }
+    }
+
+    private record DeclaredEntrypoint(ModContainer container, String className) {}
+
+    private static final class SimpleEntrypointContainer<T> implements EntrypointContainer<T> {
+        private final ModContainer provider;
+        private final T entrypoint;
+
+        SimpleEntrypointContainer(ModContainer provider, T entrypoint) {
+            this.provider = provider;
+            this.entrypoint = entrypoint;
+        }
+
+        @Override
+        public T getEntrypoint() {
+            return entrypoint;
+        }
+
+        @Override
+        public ModContainer getProvider() {
+            return provider;
+        }
     }
 
     @Override

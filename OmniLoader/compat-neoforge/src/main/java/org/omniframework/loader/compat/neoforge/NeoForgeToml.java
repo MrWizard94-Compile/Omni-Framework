@@ -66,7 +66,7 @@ public final class NeoForgeToml {
                 if (inMods) {
                     break; // next table ends the first mods entry
                 }
-                if ("[[mods]]".equals(trimmed)) {
+                if (isModsTableHeader(trimmed)) {
                     inMods = true;
                 }
                 continue;
@@ -96,7 +96,7 @@ public final class NeoForgeToml {
                     tables.add(current);
                     current = null;
                 }
-                if ("[[mods]]".equals(trimmed)) {
+                if (isModsTableHeader(trimmed)) {
                     current = new LinkedHashMap<>();
                 }
                 continue;
@@ -115,14 +115,113 @@ public final class NeoForgeToml {
         return tables;
     }
 
-    private static String strip(String raw) {
+    /**
+     * Dependency tables {@code [[dependencies.&lt;modId&gt;]]} as maps of field→value.
+     * The section header's mod id is stored under the synthetic key {@code _owner}.
+     */
+    public static List<Map<String, String>> dependencyTables(String text) {
+        List<Map<String, String>> tables = new ArrayList<>();
+        Map<String, String> current = null;
+        for (String line : text.split("\\R")) {
+            String trimmed = line.trim();
+            if (trimmed.startsWith("#") || trimmed.isEmpty()) {
+                continue;
+            }
+            if (trimmed.startsWith("[")) {
+                if (current != null) {
+                    tables.add(current);
+                    current = null;
+                }
+                Optional<String> owner = dependencyOwner(trimmed);
+                if (owner.isPresent()) {
+                    current = new LinkedHashMap<>();
+                    current.put("_owner", owner.get());
+                }
+                continue;
+            }
+            if (current == null) {
+                continue;
+            }
+            Matcher m = KEY_VALUE.matcher(trimmed);
+            if (m.matches()) {
+                current.put(m.group(1), strip(m.group(2)));
+            }
+        }
+        if (current != null) {
+            tables.add(current);
+        }
+        return tables;
+    }
+
+    /**
+     * Whether {@code header} is a {@code [[mods]]} table, including trailing comments
+     * ({@code [[mods]] #mandatory}) used by the NeoForge template and many real packs.
+     */
+    static boolean isModsTableHeader(String header) {
+        String h = stripTrailingComment(header.trim()).trim();
+        return "[[mods]]".equals(h);
+    }
+
+    /**
+     * Owner mod id from a {@code [[dependencies.x]]} header, or empty when not a dep table.
+     * Accepts trailing comments: {@code [[dependencies.demo]] #optional}.
+     */
+    static Optional<String> dependencyOwner(String header) {
+        String h = stripTrailingComment(header.trim()).trim();
+        if (!h.startsWith("[[dependencies.") || !h.endsWith("]]")) {
+            return Optional.empty();
+        }
+        String owner = h.substring("[[dependencies.".length(), h.length() - 2).trim();
+        if (owner.isEmpty()) {
+            return Optional.empty();
+        }
+        return Optional.of(strip(owner));
+    }
+
+    /**
+     * Strips TOML scalar noise: trailing {@code #} comments and surrounding quotes.
+     *
+     * <p>Real packs write {@code versionRange = "[1.21.1,)" # comment}. Without comment
+     * stripping, the range becomes {@code "[1.21.1,)" # comment} and never matches, which
+     * floods resolve with false {@code dependency-version} errors.
+     */
+    static String strip(String raw) {
         String value = raw.trim();
+        value = stripTrailingComment(value).trim();
         if (value.length() >= 2
                 && ((value.startsWith("\"") && value.endsWith("\""))
                         || (value.startsWith("'") && value.endsWith("'")))) {
             return value.substring(1, value.length() - 1);
         }
         // ${file.jarVersion} style — keep literal; importer warns.
+        return value;
+    }
+
+    /** Removes a trailing {@code #} comment, respecting quoted strings. */
+    static String stripTrailingComment(String value) {
+        if (value.isEmpty()) {
+            return value;
+        }
+        char quote = 0;
+        if (value.charAt(0) == '"' || value.charAt(0) == '\'') {
+            quote = value.charAt(0);
+            for (int i = 1; i < value.length(); i++) {
+                char c = value.charAt(i);
+                if (c == '\\' && i + 1 < value.length()) {
+                    i++;
+                    continue;
+                }
+                if (c == quote) {
+                    // Keep through closing quote; drop anything after (comments).
+                    return value.substring(0, i + 1);
+                }
+            }
+            return value;
+        }
+        int hash = value.indexOf('#');
+        if (hash >= 0) {
+            return value.substring(0, hash).trim();
+        }
         return value;
     }
 }

@@ -16,6 +16,7 @@ import java.util.zip.CRC32;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 import java.util.zip.ZipOutputStream;
+import org.omniframework.loader.transform.mapping.MappingSet;
 
 /**
  * Runs the ordered passes over a jar and writes the transformed result (ARCHITECTURE §6).
@@ -140,14 +141,48 @@ public final class TransformPipeline {
                 removed++;
                 continue;
             }
+            // Class renames must move the zip entry. RemapPass rewrites this_class in the
+            // bytecode; leaving the entry under the old path means the classloader looks for
+            // net/minecraft/resources/ResourceLocation.class and finds guu.class instead —
+            // every Fabric mod then fails with ClassNotFoundException for game types.
+            String outName = remappedEntryName(entry.getKey(), context.mappings());
+            if (!outName.equals(entry.getKey())) {
+                current = new JarResource(outName, current.contentDirect());
+                changed = true;
+            }
             if (changed) {
                 modified++;
             }
-            produced.put(entry.getKey(), current);
+            produced.put(outName, current);
         }
 
         writeJar(output, produced);
         return new Result(audit.build(), entries.size(), modified, removed);
+    }
+
+    /**
+     * Zip path for a class after namespace remap, preserving multi-release prefixes.
+     */
+    static String remappedEntryName(String entryName, MappingSet mappings) {
+        if (mappings == null || mappings.isIdentity() || !entryName.endsWith(".class")) {
+            return entryName;
+        }
+        String prefix = "";
+        String classPath = entryName;
+        final String versions = "META-INF/versions/";
+        if (entryName.startsWith(versions)) {
+            int slash = entryName.indexOf('/', versions.length());
+            if (slash > 0) {
+                prefix = entryName.substring(0, slash + 1);
+                classPath = entryName.substring(slash + 1);
+            }
+        }
+        if (!classPath.endsWith(".class")) {
+            return entryName;
+        }
+        String internal = classPath.substring(0, classPath.length() - ".class".length());
+        String mapped = mappings.mapClass(internal).orElse(internal);
+        return prefix + mapped + ".class";
     }
 
     private static Optional<TransformPass.Outcome> applyPass(

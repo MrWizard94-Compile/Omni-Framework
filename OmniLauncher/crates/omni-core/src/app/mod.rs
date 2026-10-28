@@ -39,8 +39,9 @@ mod commands;
 mod dto;
 
 pub use dto::{
-    AccountDto, ConsoleTail, DetectedFormat, DeviceCodeDto, ExportReportDto, ImportCandidateDto,
-    ImportReportDto, InstanceDetail, InstanceSummary, JobDto, LoaderRef, ModDto, SkippedDto,
+    AccountDto, BootIssueDto, ConsoleTail, ContentHitDto, DetectedFormat, DeviceCodeDto,
+    ExportReportDto, ImportCandidateDto, ImportReportDto, InstanceDetail, InstanceSummary,
+    JavaRuntimeDto, JobDto, LoaderRef, ModDto, ResourceDto, ServerConfigDto, SkippedDto,
     StackEntryDto, VersionOption,
 };
 
@@ -57,7 +58,7 @@ use crate::clock::{Clock, SystemClock};
 use crate::db::Db;
 use crate::error::CoreError;
 use crate::events::EventSink;
-use crate::install::{BlobSource, Paths, UreqBlobSource};
+use crate::install::{BlobSource, FailoverBlobSource, Paths};
 use crate::jobs::CancelToken;
 
 /// The meta client with its source erased, so the service needs no generic
@@ -258,7 +259,8 @@ impl AppService {
             paths,
             vault: Arc::new(KeyringVault::new(config.vault_service.clone())),
             http: Arc::new(UreqAuthHttp::new()),
-            blobs: Arc::new(UreqBlobSource::new()),
+            // SVC-2: primary HTTP, then Mojang host-mirror rewrites on failure.
+            blobs: Arc::new(FailoverBlobSource::production()),
             meta,
             clock,
             sink,

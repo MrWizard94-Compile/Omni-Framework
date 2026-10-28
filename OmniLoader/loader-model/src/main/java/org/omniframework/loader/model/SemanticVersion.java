@@ -30,22 +30,29 @@ public record SemanticVersion(
         int major,
         int minor,
         int patch,
+        /** Fourth numeric component used by Fabric mods (e.g. owo {@code 0.12.15.5}). */
+        int revision,
         List<String> preRelease,
         Optional<String> buildMetadata)
         implements Comparable<SemanticVersion> {
 
     /** Canonical constructor; validates and defensively copies. */
     public SemanticVersion {
-        if (major < 0 || minor < 0 || patch < 0) {
+        if (major < 0 || minor < 0 || patch < 0 || revision < 0) {
             throw new IllegalArgumentException("version numbers must not be negative");
         }
         preRelease = List.copyOf(Objects.requireNonNull(preRelease, "preRelease"));
         Objects.requireNonNull(buildMetadata, "buildMetadata");
     }
 
-    /** A plain {@code major.minor.patch} version. */
+    /** A plain {@code major.minor.patch} version (revision 0). */
     public static SemanticVersion of(int major, int minor, int patch) {
-        return new SemanticVersion(major, minor, patch, List.of(), Optional.empty());
+        return new SemanticVersion(major, minor, patch, 0, List.of(), Optional.empty());
+    }
+
+    /** A four-part {@code major.minor.patch.revision} version. */
+    public static SemanticVersion of(int major, int minor, int patch, int revision) {
+        return new SemanticVersion(major, minor, patch, revision, List.of(), Optional.empty());
     }
 
     /**
@@ -58,54 +65,207 @@ public record SemanticVersion(
         if (text == null || text.isBlank()) {
             return Optional.empty();
         }
+        // Hybrid MC+mod versions: "1.21.1-1.2.10", "1.21-1.3" → order by the mod half.
+        Optional<String> hybridMod = extractHybridModVersion(text);
+        if (hybridMod.isPresent()) {
+            return parse(hybridMod.get());
+        }
         String rest = text;
         Optional<String> build = Optional.empty();
         int plus = rest.indexOf('+');
         if (plus >= 0) {
-            String metadata = rest.substring(plus + 1);
+            // Semver allows one '+'; real mods ship multi-plus tags like
+            // "0.7.6+1.21+neoforge". Normalize extra '+' to '.' so ordering still works
+            // (build metadata is ignored in compare, but parse must not return empty).
+            String metadata = rest.substring(plus + 1).replace('+', '.');
             if (!isValidDotSeparatedIdentifiers(metadata, true)) {
-                return Optional.empty();
+                // Last resort: keep opaque metadata by sanitizing illegal chars.
+                metadata = sanitizeBuildMetadata(metadata);
+                if (metadata.isEmpty()) {
+                    return Optional.empty();
+                }
             }
             build = Optional.of(metadata);
             rest = rest.substring(0, plus);
         }
         List<String> pre = List.of();
         int dash = rest.indexOf('-');
-        if (dash >= 0) {
+        // dash must follow core numbers ("1.0.0-rc.1"); a leading '-' is not semver.
+        if (dash > 0) {
             String preText = rest.substring(dash + 1);
             if (!isValidDotSeparatedIdentifiers(preText, false)) {
                 return Optional.empty();
             }
             pre = List.of(preText.split("\\.", -1));
             rest = rest.substring(0, dash);
+        } else if (dash == 0) {
+            return Optional.empty();
         }
         String[] core = rest.split("\\.", -1);
-        // Accept 1–N numeric components, using the first three for ordering:
-        // "21" → 21.0.0, "1.21" → 1.21.0, "0.12.15.4" → 0.12.15 (Fabric often
-        // ships 4-part versions; ignoring the 4th is better than non-semver
-        // which made ">=0.10.3" fail against "0.12.15.4+1.21").
+        // Accept 1–N components. First three are major.minor.patch; a fourth numeric
+        // component is revision (owo 0.12.15.5). Further numeric segments are ignored for
+        // ordering but letter suffixes still fold into build metadata.
+        // Letter suffixes ("1.11.2b", "0.5.1.e", "1.21z") are common in Create/NeoForge —
+        // strip them into build metadata so ranges work.
         if (core.length == 0) {
             return Optional.empty();
         }
-        int limit = Math.min(core.length, 3);
-        int[] numbers = new int[3];
+        int limit = Math.min(core.length, 4);
+        int[] numbers = new int[4];
+        StringBuilder letterSuffix = new StringBuilder();
         for (int i = 0; i < limit; i++) {
-            if (!isNumericIdentifier(core[i])) {
+            if (core[i].isEmpty()) {
+                // Trailing/empty segment from "21.1." → treat as 0
+                numbers[i] = 0;
+                continue;
+            }
+            Optional<int[]> stripped = stripTrailingLetters(core[i]);
+            if (stripped.isEmpty()) {
                 return Optional.empty();
             }
-            try {
-                numbers[i] = Integer.parseInt(core[i]);
-            } catch (NumberFormatException overflow) {
+            numbers[i] = stripped.get()[0];
+            String letters = trailingLetters(core[i]);
+            if (!letters.isEmpty()) {
+                if (!letterSuffix.isEmpty()) {
+                    letterSuffix.append('.');
+                }
+                letterSuffix.append(letters);
+            }
+        }
+        // Extra trailing components beyond revision: letter-stripped only.
+        for (int i = 4; i < core.length; i++) {
+            if (core[i].isEmpty()) {
+                continue;
+            }
+            Optional<int[]> stripped = stripTrailingLetters(core[i]);
+            if (stripped.isEmpty()) {
+                return Optional.empty();
+            }
+            String letters = trailingLetters(core[i]);
+            if (!letters.isEmpty()) {
+                if (!letterSuffix.isEmpty()) {
+                    letterSuffix.append('.');
+                }
+                letterSuffix.append(letters);
+            }
+        }
+        if (!letterSuffix.isEmpty()) {
+            String extra = letterSuffix.toString();
+            build = build.map(existing -> existing + "." + extra).or(() -> Optional.of(extra));
+        }
+        // Loader channel suffixes (2.0-NEOFORGE-1.21.1) are not semver pre-releases — they are
+        // distribution tags. Keep them in build metadata so [2.0,) matches 2.0-NEOFORGE-….
+        if (!pre.isEmpty() && isLoaderChannelPreRelease(pre)) {
+            String channel = String.join(".", pre);
+            build = build.map(existing -> channel + "." + existing).or(() -> Optional.of(channel));
+            pre = List.of();
+        }
+        return Optional.of(new SemanticVersion(
+                numbers[0], numbers[1], numbers[2], numbers[3], pre, build));
+    }
+
+    /**
+     * Whether pre-release tokens look like a loader/distribution channel rather than a real
+     * pre-release ({@code beta}, {@code rc}, …).
+     */
+    private static boolean isLoaderChannelPreRelease(List<String> pre) {
+        if (pre.isEmpty()) {
+            return false;
+        }
+        String first = pre.get(0).toLowerCase(java.util.Locale.ROOT);
+        // "NEOFORGE-1" after split on '.' from "NEOFORGE-1.21.1", or plain "neoforge"
+        String head = first.contains("-") ? first.substring(0, first.indexOf('-')) : first;
+        return head.equals("neoforge")
+                || head.equals("forge")
+                || head.equals("fabric")
+                || head.equals("quilt")
+                || head.equals("bukkit")
+                || head.equals("spigot")
+                || head.equals("paper");
+    }
+
+    /**
+     * Detects hybrid {@code <minecraft>-<modversion>} pins used by Farmer's Delight addons
+     * and similar: {@code 1.21.1-1.2.10}, {@code 1.21-1.3}. Returns the mod-version half.
+     */
+    static Optional<String> extractHybridModVersion(String text) {
+        if (text == null) {
+            return Optional.empty();
+        }
+        String raw = text.trim();
+        // Strip build metadata for pattern match; re-attach later if present.
+        String build = "";
+        int plus = raw.indexOf('+');
+        if (plus >= 0) {
+            build = raw.substring(plus);
+            raw = raw.substring(0, plus);
+        }
+        // MC half: 1.16–1.2x with optional patch; mod half starts with a digit.
+        // Avoid treating 2.3.9-NEOFORGE-… or 1.0.0-rc.1 as hybrid.
+        java.util.regex.Matcher m = java.util.regex.Pattern.compile(
+                        "^(1\\.1[6-9]|1\\.2[0-9])(?:\\.\\d+)?-(\\d.*)$")
+                .matcher(raw);
+        if (!m.matches()) {
+            return Optional.empty();
+        }
+        String modHalf = m.group(2);
+        // Reject if mod half is a pure pre-release word (rc, beta, alpha, …).
+        String first = modHalf.split("[.\\-]", 2)[0].toLowerCase(java.util.Locale.ROOT);
+        if (first.equals("rc")
+                || first.equals("beta")
+                || first.equals("alpha")
+                || first.equals("snapshot")
+                || first.equals("pre")
+                || first.equals("preview")) {
+            return Optional.empty();
+        }
+        // Reject loader-channel only (handled separately as build metadata).
+        if (first.equals("neoforge")
+                || first.equals("forge")
+                || first.equals("fabric")
+                || first.equals("quilt")) {
+            return Optional.empty();
+        }
+        return Optional.of(modHalf + build);
+    }
+
+    /**
+     * Parses a core component that may end with letters ({@code 2b}, {@code 1e}).
+     *
+     * @return empty if not a number with optional letter suffix; otherwise {@code {number}}
+     */
+    private static Optional<int[]> stripTrailingLetters(String component) {
+        int end = 0;
+        while (end < component.length() && Character.isDigit(component.charAt(end))) {
+            end++;
+        }
+        if (end == 0) {
+            return Optional.empty();
+        }
+        for (int i = end; i < component.length(); i++) {
+            char c = component.charAt(i);
+            if (!Character.isLetter(c) || c >= 128) {
                 return Optional.empty();
             }
         }
-        // Extra trailing components must still be numeric (e.g. 0.12.15.4), else reject.
-        for (int i = 3; i < core.length; i++) {
-            if (!isNumericIdentifier(core[i])) {
+        try {
+            int n = Integer.parseInt(component.substring(0, end));
+            if (end > 1 && component.charAt(0) == '0') {
+                // Leading zeros not allowed on numeric identifiers (semver).
                 return Optional.empty();
             }
+            return Optional.of(new int[] {n});
+        } catch (NumberFormatException overflow) {
+            return Optional.empty();
         }
-        return Optional.of(new SemanticVersion(numbers[0], numbers[1], numbers[2], pre, build));
+    }
+
+    private static String trailingLetters(String component) {
+        int end = 0;
+        while (end < component.length() && Character.isDigit(component.charAt(end))) {
+            end++;
+        }
+        return end < component.length() ? component.substring(end) : "";
     }
 
     /** Whether this is a pre-release (and therefore orders below its release). */
@@ -127,6 +287,10 @@ public record SemanticVersion(
         if (result != 0) {
             return result;
         }
+        result = Integer.compare(revision, other.revision);
+        if (result != 0) {
+            return result;
+        }
         return comparePreRelease(preRelease, other.preRelease);
     }
 
@@ -142,6 +306,9 @@ public record SemanticVersion(
     public String toString() {
         StringBuilder text = new StringBuilder(16);
         text.append(major).append('.').append(minor).append('.').append(patch);
+        if (revision != 0) {
+            text.append('.').append(revision);
+        }
         if (!preRelease.isEmpty()) {
             text.append('-').append(String.join(".", preRelease));
         }
@@ -207,6 +374,28 @@ public record SemanticVersion(
         }
         // "Numeric identifiers MUST NOT include leading zeroes."
         return text.length() == 1 || text.charAt(0) != '0';
+    }
+
+    /** Keeps alphanumerics, dots, and hyphens so multi-ecosystem build tags still parse. */
+    private static String sanitizeBuildMetadata(String text) {
+        StringBuilder out = new StringBuilder(text.length());
+        for (int i = 0; i < text.length(); i++) {
+            char c = text.charAt(i);
+            if ((Character.isLetterOrDigit(c) && c < 128) || c == '-' || c == '.') {
+                out.append(c);
+            } else if (c == '+' || c == '_' || c == ' ') {
+                out.append('.');
+            }
+        }
+        // Collapse empty segments from consecutive separators.
+        String collapsed = out.toString().replaceAll("\\.+", ".");
+        if (collapsed.startsWith(".")) {
+            collapsed = collapsed.substring(1);
+        }
+        if (collapsed.endsWith(".")) {
+            collapsed = collapsed.substring(0, collapsed.length() - 1);
+        }
+        return collapsed;
     }
 
     private static boolean isValidDotSeparatedIdentifiers(String text, boolean isBuildMetadata) {

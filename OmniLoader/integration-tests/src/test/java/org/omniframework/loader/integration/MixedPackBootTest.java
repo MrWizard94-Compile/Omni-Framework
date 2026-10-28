@@ -21,6 +21,7 @@ import org.objectweb.asm.AnnotationVisitor;
 import org.objectweb.asm.ClassWriter;
 import org.objectweb.asm.MethodVisitor;
 import org.objectweb.asm.Opcodes;
+import org.omniframework.api.OmniLoaderApi;
 import org.omniframework.loader.bootstrap.BootConfig;
 import org.omniframework.loader.bootstrap.BootResult;
 import org.omniframework.loader.bootstrap.BootSequence;
@@ -33,8 +34,10 @@ import org.omniframework.loader.provider.LocatedGame;
  * ADR-0020 / B4 exit for Phase 4 fixtures: one native + one Fabric + one NeoForge-shaped mod
  * initialise on one BootSequence, then the game main runs.
  *
- * <p>These are not production Minecraft mods (no intermediary remap, no FML event bus). They
- * prove the claim → import → partition → entrypoint path that real layers extend.
+ * <p>These are not production Minecraft mods (no intermediary remap, no full FML game bus).
+ * They prove claim → import → partition → entrypoint, that {@link OmniLoaderApi} is installed
+ * before entrypoints, and that NeoForge construct runs on the shared boot (per-mod event bus
+ * is covered by {@code OmniEventBusTest} on the shipped host types).
  */
 class MixedPackBootTest {
 
@@ -85,6 +88,14 @@ class MixedPackBootTest {
                 new BootSequence(List.<GameProvider>of()).run(config, issues);
 
         assertTrue(result.isPresent(), () -> "boot failed: " + issues.issues());
+        assertTrue(
+                OmniLoaderApi.Holder.isAvailable(),
+                "OmniLoaderApi must be installed before entrypoints (shipped BootSequence path)");
+        OmniLoaderApi api = OmniLoaderApi.Holder.get();
+        assertEquals(BootSequence.LOADER_VERSION, api.loaderVersion());
+        assertTrue(api.isModLoaded("native-mixed"), api.loadedMods().toString());
+        assertTrue(api.isModLoaded("fabric-mixed"), api.loadedMods().toString());
+        assertTrue(api.isModLoaded("neoforge-mixed"), api.loadedMods().toString());
         assertEquals("yes", System.getProperty(NATIVE_SIGNAL));
         assertEquals("yes", System.getProperty(FABRIC_SIGNAL));
         assertEquals("yes", System.getProperty(NEO_SIGNAL));

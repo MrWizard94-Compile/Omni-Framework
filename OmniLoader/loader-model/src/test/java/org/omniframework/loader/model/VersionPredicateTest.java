@@ -70,6 +70,23 @@ class VersionPredicateTest {
     }
 
     @Test
+    @DisplayName("Maven intervals expand on the shared path (Fabric dual-loader jars)")
+    void mavenIntervalsOnExpand() {
+        assertTrue(matches("[1.21.1,)", "1.21.1"));
+        assertTrue(matches("[1.21, 1.21.1]", "1.21.1"));
+        assertTrue(matches("[21.1.72,)", "21.1.999"));
+        assertFalse(matches("[1.21,1.21.1)", "1.21.1"), "raw half-open still excludes without softener");
+    }
+
+    @Test
+    @DisplayName("Fabric tilde intervals match patch releases (~1.21 <1.21.2 → 1.21.1)")
+    void fabricTildeIntervalMatchesPatch() {
+        assertTrue(matches("~1.21 <1.21.2", "1.21.1"));
+        assertTrue(matches("~1.21 <1.21.2-", "1.21.1"));
+        assertFalse(matches("~1.21 <1.21.2", "1.22.0"));
+    }
+
+    @Test
     @DisplayName("Fabric-style x and * wildcards expand to a bounded range")
     void xWildcards() {
         assertTrue(matches("1.21.x", "1.21.1"));

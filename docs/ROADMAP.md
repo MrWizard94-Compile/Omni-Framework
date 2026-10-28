@@ -253,8 +253,20 @@ Per-mod port queue for top tiers: license check → (if restrictive) author outr
 | Client/server Fabric entrypoint phases | ✅ |
 | Intermediary→official remap on boot | ✅ compose Fabric intermediary Tiny + Mojang proguard; `TransformService.ensure` |
 | Mixin on boot dist | ✅ `loader-mixin` on dist; install + `MixinClassTransformer` (best-effort) |
-| mrpack remote download of mods | ⬜ |
-| NeoForge event bus / pack AOT | ⬜ |
+| Access-widener merge on boot | ✅ `BootTransform` + `AccessMergePass` |
+| `OmniLoaderApi` installed before entrypoints | ✅ |
+| mrpack remote download of mods | ✅ `pendingDownloads` + install phase `mod-files` + overrides extract |
+| `omni-platform` (LNC-9) | ✅ crate + Modrinth ResourceQuery; CF search + opt-out types |
+| NeoForge per-mod event bus (construct path) | ✅ hosted `IEventBus` + activate-before-create + `forMod` post; `NeoForgePerModBusTest` |
+| NeoForge FML setup lifecycle (common/client/server) | ✅ `NeoForgeLifecycle.fireSetup` + hosted FML*SetupEvent types |
+| NeoForge pack-scale AOT / AT / full FML parity | ⬜ residual Sinytra-scale (AOT remap still boot-global for hosted jars) |
+| LNC-10 resource/shader/data/world folder model | ✅ `resources` module + UI toggle + headless tests |
+| Content browse UI over `omni-platform` | ✅ Browse tab + `search_content` / install IPC |
+| CF fingerprint bulk + opt-out download typing | ✅ `files_by_fingerprints` POST + `file_download` blocked path |
+| SVC-2 multi-provider failover | ✅ `FailoverBlobSource` |
+| System JVM discovery | ✅ `java_discover` + Settings scan |
+| Server port/config UX | ✅ `server_config` + Instances server form |
+| Boot failure tree UI | ✅ `omniloader-issues.json` dump + Instances issue panel |
 
 ## Parallel Track — OmniMC (ADR-0017)
 

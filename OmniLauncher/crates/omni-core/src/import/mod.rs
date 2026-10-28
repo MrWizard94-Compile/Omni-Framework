@@ -22,7 +22,10 @@ mod stage;
 
 pub use curseforge::CurseForgeImporter;
 pub use hash::{murmur2_fingerprint, scan_mods_dir, ScannedMod};
-pub use mrpack::MrpackImporter;
+pub use mrpack::{
+    extract_mrpack_overrides, pending_downloads_from_settings, store_pending_downloads,
+    MrpackImporter, PendingDownload, PENDING_DOWNLOADS_KEY,
+};
 pub use official::OfficialImporter;
 pub use prism::PrismImporter;
 pub use stage::{

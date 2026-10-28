@@ -16,6 +16,7 @@ use serde_json::json;
 
 use omni_core::auth::{LaunchAuth, LiveSession};
 use omni_core::clock::FixedClock;
+use omni_core::import::{PendingDownload, store_pending_downloads};
 use omni_core::install::{
     BlobError, BlobSource, InstallExecutor, InstallSpec, Paths, ResolvedStack, resolve_stack,
     sha1_hex,
@@ -560,4 +561,48 @@ fn spawn_records_session_and_exit_code() {
     let instance =
         db.with_store(|store| store.instance(id)).expect("query").expect("instance");
     assert!(instance.last_played_at.is_some());
+}
+
+/// Install job must run the shipped `mod-files` phase after game/java and place
+/// pack CDN artifacts via [`InstallExecutor`] (not only the standalone helper).
+#[test]
+fn install_job_mod_files_phase_fetches_pending_pack_jars() {
+    let (db, paths, _root) = fresh_env();
+    let (stack, mut blobs) = synthetic_world();
+    let id = make_instance(&db, InstanceKind::Client);
+
+    let pack_url = "https://cdn.modrinth.com/data/AA/versions/1/example.jar";
+    let pack_bytes = b"example-pack-mod-bytes".to_vec();
+    let pack_sha1 = blobs.insert(pack_url, pack_bytes.clone());
+
+    store_pending_downloads(
+        &db,
+        id,
+        &[PendingDownload {
+            path: "mods/example.jar".into(),
+            url: pack_url.into(),
+            mirrors: vec![],
+            sha1: Some(pack_sha1.clone()),
+            sha512: None,
+            size: Some(pack_bytes.len() as u64),
+        }],
+    )
+    .expect("queue pending");
+
+    let outcome =
+        run_install(&db, &paths, &blobs, InstallSpec { instance_id: id, server: false, stack });
+    assert_eq!(outcome, RunOutcome::Completed);
+
+    let on_disk = std::fs::read(paths.game_dir(id).join("mods/example.jar")).expect("mod jar");
+    assert_eq!(on_disk, pack_bytes);
+    assert_eq!(sha1_hex(&on_disk), pack_sha1);
+    assert!(
+        blobs.fetches.lock().expect("log").iter().any(|u| u == pack_url),
+        "install executor must fetch the pack CDN URL"
+    );
+
+    // Queue drained after a successful install phase.
+    let settings = db.with_store(|s| Ok(s.instance(id)?.unwrap().settings)).unwrap();
+    let remaining = omni_core::import::pending_downloads_from_settings(&settings).unwrap();
+    assert!(remaining.is_empty(), "pendingDownloads cleared after mod-files: {remaining:?}");
 }

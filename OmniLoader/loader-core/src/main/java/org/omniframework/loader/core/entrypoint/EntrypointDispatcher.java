@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 import org.omniframework.loader.model.Entrypoint;
 import org.omniframework.loader.model.ModMetadata;
 
@@ -118,6 +119,25 @@ public final class EntrypointDispatcher {
      * @throws EntrypointPhaseException if any entrypoint failed, carrying all of them
      */
     public <T> void run(String phase, Class<T> type, BiConsumer<ModMetadata, T> action) {
+        run(phase, type, metadata -> { }, action);
+    }
+
+    /**
+     * Like {@link #run(String, Class, BiConsumer)}, but invokes {@code beforeCreate} for each
+     * mod immediately before that mod's entrypoint is constructed.
+     *
+     * <p>Required for NeoForge hosting: {@code FMLJavaModLoadingContext.activate(modId)} must
+     * run before {@code @Mod} construction so {@code get().getModEventBus()} is that mod's bus,
+     * not the last-registered mod's.
+     *
+     * @throws EntrypointPhaseException if any entrypoint failed, carrying all of them
+     */
+    public <T> void run(
+            String phase,
+            Class<T> type,
+            Consumer<ModMetadata> beforeCreate,
+            BiConsumer<ModMetadata, T> action) {
+        Objects.requireNonNull(beforeCreate, "beforeCreate");
         Objects.requireNonNull(action, "action");
         List<EntrypointException> failures = new ArrayList<>();
 
@@ -126,15 +146,21 @@ public final class EntrypointDispatcher {
                 continue;
             }
             try {
+                beforeCreate.accept(entry.metadata());
                 T instance = create(entry, type);
                 action.accept(entry.metadata(), instance);
             } catch (EntrypointException e) {
                 failures.add(e);
-            } catch (RuntimeException | LinkageError e) {
-                // A mod's own initialiser throwing is the common case, and it must be
-                // attributed to that mod rather than surfacing as an anonymous stack trace.
+            } catch (Throwable t) {
+                // AssertionError (Error, not RuntimeException) is thrown by unapplied Mixin
+                // @Invoker/@Accessor stubs — Nature's Spirit StatsTypeAccessor.registerNew is
+                // the textbook case. Catching only RuntimeException|LinkageError let that kill
+                // the whole phase and hide every subsequent mod's failure.
+                if (t instanceof VirtualMachineError) {
+                    throw (VirtualMachineError) t;
+                }
                 failures.add(new EntrypointException(entry.entrypoint(),
-                        "the mod '" + entry.metadata().id() + "' threw during initialisation", e));
+                        "the mod '" + entry.metadata().id() + "' threw during initialisation", t));
             }
         }
 

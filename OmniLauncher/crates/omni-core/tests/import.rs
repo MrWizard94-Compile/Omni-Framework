@@ -14,10 +14,17 @@ use serde_json::json;
 use omni_core::clock::FixedClock;
 use omni_core::import::{
     Confidence, CurseForgeImporter, ImportFormat, Importer, MrpackImporter, OfficialImporter,
-    PrismImporter, detect_all, scan_mods_dir,
+    PrismImporter, detect_all, extract_mrpack_overrides, pending_downloads_from_settings,
+    scan_mods_dir,
+};
+use omni_core::install::{
+    BlobError, BlobSource, Paths, ensure_pending_downloads, extract_imported_mrpack_overrides,
+    sha1_hex,
 };
 use omni_core::store::Ecosystem;
 use omni_core::Db;
+use std::collections::BTreeMap;
+use std::sync::Mutex;
 
 fn fresh_db() -> Db {
     Db::open_in_memory(Arc::new(FixedClock::new(1_800_000_000))).expect("db")
@@ -213,7 +220,8 @@ fn mrpack_imports_files_and_reports_non_mods() {
             "dependencies": { "minecraft": "1.21.1", "fabric-loader": "0.16.9" },
             "files": [
                 { "path": "mods/sodium.jar",
-                  "hashes": { "sha1": "AA11", "sha512": "BB22" } },
+                  "hashes": { "sha1": "AA11", "sha512": "BB22" },
+                  "downloads": ["https://cdn.modrinth.com/data/AA/versions/1/sodium.jar"] },
                 { "path": "mods/serverside.jar",
                   "hashes": { "sha1": "CC33" },
                   "env": { "client": "unsupported", "server": "required" } },
@@ -229,9 +237,10 @@ fn mrpack_imports_files_and_reports_non_mods() {
     let db = fresh_db();
     let report = MrpackImporter.import(&db, &candidates[0]).expect("import");
     assert_eq!(report.mods_imported, 1, "only the client-supported mod file");
-    assert_eq!(report.skipped.len(), 2);
+    // serverside skipped for env; config skipped (no downloads URL, non-mod).
     assert!(report.skipped.iter().any(|s| s.item.contains("serverside")));
-    assert!(report.skipped.iter().any(|s| s.item.contains("config/")));
+    assert!(report.skipped.iter().any(|s| s.item.contains("config/"))
+        || report.notes.iter().any(|n| n.contains("queued")));
 
     let mods = db
         .with_store(|store| store.mods_for_instance(report.instance_id))
@@ -240,6 +249,167 @@ fn mrpack_imports_files_and_reports_non_mods() {
     assert_eq!(mods[0].sha1.as_deref(), Some("aa11"));
     assert_eq!(mods[0].platform.as_deref(), Some("modrinth"));
     assert_eq!(mods[0].ecosystem, Ecosystem::Fabric);
+
+    let settings = db
+        .with_store(|store| Ok(store.instance(report.instance_id)?.unwrap().settings))
+        .expect("settings");
+    let pending = pending_downloads_from_settings(&settings).expect("pending");
+    assert_eq!(pending.len(), 1);
+    assert_eq!(pending[0].path, "mods/sodium.jar");
+}
+
+/// Map-backed [`BlobSource`] driving the real download helper (not a reimplementation).
+struct ScriptedBlobs {
+    map: BTreeMap<String, Vec<u8>>,
+    fetches: Mutex<Vec<String>>,
+}
+
+impl BlobSource for ScriptedBlobs {
+    fn fetch(&self, url: &str) -> Result<Vec<u8>, BlobError> {
+        self.fetches.lock().expect("lock").push(url.to_owned());
+        self.map
+            .get(url)
+            .cloned()
+            .ok_or_else(|| BlobError { url: url.to_owned(), message: "not scripted".into() })
+    }
+}
+
+/// Acceptance: real import queues CDN files; real `ensure_pending_downloads` hash-verifies
+/// them under the instance game dir via the shipped install helper.
+#[test]
+fn mrpack_pending_downloads_are_fetched_into_game_dir_by_shipped_helper() {
+    use omni_core::import::store_pending_downloads;
+
+    let dir = tempfile::tempdir().expect("tempdir");
+    let data = dir.path().join("data");
+    let url = "https://cdn.modrinth.com/data/AA/versions/1/sodium.jar";
+    let body = b"sodium-mod-bytes".to_vec();
+    let sha1 = sha1_hex(&body);
+
+    let pack_with_override = dir.path().join("cdn-overrides.mrpack");
+    {
+        let file = std::fs::File::create(&pack_with_override).unwrap();
+        let mut zip = zip::ZipWriter::new(file);
+        zip.start_file("modrinth.index.json", zip::write::SimpleFileOptions::default())
+            .unwrap();
+        zip.write_all(
+            json!({
+                "formatVersion": 1,
+                "name": "CDN Pack",
+                "dependencies": { "minecraft": "1.21.1", "fabric-loader": "0.16.9" },
+                "files": [{
+                    "path": "mods/sodium.jar",
+                    "hashes": { "sha1": sha1 },
+                    "downloads": [url],
+                    "fileSize": body.len()
+                }]
+            })
+            .to_string()
+            .as_bytes(),
+        )
+        .unwrap();
+        zip.start_file("overrides/config/demo.txt", zip::write::SimpleFileOptions::default())
+            .unwrap();
+        zip.write_all(b"from-override").unwrap();
+        zip.finish().unwrap();
+    }
+
+    let db = fresh_db();
+    let candidates = MrpackImporter.enumerate(&pack_with_override).expect("enumerate");
+    let report = MrpackImporter.import(&db, &candidates[0]).expect("import");
+    let settings = db
+        .with_store(|store| Ok(store.instance(report.instance_id)?.unwrap().settings))
+        .expect("settings");
+    let pending = pending_downloads_from_settings(&settings).expect("pending");
+    assert_eq!(pending.len(), 1);
+    assert_eq!(pending[0].url, url);
+    assert_eq!(pending[0].sha1.as_deref(), Some(sha1.as_str()));
+
+    let paths = Paths::new(&data);
+    let game = paths.game_dir(report.instance_id);
+    let extracted = extract_mrpack_overrides(&pack_with_override, &game).expect("overrides");
+    assert_eq!(extracted, 1);
+    assert_eq!(
+        std::fs::read_to_string(game.join("config/demo.txt")).expect("override file"),
+        "from-override"
+    );
+
+    let blobs = ScriptedBlobs {
+        map: BTreeMap::from([(url.to_owned(), body.clone())]),
+        fetches: Mutex::new(Vec::new()),
+    };
+    let (done, remaining) =
+        ensure_pending_downloads(&paths, &db, &blobs, report.instance_id, 25).expect("ensure");
+    assert_eq!(done, 1);
+    assert_eq!(remaining, 0);
+    assert_eq!(blobs.fetches.lock().unwrap().as_slice(), &[url.to_owned()]);
+
+    let on_disk = std::fs::read(game.join("mods/sodium.jar")).expect("mod jar written");
+    assert_eq!(on_disk, body);
+    assert_eq!(sha1_hex(&on_disk), sha1);
+
+    // Re-queue the same pending entry: hash match must not re-fetch (repair path).
+    store_pending_downloads(&db, report.instance_id, &pending).expect("requeue");
+    let (done2, rem2) =
+        ensure_pending_downloads(&paths, &db, &blobs, report.instance_id, 25).expect("re-ensure");
+    assert_eq!(done2, 1, "existing hash-matching jar counts as completed");
+    assert_eq!(rem2, 0);
+    assert_eq!(blobs.fetches.lock().unwrap().len(), 1, "hash hit must not re-fetch");
+}
+
+/// Production import path calls [`extract_imported_mrpack_overrides`] (settings → pack → game/).
+#[test]
+fn extract_imported_mrpack_overrides_reads_import_provenance() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let data = dir.path().join("data");
+    let pack = dir.path().join("with-overrides.mrpack");
+    {
+        let file = std::fs::File::create(&pack).unwrap();
+        let mut zip = zip::ZipWriter::new(file);
+        zip.start_file("modrinth.index.json", zip::write::SimpleFileOptions::default())
+            .unwrap();
+        zip.write_all(
+            json!({
+                "formatVersion": 1,
+                "name": "O",
+                "dependencies": { "minecraft": "1.21.1" },
+                "files": []
+            })
+            .to_string()
+            .as_bytes(),
+        )
+        .unwrap();
+        zip.start_file("overrides/config/from_import.txt", zip::write::SimpleFileOptions::default())
+            .unwrap();
+        zip.write_all(b"provenance-path").unwrap();
+        zip.finish().unwrap();
+    }
+
+    let db = fresh_db();
+    let candidates = MrpackImporter.enumerate(&pack).expect("enumerate");
+    let report = MrpackImporter.import(&db, &candidates[0]).expect("import");
+    let paths = Paths::new(&data);
+    let n = extract_imported_mrpack_overrides(&paths, &db, report.instance_id).expect("extract");
+    assert_eq!(n, 1);
+    let text = std::fs::read_to_string(
+        paths.game_dir(report.instance_id).join("config/from_import.txt"),
+    )
+    .expect("override written under instance game dir");
+    assert_eq!(text, "provenance-path");
+
+    // Non-mrpack provenance: no-op.
+    let id = db
+        .with_store(|store| {
+            store.create_instance(&omni_core::store::NewInstance {
+                name: "vanilla".into(),
+                icon: None,
+                kind: omni_core::store::InstanceKind::Client,
+                game_version: "1.21.1".into(),
+            })
+        })
+        .unwrap()
+        .id;
+    assert_eq!(extract_imported_mrpack_overrides(&paths, &db, id).unwrap(), 0);
 }
 
 // --------------------------------------------------------- official launcher

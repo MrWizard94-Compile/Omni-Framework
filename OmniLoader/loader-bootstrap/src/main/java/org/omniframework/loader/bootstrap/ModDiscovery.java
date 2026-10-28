@@ -81,8 +81,18 @@ public final class ModDiscovery {
                         hosted.add(claimed.get());
                         hosted.addAll(NESTED_BUFFER.get());
                         NESTED_BUFFER.get().clear();
+                        // JarJar + META-INF/jars nests (KFF, C2ME multi-module, …).
+                        // Nested as non-roots so resolve does not treat 1000+ modules as roots.
+                        hosted.addAll(expandEmbeddedJars(
+                                jar, Optional.of(claimed.get().candidate()), ordered, issues));
                     } else {
-                        unclaimed.add(jar);
+                        List<DiscoveredMods.HostedMod> embedded =
+                                expandEmbeddedJars(jar, Optional.empty(), ordered, issues);
+                        if (!embedded.isEmpty()) {
+                            hosted.addAll(embedded);
+                        } else {
+                            unclaimed.add(jar);
+                        }
                     }
                 }
             }
@@ -202,7 +212,11 @@ public final class ModDiscovery {
                 }
                 String fileName = Path.of(entryPath).getFileName().toString();
                 Path out = nestDir.resolve(fileName);
-                if (!Files.isRegularFile(out) || Files.size(out) != entry.getSize()) {
+                long expected = entry.getSize();
+                boolean needWrite = !Files.isRegularFile(out)
+                        || Files.size(out) == 0
+                        || (expected >= 0 && Files.size(out) != expected);
+                if (needWrite) {
                     try (InputStream in = zip.getInputStream(entry)) {
                         Files.write(out, in.readAllBytes());
                     }
@@ -230,6 +244,146 @@ public final class ModDiscovery {
 
     private static final ThreadLocal<List<DiscoveredMods.HostedMod>> NESTED_BUFFER =
             ThreadLocal.withInitial(ArrayList::new);
+
+    /**
+     * Expands embedded module jars: JarJar metadata + Fabric/NeoForge {@code META-INF/jars/*}
+     * (C2ME multi-module, KFF, …) so nested modIds resolve.
+     *
+     * <p>When {@code parent} is present, nested modules are {@link ModCandidate#nested} so they
+     * are not resolution roots (BMC3-scale Fabric packs otherwise create 1000+ roots and hang).
+     */
+    static List<DiscoveredMods.HostedMod> expandEmbeddedJars(
+            Path parentJar,
+            Optional<ModCandidate> parent,
+            List<CompatLayer> layers,
+            IssueCollector issues) {
+        List<String> nestedPaths = new ArrayList<>();
+        nestedPaths.addAll(jarJarNestedPaths(parentJar));
+        nestedPaths.addAll(metaInfJarsPaths(parentJar));
+        if (nestedPaths.isEmpty()) {
+            return List.of();
+        }
+        // de-dupe paths
+        nestedPaths = nestedPaths.stream().distinct().toList();
+        Path nestDir = parentJar
+                .getParent()
+                .resolveSibling(".omniloader")
+                .resolve("embedded")
+                .resolve(parentJar.getFileName().toString().replace(".jar", ""));
+        try {
+            Files.createDirectories(nestDir);
+        } catch (IOException e) {
+            issues.add(OmniIssue.warning("discovery.embedded-dir")
+                    .at(parentJar.getFileName().toString())
+                    .with(e.getMessage() == null ? "io" : e.getMessage())
+                    .remedy("Could not create embedded-jar extract dir; nested modules missing")
+                    .build());
+            return List.of();
+        }
+        List<DiscoveredMods.HostedMod> out = new ArrayList<>();
+        try (ZipFile zip = new ZipFile(parentJar.toFile())) {
+            for (String entryPath : nestedPaths) {
+                ZipEntry entry = zip.getEntry(entryPath);
+                if (entry == null) {
+                    continue;
+                }
+                String fileName = Path.of(entryPath).getFileName().toString();
+                Path extracted = nestDir.resolve(fileName);
+                // ZipEntry.getSize() is often -1 (unknown); never treat that as a size mismatch
+                // or every residual IT re-extracts multi-MB nests and can run for tens of minutes.
+                long expected = entry.getSize();
+                boolean needWrite = !Files.isRegularFile(extracted)
+                        || Files.size(extracted) == 0
+                        || (expected >= 0 && Files.size(extracted) != expected);
+                if (needWrite) {
+                    try (InputStream in = zip.getInputStream(entry)) {
+                        Files.write(extracted, in.readAllBytes());
+                    }
+                }
+                NESTED_BUFFER.get().clear();
+                Optional<DiscoveredMods.HostedMod> claimed = claimWithLayers(extracted, layers, issues);
+                if (claimed.isPresent()) {
+                    DiscoveredMods.HostedMod hosted = claimed.get();
+                    if (parent.isPresent() && !hosted.candidate().isNested()) {
+                        hosted = new DiscoveredMods.HostedMod(
+                                hosted.layerId(),
+                                hosted.ecosystem(),
+                                ModCandidate.nested(
+                                        hosted.candidate().metadata(),
+                                        hosted.candidate().source(),
+                                        parent.get()));
+                    }
+                    out.add(hosted);
+                    out.addAll(NESTED_BUFFER.get());
+                    NESTED_BUFFER.get().clear();
+                    // One level of nesting is enough for C2ME/KFF; avoid explosion.
+                }
+            }
+        } catch (IOException e) {
+            issues.add(OmniIssue.warning("discovery.embedded-extract")
+                    .at(parentJar.getFileName().toString())
+                    .with(e.getMessage() == null ? "io" : e.getMessage())
+                    .remedy("Failed to extract embedded nested modules")
+                    .build());
+        }
+        return out;
+    }
+
+    /** Paths listed in {@code META-INF/jarjar/metadata.json}, or empty when absent. */
+    static List<String> jarJarNestedPaths(Path jar) {
+        try (ZipFile zip = new ZipFile(jar.toFile())) {
+            ZipEntry meta = zip.getEntry("META-INF/jarjar/metadata.json");
+            if (meta == null) {
+                return List.of();
+            }
+            String json;
+            try (InputStream in = zip.getInputStream(meta)) {
+                json = new String(in.readAllBytes(), StandardCharsets.UTF_8);
+            }
+            List<String> paths = new ArrayList<>();
+            int idx = 0;
+            while (true) {
+                int p = json.indexOf("\"path\"", idx);
+                if (p < 0) {
+                    break;
+                }
+                int colon = json.indexOf(':', p);
+                int q1 = json.indexOf('"', colon + 1);
+                int q2 = q1 >= 0 ? json.indexOf('"', q1 + 1) : -1;
+                if (q1 >= 0 && q2 > q1) {
+                    String path = json.substring(q1 + 1, q2);
+                    if (path.endsWith(".jar")) {
+                        paths.add(path);
+                    }
+                }
+                idx = p + 6;
+            }
+            return paths;
+        } catch (IOException e) {
+            return List.of();
+        }
+    }
+
+    /** All {@code META-INF/jars/*.jar} entries (Fabric nested / C2ME multi-module). */
+    static List<String> metaInfJarsPaths(Path jar) {
+        List<String> paths = new ArrayList<>();
+        try (ZipFile zip = new ZipFile(jar.toFile())) {
+            var entries = zip.entries();
+            while (entries.hasMoreElements()) {
+                ZipEntry e = entries.nextElement();
+                String name = e.getName();
+                if (!e.isDirectory()
+                        && name.startsWith("META-INF/jars/")
+                        && name.endsWith(".jar")
+                        && name.chars().filter(ch -> ch == '/').count() == 2) {
+                    paths.add(name);
+                }
+            }
+        } catch (IOException ignored) {
+            return List.of();
+        }
+        return paths;
+    }
 
     private static Optional<DiscoveredMods.HostedMod> claimNested(
             Path nestedJar,

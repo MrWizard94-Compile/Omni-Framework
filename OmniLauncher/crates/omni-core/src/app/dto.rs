@@ -14,6 +14,9 @@
 use serde::{Deserialize, Serialize};
 
 use crate::export::ExportReport;
+use crate::java_discover::DiscoveredJvm;
+use crate::resources::ResourceEntry;
+use crate::server_config::ServerConfig;
 use crate::store::{
     Account, Ecosystem, Instance, InstanceKind, Job, JobState, Mod, PortStatus, StackEntry,
 };
@@ -290,6 +293,128 @@ pub struct ConsoleTail {
     /// Whether the process is still recorded as running.
     pub running: bool,
 }
+
+/// LNC-10 resource row for the UI.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ResourceDto {
+    /// Kind slug.
+    pub kind: String,
+    /// Base name.
+    pub name: String,
+    /// Enabled flag.
+    pub enabled: bool,
+    /// Absolute path.
+    pub path: String,
+}
+
+impl From<ResourceEntry> for ResourceDto {
+    fn from(entry: ResourceEntry) -> Self {
+        Self {
+            kind: entry.kind.slug().to_owned(),
+            name: entry.name,
+            enabled: entry.enabled,
+            path: entry.path.display().to_string(),
+        }
+    }
+}
+
+/// Content search hit (LNC-9 browse).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ContentHitDto {
+    /// Platform slug.
+    pub platform: String,
+    /// Project id.
+    pub project_id: String,
+    /// Slug.
+    pub slug: String,
+    /// Title.
+    pub title: String,
+    /// Description.
+    pub description: String,
+    /// Author.
+    pub author: String,
+    /// Download count.
+    pub downloads: u64,
+}
+
+/// Server.properties projection (LNC-8).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ServerConfigDto {
+    /// Port.
+    pub port: u16,
+    /// MOTD.
+    pub motd: String,
+    /// Max players.
+    pub max_players: u32,
+    /// Online mode.
+    pub online_mode: bool,
+    /// Difficulty.
+    pub difficulty: String,
+    /// Gamemode.
+    pub gamemode: String,
+    /// Level name.
+    pub level_name: String,
+}
+
+impl From<ServerConfig> for ServerConfigDto {
+    fn from(c: ServerConfig) -> Self {
+        Self {
+            port: c.port,
+            motd: c.motd,
+            max_players: c.max_players,
+            online_mode: c.online_mode,
+            difficulty: c.difficulty,
+            gamemode: c.gamemode,
+            level_name: c.level_name,
+        }
+    }
+}
+
+/// Discovered system JVM.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct JavaRuntimeDto {
+    /// java executable path.
+    pub path: String,
+    /// Vendor.
+    pub vendor: Option<String>,
+    /// Version string.
+    pub version: String,
+    /// Arch.
+    pub arch: String,
+}
+
+impl From<DiscoveredJvm> for JavaRuntimeDto {
+    fn from(j: DiscoveredJvm) -> Self {
+        Self {
+            path: j.path.display().to_string(),
+            vendor: j.vendor,
+            version: j.version,
+            arch: j.arch,
+        }
+    }
+}
+
+/// One OmniLoader typed issue for the boot-failure tree UI.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BootIssueDto {
+    /// Severity: error / warning / info.
+    pub level: String,
+    /// Issue code.
+    pub code: String,
+    /// Human message.
+    pub message: String,
+    /// Optional location.
+    pub at: Option<String>,
+    /// Optional remedy.
+    pub remedy: Option<String>,
+}
+
+
 
 /// Builds a summary from a store row plus its mod count.
 pub(crate) fn summary_of(instance: &Instance, mod_count: usize) -> InstanceSummary {

@@ -88,9 +88,14 @@ class TransformServiceTest {
                 request("mod", modJar(dir, "mod.jar", 7)), new ClassIndex(), new IssueCollector());
 
         try (var zip = new java.util.zip.ZipFile(ensured.jar().toFile())) {
-            assertTrue(zip.getEntry("game/class_1.class") != null,
-                    "the entry keeps its path; only the class content is rewritten");
-            byte[] content = zip.getInputStream(zip.getEntry("game/class_1.class")).readAllBytes();
+            assertTrue(
+                    zip.getEntry("net/minecraft/Entity.class") != null,
+                    "remapped class entry must use the official path so the classloader can find it");
+            assertTrue(
+                    zip.getEntry("game/class_1.class") == null,
+                    "the intermediary path must not remain after class rename");
+            byte[] content =
+                    zip.getInputStream(zip.getEntry("net/minecraft/Entity.class")).readAllBytes();
             Object instance = new Bytecode.Loader()
                     .with("net/minecraft/Entity", content)
                     .load("net/minecraft/Entity")

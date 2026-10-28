@@ -91,6 +91,49 @@ class ResolverTest {
     }
 
     @Test
+    @DisplayName("exact neoforge pin accepts higher hosted capability version")
+    void exactNeoForgePinAcceptsHostedCapability() {
+        ResolutionResult result = resolve(
+                top(mod("enderio", "1.0.0").dependency(depends("neoforge", "21.1.216")).build()),
+                top(mod("neoforge", "21.1.999").build()),
+                top(mod("minecraft", "1.21.1").build()));
+        assertTrue(result.succeeded(), () -> codesOf(result));
+    }
+
+    @Test
+    @DisplayName("Connector fabricloader >=999 is accepted against hosted fabricloader")
+    void connectorFabricLoaderMarkerAccepted() {
+        ResolutionResult result = resolve(
+                top(mod("inmis", "1.0.0").dependency(depends("fabricloader", ">=999.0.0")).build()),
+                top(mod("fabricloader", "0.18.6").build()),
+                top(mod("minecraft", "1.21.1").build()));
+        assertTrue(result.succeeded(), () -> codesOf(result));
+    }
+
+    @Test
+    @DisplayName("underscore and hyphen mod ids alias (c2me_base satisfies c2me-base)")
+    void underscoreHyphenIdAlias() {
+        ResolutionResult result = resolve(
+                top(mod("c2me-threading-lighting", "1.0.0")
+                        .dependency(depends("c2me-base", "*"))
+                        .dependency(depends("c2me-fixes-general-threading-issues", "*"))
+                        .build()),
+                top(mod("c2me_base", "1.0.0").build()),
+                top(mod("c2me_fixes_general_threading_issues", "1.0.0").build()),
+                top(mod("minecraft", "1.21.1").build()));
+        assertTrue(result.succeeded(), () -> codesOf(result));
+    }
+
+    @Test
+    @DisplayName("minecraft exact 1.21 accepts installed 1.21.1 patch")
+    void minecraftExactMinorAcceptsPatch() {
+        ResolutionResult result = resolve(
+                top(mod("entityculling", "1.0.0").dependency(depends("minecraft", "1.21")).build()),
+                top(mod("minecraft", "1.21.1").build()));
+        assertTrue(result.succeeded(), () -> codesOf(result));
+    }
+
+    @Test
     @DisplayName("a mod can be satisfied by another mod's provides")
     void providesSatisfiesADependency() {
         ResolutionResult result = resolve(

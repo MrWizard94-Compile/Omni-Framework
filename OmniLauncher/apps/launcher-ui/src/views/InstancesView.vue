@@ -9,7 +9,15 @@
  */
 import { computed, ref, watch } from "vue";
 import * as api from "../api";
-import type { Ecosystem, InstanceDetail, PortStatus, VersionOption } from "../api/types";
+import type {
+  BootIssue,
+  Ecosystem,
+  InstanceDetail,
+  PortStatus,
+  ResourceItem,
+  ServerConfig,
+  VersionOption,
+} from "../api/types";
 import { store, refreshInstances, reportError, toast } from "../store";
 
 const selectedId = ref<number | null>(null);
@@ -21,6 +29,14 @@ const newKind = ref<"client" | "server">("client");
 const versions = ref<VersionOption[]>([]);
 const versionsLoading = ref(false);
 const busy = ref(false);
+const exporting = ref(false);
+const exportFormat = ref<"mrpack" | "curseforge" | "omni">("mrpack");
+const exportDest = ref("");
+const exportIncludeMods = ref(true);
+const resources = ref<ResourceItem[]>([]);
+const resourceKind = ref("resourcepack");
+const serverCfg = ref<ServerConfig | null>(null);
+const bootIssueList = ref<BootIssue[]>([]);
 
 const selectedAccount = computed(() =>
   store.accounts.find((a) => a.uuid === store.activeAccount) ?? null,
@@ -50,10 +66,50 @@ async function select(id: number): Promise<void> {
   selectedId.value = id;
   try {
     detail.value = await api.instanceDetail(id);
+    await loadExtras(id);
   } catch (error) {
     detail.value = null;
     reportError(error);
   }
+}
+
+async function loadExtras(id: number): Promise<void> {
+  try {
+    resources.value = await api.listResources(id, resourceKind.value);
+    bootIssueList.value = await api.bootIssues(id);
+    if (detail.value?.summary.kind === "server") {
+      serverCfg.value = await api.getServerConfig(id);
+    } else {
+      serverCfg.value = null;
+    }
+  } catch (error) {
+    reportError(error);
+  }
+}
+
+async function toggleResource(name: string, enabled: boolean): Promise<void> {
+  if (selectedId.value === null) return;
+  try {
+    await api.setResourceEnabled(selectedId.value, resourceKind.value, name, enabled);
+    resources.value = await api.listResources(selectedId.value, resourceKind.value);
+  } catch (error) {
+    reportError(error);
+  }
+}
+
+async function saveServerCfg(): Promise<void> {
+  if (selectedId.value === null || !serverCfg.value) return;
+  try {
+    await api.setServerConfig(selectedId.value, serverCfg.value);
+    toast("info", "server.properties saved.");
+  } catch (error) {
+    reportError(error);
+  }
+}
+
+async function refreshResourceKind(): Promise<void> {
+  if (selectedId.value === null) return;
+  resources.value = await api.listResources(selectedId.value, resourceKind.value);
 }
 
 // The core announces changes; the detail pane refetches rather than patching.
@@ -158,6 +214,28 @@ async function remove(): Promise<void> {
     toast("info", "Instance removed from the launcher. Its files were left on disk.");
   } catch (error) {
     reportError(error);
+  }
+}
+
+async function runExport(): Promise<void> {
+  if (selectedId.value === null || !exportDest.value.trim()) return;
+  busy.value = true;
+  try {
+    const report = await api.exportInstance(
+      selectedId.value,
+      exportFormat.value,
+      exportDest.value.trim(),
+      exportIncludeMods.value,
+    );
+    exporting.value = false;
+    toast(
+      "info",
+      `Exported ${report.modsExported} mod(s) as ${report.format} → ${report.path}`,
+    );
+  } catch (error) {
+    reportError(error);
+  } finally {
+    busy.value = false;
   }
 }
 
@@ -276,7 +354,7 @@ function formatDate(seconds: number | null): string {
               {{ formatDate(detail.summary.lastPlayedAt) }}
             </p>
           </div>
-          <div class="flex shrink-0 gap-2">
+          <div class="flex shrink-0 flex-wrap gap-2">
             <button class="btn-ghost" :disabled="busy" @click="install">Install / Repair</button>
             <button
               class="btn-primary"
@@ -286,9 +364,54 @@ function formatDate(seconds: number | null): string {
             >
               Launch
             </button>
+            <button class="btn-ghost" :disabled="busy" @click="exporting = !exporting">
+              Export
+            </button>
             <button class="btn-danger" @click="remove">Delete</button>
           </div>
         </header>
+
+        <!-- Phase 5 export (ADR-0014) — core writers already ship; this is the UI surface. -->
+        <div v-if="exporting" class="card mb-5">
+          <h3 class="mb-3 text-sm font-semibold">Export instance</h3>
+          <div class="grid gap-3 sm:grid-cols-3">
+            <div>
+              <label class="label" for="export-format">Format</label>
+              <select id="export-format" v-model="exportFormat" class="input mt-1">
+                <option value="mrpack">Modrinth (.mrpack)</option>
+                <option value="curseforge">CurseForge (folder)</option>
+                <option value="omni">Omni (omni.pack.json)</option>
+              </select>
+            </div>
+            <div class="sm:col-span-2">
+              <label class="label" for="export-dest">Destination path</label>
+              <input
+                id="export-dest"
+                v-model="exportDest"
+                class="input mt-1"
+                :placeholder="
+                  exportFormat === 'curseforge'
+                    ? 'C:\\path\\to\\export-folder'
+                    : 'C:\\path\\to\\pack.mrpack'
+                "
+              />
+            </div>
+            <label class="flex items-center gap-2 text-xs text-slate-300 sm:col-span-3">
+              <input v-model="exportIncludeMods" type="checkbox" class="accent-indigo-500" />
+              Include mod jar files (overrides / self-contained pack)
+            </label>
+          </div>
+          <div class="mt-4 flex gap-2">
+            <button
+              class="btn-primary"
+              :disabled="busy || !exportDest.trim()"
+              @click="runExport"
+            >
+              Write export
+            </button>
+            <button class="btn-ghost" @click="exporting = false">Cancel</button>
+          </div>
+        </div>
 
         <!-- Server EULA gate (D8): explicit, never implicit. -->
         <div
@@ -344,6 +467,82 @@ function formatDate(seconds: number | null): string {
               ({{ detail.summary.loader.version }}). The loader becomes a stack component once
               OmniLoader's compat layers ship.
             </p>
+          </div>
+
+          <!-- LNC-10 resources -->
+          <div class="card lg:col-span-2">
+            <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
+              <h3 class="text-sm font-semibold">Resources (LNC-10)</h3>
+              <select v-model="resourceKind" class="input w-auto text-xs" @change="refreshResourceKind">
+                <option value="resourcepack">Resource packs</option>
+                <option value="shaderpack">Shader packs</option>
+                <option value="datapack">Data packs</option>
+                <option value="world">Worlds</option>
+              </select>
+            </div>
+            <ul v-if="resources.length" class="max-h-40 space-y-1 overflow-y-auto">
+              <li
+                v-for="r in resources"
+                :key="r.name"
+                class="flex items-center gap-2 text-sm"
+              >
+                <input
+                  type="checkbox"
+                  class="accent-indigo-500"
+                  :checked="r.enabled"
+                  @change="toggleResource(r.name, ($event.target as HTMLInputElement).checked)"
+                />
+                <span class="truncate">{{ r.name }}</span>
+              </li>
+            </ul>
+            <p v-else class="text-xs text-slate-500">No {{ resourceKind }} entries on disk.</p>
+          </div>
+
+          <!-- Server config -->
+          <div v-if="serverCfg" class="card lg:col-span-2">
+            <h3 class="mb-3 text-sm font-semibold">Server config</h3>
+            <div class="grid gap-3 sm:grid-cols-3">
+              <div>
+                <label class="label">Port</label>
+                <input v-model.number="serverCfg.port" type="number" class="input mt-1" />
+              </div>
+              <div class="sm:col-span-2">
+                <label class="label">MOTD</label>
+                <input v-model="serverCfg.motd" class="input mt-1" />
+              </div>
+              <div>
+                <label class="label">Max players</label>
+                <input v-model.number="serverCfg.maxPlayers" type="number" class="input mt-1" />
+              </div>
+              <div>
+                <label class="label">Difficulty</label>
+                <input v-model="serverCfg.difficulty" class="input mt-1" />
+              </div>
+              <div>
+                <label class="label">Gamemode</label>
+                <input v-model="serverCfg.gamemode" class="input mt-1" />
+              </div>
+              <label class="flex items-center gap-2 text-xs sm:col-span-3">
+                <input v-model="serverCfg.onlineMode" type="checkbox" class="accent-indigo-500" />
+                Online mode (Microsoft auth required for players)
+              </label>
+            </div>
+            <button class="btn-primary mt-3" @click="saveServerCfg">Save server.properties</button>
+          </div>
+
+          <!-- Boot failure tree -->
+          <div v-if="bootIssueList.length" class="card lg:col-span-2 border-rose-900/50">
+            <h3 class="mb-3 text-sm font-semibold text-rose-200">Loader issues</h3>
+            <ul class="space-y-2 text-xs">
+              <li v-for="(issue, idx) in bootIssueList" :key="idx" class="rounded border border-slate-800 p-2">
+                <span class="badge" :class="issue.level === 'error' ? 'bg-rose-500/20 text-rose-300' : 'bg-amber-500/20 text-amber-300'">{{
+                  issue.level
+                }}</span>
+                <code class="ml-2 text-slate-400">{{ issue.code }}</code>
+                <p class="mt-1 text-slate-300">{{ issue.message }}</p>
+                <p v-if="issue.remedy" class="mt-1 text-slate-500">{{ issue.remedy }}</p>
+              </li>
+            </ul>
           </div>
 
           <!-- Mods as entities -->

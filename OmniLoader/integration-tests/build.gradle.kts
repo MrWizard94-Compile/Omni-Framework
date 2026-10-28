@@ -21,3 +21,10 @@ dependencies {
     testImplementation(project(":compat-neoforge"))
     testImplementation("org.ow2.asm:asm:9.8")
 }
+
+// Real-pack residual ITs discover/expand hundreds of nested jars — default 512m is too small.
+tasks.withType<Test>().configureEach {
+    minHeapSize = "2g"
+    maxHeapSize = "6g"
+    jvmArgs("-Xmx6g", "-Xms2g", "-XX:+UseG1GC")
+}

@@ -109,13 +109,20 @@ public final class RefmapRewritePass implements TransformPass {
     /**
      * Rewrites one reference string.
      *
-     * <p>Three shapes occur, and they are distinguished by punctuation rather than by guessing:
+     * <p>Shapes Mixin emits, distinguished by punctuation:
      *
      * <ul>
      *   <li>{@code Lowner;name:descriptor} — a field reference
      *   <li>{@code Lowner;name(args)ret} — a method reference
+     *   <li>{@code method_123(args)ret} — bare method (owner is the mixin target; common for
+     *       {@code @Invoker}/{@code @Inject} values in Fabric intermediary refmaps)
+     *   <li>{@code field_123:descriptor} — bare field
      *   <li>{@code owner} — a bare class name
      * </ul>
+     *
+     * <p>Bare method refs were previously treated as class names and left untouched, so invokers
+     * kept looking for {@code method_15021} on official-named game classes and failed with
+     * {@code AssertionError} in accessor stubs (Nature's Spirit {@code StatsTypeAccessor}).
      */
     static String rewriteReference(String reference, MappingSet mappings) {
         if (reference.isEmpty()) {
@@ -124,9 +131,75 @@ public final class RefmapRewritePass implements TransformPass {
         if (reference.charAt(0) == 'L' && reference.indexOf(';') > 0) {
             return rewriteQualified(reference, mappings);
         }
+        int paren = reference.indexOf('(');
+        if (paren > 0 && reference.indexOf(')', paren) > paren) {
+            String name = reference.substring(0, paren);
+            String descriptor = reference.substring(paren);
+            String mappedName = findMethodName(mappings, name, descriptor).orElse(name);
+            return mappedName + mapDescriptor(descriptor, mappings);
+        }
+        int colon = reference.indexOf(':');
+        if (colon > 0) {
+            String name = reference.substring(0, colon);
+            String descriptor = reference.substring(colon + 1);
+            String mappedName = findFieldName(mappings, name, descriptor).orElse(name);
+            return mappedName + ":" + mapDescriptor(descriptor, mappings);
+        }
         // A bare name is only a class reference if it looks like an internal name; anything
         // else is ordinary text that happens to live in the refmap.
         return mappings.mapClass(reference).orElse(reference);
+    }
+
+    /**
+     * Finds the official name for an intermediary method by name+descriptor across all owners.
+     * Fabric bare refs omit the owner because Mixin already knows the target class.
+     */
+    private static Optional<String> findMethodName(
+            MappingSet mappings, String name, String descriptor) {
+        String mapped = null;
+        for (Map.Entry<MappingSet.MemberKey, String> entry : mappings.methods().entrySet()) {
+            MappingSet.MemberKey key = entry.getKey();
+            if (!key.name().equals(name)) {
+                continue;
+            }
+            if (!descriptorsEquivalent(key.descriptor(), descriptor, mappings)) {
+                continue;
+            }
+            if (mapped != null && !mapped.equals(entry.getValue())) {
+                // Ambiguous across classes — leave the name alone rather than guess wrong.
+                return Optional.empty();
+            }
+            mapped = entry.getValue();
+        }
+        return Optional.ofNullable(mapped);
+    }
+
+    private static Optional<String> findFieldName(
+            MappingSet mappings, String name, String descriptor) {
+        String mapped = null;
+        for (Map.Entry<MappingSet.MemberKey, String> entry : mappings.fields().entrySet()) {
+            MappingSet.MemberKey key = entry.getKey();
+            if (!key.name().equals(name)) {
+                continue;
+            }
+            if (!descriptorsEquivalent(key.descriptor(), descriptor, mappings)) {
+                continue;
+            }
+            if (mapped != null && !mapped.equals(entry.getValue())) {
+                return Optional.empty();
+            }
+            mapped = entry.getValue();
+        }
+        return Optional.ofNullable(mapped);
+    }
+
+    private static boolean descriptorsEquivalent(String a, String b, MappingSet mappings) {
+        if (a.equals(b)) {
+            return true;
+        }
+        String aMapped = mapDescriptor(a, mappings);
+        String bMapped = mapDescriptor(b, mappings);
+        return aMapped.equals(b) || a.equals(bMapped) || aMapped.equals(bMapped);
     }
 
     private static String rewriteQualified(String reference, MappingSet mappings) {

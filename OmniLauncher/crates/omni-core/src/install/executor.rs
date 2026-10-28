@@ -224,6 +224,38 @@ impl InstallExecutor<'_> {
         }
         Ok(())
     }
+
+    /// One batch of pack CDN downloads + local jar staging (resume-safe).
+    fn step_mod_files(&self, done: usize) -> Result<StepOutcome, StepError> {
+        let (completed, remaining) = crate::install::ensure_pending_downloads(
+            self.paths,
+            self.db,
+            self.source,
+            self.spec.instance_id,
+            BATCH_SIZE,
+        )
+        .map_err(|err| Self::fail(err.to_string()))?;
+        let _ = crate::import::materialize_instance_mods(
+            self.paths,
+            self.db,
+            self.spec.instance_id,
+        );
+        let total_done = done.saturating_add(completed);
+        if remaining == 0 {
+            Ok(StepOutcome::Done {
+                progress: Self::progress("mod-files", total_done, total_done),
+            })
+        } else {
+            Ok(StepOutcome::Continue {
+                resume: json!({ "phase": "mod-files", "done": total_done }),
+                progress: Self::progress(
+                    "mod-files",
+                    total_done,
+                    total_done.saturating_add(remaining),
+                ),
+            })
+        }
+    }
 }
 
 impl JobExecutor for InstallExecutor<'_> {
@@ -317,10 +349,13 @@ impl JobExecutor for InstallExecutor<'_> {
                         )
                     })
                     .map_err(|err| Self::fail(err.to_string()))?;
-                Ok(StepOutcome::Done {
+                // After game/java are registered, fetch pack CDN files (mrpack).
+                Ok(StepOutcome::Continue {
+                    resume: json!({ "phase": "mod-files", "done": 0 }),
                     progress: Self::progress("register", 1, 1),
                 })
             }
+            "mod-files" => self.step_mod_files(done),
             other => Err(StepError {
                 message: format!("unknown install phase {other:?} in resume point"),
                 retryable: false,

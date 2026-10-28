@@ -84,11 +84,14 @@ cargo run -p omni-core --example server_smoke --release -- --accept-eula --launc
 
 3. **Install** the instance (vanilla game + Java), then **Launch**.
 
-**Boot path (2026-07-21):** OmniLoader stages jars, installs `FabricLoader`, runs
-`main`/`client` entrypoints, **AOT-remaps** hosted jars when intermediary + Mojang
-mappings are available (launcher downloads them on first loader launch), and
-**applies Mixin** when configs register. NeoForge remains construct-only (no
-event bus). mrpack remote mod downloads are still incomplete (folder imports work).
+**Boot path:** OmniLoader stages jars, installs `FabricLoader` + `OmniLoaderApi`,
+runs `main`/`client` entrypoints, **AOT-remaps** hosted jars when intermediary +
+Mojang mappings are available, merges **access wideners**, and **applies Mixin**
+when configs register. NeoForge mods get `@Mod` construction plus a **real per-mod
+event bus** (`FMLJavaModLoadingContext`); full FML game lifecycle / pack AOT is
+still follow-on. **`.mrpack` imports** queue CDN `downloads[]` for the Install job
+(`mod-files` phase) and extract `overrides/` / `client-overrides/` into the
+instance game dir.
 
 ## If something goes wrong
 

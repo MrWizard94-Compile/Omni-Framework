@@ -117,8 +117,8 @@ public final class MappingSet {
     }
 
     /** The identity of one member: which class declares it, its name, and its descriptor. */
-    record MemberKey(String owner, String name, String descriptor) {
-        MemberKey {
+    public record MemberKey(String owner, String name, String descriptor) {
+        public MemberKey {
             Objects.requireNonNull(owner, "owner");
             Objects.requireNonNull(name, "name");
             Objects.requireNonNull(descriptor, "descriptor");

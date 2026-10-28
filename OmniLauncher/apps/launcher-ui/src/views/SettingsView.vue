@@ -9,11 +9,14 @@
  */
 import { onMounted, ref } from "vue";
 import * as api from "../api";
+import type { JavaRuntime } from "../api/types";
 import { reportError, toast } from "../store";
 
 const defaultMemory = ref(4096);
 const releasesOnly = ref(true);
+const cfApiKey = ref("");
 const saving = ref(false);
+const javas = ref<JavaRuntime[]>([]);
 
 onMounted(async () => {
   try {
@@ -21,6 +24,8 @@ onMounted(async () => {
     if (typeof memory === "number") defaultMemory.value = memory;
     const releases = await api.getSetting("showReleasesOnly");
     if (typeof releases === "boolean") releasesOnly.value = releases;
+    const key = await api.getSetting("cfApiKey");
+    if (typeof key === "string") cfApiKey.value = key;
   } catch (error) {
     reportError(error);
   }
@@ -31,11 +36,21 @@ async function save(): Promise<void> {
   try {
     await api.setSetting("defaultMemoryMib", defaultMemory.value);
     await api.setSetting("showReleasesOnly", releasesOnly.value);
+    await api.setSetting("cfApiKey", cfApiKey.value.trim() || null);
     toast("info", "Settings saved.");
   } catch (error) {
     reportError(error);
   } finally {
     saving.value = false;
+  }
+}
+
+async function scanJava(): Promise<void> {
+  try {
+    javas.value = await api.discoverJavaRuntimes(true);
+    toast("info", `Found ${javas.value.length} system JVM(s).`);
+  } catch (error) {
+    reportError(error);
   }
 }
 </script>
@@ -73,7 +88,33 @@ async function save(): Promise<void> {
         <label for="releases" class="text-sm">Only offer release versions when creating</label>
       </div>
 
+      <div>
+        <label class="label" for="cfkey">CurseForge Core API key (optional)</label>
+        <input
+          id="cfkey"
+          v-model="cfApiKey"
+          type="password"
+          class="input mt-1"
+          placeholder="Stored only in local settings DB"
+          autocomplete="off"
+        />
+        <p class="mt-1 text-[11px] text-slate-500">
+          Enables CF search and murmur2 fingerprint lookup. Never committed; env
+          <code>CF_API_KEY</code> also works for tools.
+        </p>
+      </div>
+
       <button class="btn-primary" :disabled="saving" @click="save">Save</button>
+    </div>
+
+    <div class="card mb-5 space-y-3">
+      <h3 class="text-sm font-semibold">System Java (LNC-6)</h3>
+      <button class="btn-ghost" @click="scanJava">Scan for JVMs</button>
+      <ul v-if="javas.length" class="space-y-1 text-xs text-slate-400">
+        <li v-for="j in javas" :key="j.path" class="font-mono">
+          {{ j.version }} · {{ j.vendor ?? "?" }} · {{ j.arch }} · {{ j.path }}
+        </li>
+      </ul>
     </div>
 
     <div class="card space-y-3 text-xs text-slate-400">

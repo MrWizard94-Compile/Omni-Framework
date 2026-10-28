@@ -2467,6 +2467,7 @@ dependencies = [
  "keyring",
  "omni-meta-client",
  "omni-meta-format",
+ "omni-platform",
  "rusqlite",
  "serde",
  "serde_json",
@@ -2516,6 +2517,16 @@ dependencies = [
  "serde_json",
  "sha1",
  "sha2",
+ "tempfile",
+ "ureq",
+]
+
+[[package]]
+name = "omni-platform"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
  "tempfile",
  "ureq",
 ]

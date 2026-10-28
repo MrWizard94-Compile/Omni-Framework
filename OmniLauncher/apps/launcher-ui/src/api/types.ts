@@ -147,6 +147,48 @@ export interface ConsoleTail {
   running: boolean;
 }
 
+export interface ResourceItem {
+  kind: string;
+  name: string;
+  enabled: boolean;
+  path: string;
+}
+
+export interface ContentHit {
+  platform: string;
+  projectId: string;
+  slug: string;
+  title: string;
+  description: string;
+  author: string;
+  downloads: number;
+}
+
+export interface ServerConfig {
+  port: number;
+  motd: string;
+  maxPlayers: number;
+  onlineMode: boolean;
+  difficulty: string;
+  gamemode: string;
+  levelName: string;
+}
+
+export interface JavaRuntime {
+  path: string;
+  vendor: string | null;
+  version: string;
+  arch: string;
+}
+
+export interface BootIssue {
+  level: string;
+  code: string;
+  message: string;
+  at: string | null;
+  remedy: string | null;
+}
+
 /**
  * Core events, externally tagged exactly as serde emits them. `AccountsChanged`
  * carries no fields, so it arrives as the bare string — hence the union of an

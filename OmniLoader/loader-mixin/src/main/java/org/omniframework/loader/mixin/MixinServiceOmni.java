@@ -4,6 +4,7 @@ import java.io.InputStream;
 import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.Function;
 import org.spongepowered.asm.launch.platform.container.ContainerHandleVirtual;
 import org.spongepowered.asm.launch.platform.container.IContainerHandle;
 import org.spongepowered.asm.mixin.MixinEnvironment.CompatibilityLevel;
@@ -53,7 +54,9 @@ public final class MixinServiceOmni extends MixinServiceAbstract {
             IClassBytecodeProvider bytecodeProvider,
             OmniClassTracker classTracker,
             OmniAuditTrail auditTrail,
-            CompatibilityLevels levels) {
+            CompatibilityLevels levels,
+            /** Resource lookup for mixin configs (and other jar entries) on game/mod partitions. */
+            Function<String, InputStream> resources) {
 
         /** Canonical constructor. */
         public Wiring {
@@ -62,6 +65,23 @@ public final class MixinServiceOmni extends MixinServiceAbstract {
             Objects.requireNonNull(classTracker, "classTracker");
             Objects.requireNonNull(auditTrail, "auditTrail");
             Objects.requireNonNull(levels, "levels");
+            Objects.requireNonNull(resources, "resources");
+        }
+
+        /** Wiring that falls back to the service classloader for resources (tests / fixtures). */
+        public Wiring(
+                IClassProvider classProvider,
+                IClassBytecodeProvider bytecodeProvider,
+                OmniClassTracker classTracker,
+                OmniAuditTrail auditTrail,
+                CompatibilityLevels levels) {
+            this(
+                    classProvider,
+                    bytecodeProvider,
+                    classTracker,
+                    auditTrail,
+                    levels,
+                    name -> MixinServiceOmni.class.getClassLoader().getResourceAsStream(name));
         }
     }
 
@@ -156,6 +176,13 @@ public final class MixinServiceOmni extends MixinServiceAbstract {
 
     @Override
     public InputStream getResourceAsStream(String name) {
+        Wiring current = wiring;
+        if (current != null) {
+            InputStream fromHost = current.resources().apply(name);
+            if (fromHost != null) {
+                return fromHost;
+            }
+        }
         return getClass().getClassLoader().getResourceAsStream(name);
     }
 

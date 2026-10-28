@@ -10,7 +10,9 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import type {
   Account,
+  BootIssue,
   ConsoleTail,
+  ContentHit,
   CoreEvent,
   DetectedFormat,
   DeviceCode,
@@ -20,7 +22,10 @@ import type {
   InstanceDetail,
   InstanceKind,
   InstanceSummary,
+  JavaRuntime,
   Job,
+  ResourceItem,
+  ServerConfig,
   VersionOption,
 } from "./types";
 
@@ -134,6 +139,62 @@ export const getSetting = (key: string) => invoke<unknown | null>("get_setting",
 
 export const setSetting = (key: string, value: unknown) =>
   invoke<void>("set_setting", { key, value });
+
+// --- LNC-9 / LNC-10 / server / java / boot issues --------------------------
+
+export const listResources = (instanceId: number, kind: string) =>
+  invoke<ResourceItem[]>("list_resources", { instanceId, kind });
+
+export const setResourceEnabled = (
+  instanceId: number,
+  kind: string,
+  name: string,
+  enabled: boolean,
+) => invoke<void>("set_resource_enabled", { instanceId, kind, name, enabled });
+
+export const searchContent = (query: string, gameVersion: string | null, limit: number) =>
+  invoke<ContentHit[]>("search_content", { query, gameVersion, limit });
+
+export const installContent = (
+  instanceId: number,
+  file: {
+    platform: string;
+    projectId: string;
+    fileId: string;
+    fileName: string;
+    downloadUrl: string;
+    sha1?: string | null;
+  },
+) => invoke<string>("install_content", { instanceId, file });
+
+/** Resolve latest installable file for a browse hit and install into the instance. */
+export const installBrowseHit = (
+  instanceId: number,
+  platform: string,
+  projectId: string,
+  gameVersion: string | null,
+) =>
+  invoke<string>("install_browse_hit", {
+    instanceId,
+    platform,
+    projectId,
+    gameVersion,
+  });
+
+export const identifyJar = (path: string) =>
+  invoke<Record<string, unknown> | null>("identify_jar", { path });
+
+export const discoverJavaRuntimes = (register: boolean) =>
+  invoke<JavaRuntime[]>("discover_java_runtimes", { register });
+
+export const getServerConfig = (instanceId: number) =>
+  invoke<ServerConfig>("get_server_config", { instanceId });
+
+export const setServerConfig = (instanceId: number, config: ServerConfig) =>
+  invoke<void>("set_server_config", { instanceId, config });
+
+export const bootIssues = (instanceId: number) =>
+  invoke<BootIssue[]>("boot_issues", { instanceId });
 
 // --- events ----------------------------------------------------------------
 

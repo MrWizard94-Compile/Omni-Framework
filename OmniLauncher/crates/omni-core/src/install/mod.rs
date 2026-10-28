@@ -15,10 +15,15 @@
 
 mod blob;
 mod executor;
+mod mod_files;
 mod plan;
 
-pub use blob::{BlobError, BlobSource, ContentCache, UreqBlobSource, sha1_hex};
+pub use blob::{
+    BlobError, BlobSource, ContentCache, FailoverBlobSource, MojangMirrorBlobSource, UreqBlobSource,
+    sha1_hex,
+};
 pub use executor::{InstallExecutor, InstallSpec, BATCH_SIZE};
+pub use mod_files::{ensure_pending_downloads, extract_imported_mrpack_overrides};
 pub use plan::{
     AssetIndexDoc, FileKind, JavaManifestDoc, PlannedFile, java_platform_key, plan_assets,
     plan_game_files, plan_java_files, select_java_offer,

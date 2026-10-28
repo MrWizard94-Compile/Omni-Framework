@@ -14,6 +14,7 @@ getrandom = { workspace = true }
 keyring = { workspace = true }
 omni-meta-client = { workspace = true }
 omni-meta-format = { workspace = true }
+omni-platform = { workspace = true }
 rusqlite = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }

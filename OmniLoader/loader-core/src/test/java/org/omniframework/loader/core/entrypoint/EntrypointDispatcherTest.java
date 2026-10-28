@@ -37,6 +37,13 @@ class EntrypointDispatcherTest {
         }
     }
 
+    /** Static method entrypoint — Fabric API style {@code Class::method}. */
+    public static final class StaticInit {
+        public static void init() {
+            EVENTS.add("init:StaticInit");
+        }
+    }
+
     /** A second one, to prove ordering. */
     public static final class Second implements Initializer {
         public Second() {
@@ -54,6 +61,21 @@ class EntrypointDispatcherTest {
         @Override
         public void onInitialize() {
             throw new IllegalStateException("mod is broken");
+        }
+    }
+
+    /**
+     * Throws {@link AssertionError} from the constructor — same Error class as an unapplied
+     * Mixin {@code @Invoker} stub (not RuntimeException / LinkageError).
+     */
+    public static final class AssertionFromCtor implements Initializer {
+        public AssertionFromCtor() {
+            throw new AssertionError("mixin invoker not applied");
+        }
+
+        @Override
+        public void onInitialize() {
+            // never reached
         }
     }
 
@@ -105,6 +127,23 @@ class EntrypointDispatcherTest {
     }
 
     @Test
+    @DisplayName("Class::method entrypoints bind static methods to the SAM interface")
+    void runsStaticMethodReference() {
+        // Fabric-API modules declare main as CommonPacketsImpl::init — Class.forName on the
+        // whole string fails with "class does not exist".
+        EntrypointDispatcher dispatcher = dispatcher();
+        dispatcher.register(
+                mod(
+                        "fabric-networking",
+                        Entrypoint.java("main", StaticInit.class.getName() + "::init")),
+                getClass().getClassLoader());
+
+        dispatcher.run("main", Initializer.class, (metadata, instance) -> instance.onInitialize());
+
+        assertEquals(List.of("init:StaticInit"), EVENTS);
+    }
+
+    @Test
     @DisplayName("entrypoints run in registration order, which is load order")
     void preservesLoadOrder() {
         // The resolver's whole ordering pass exists to establish this sequence; losing it here
@@ -117,6 +156,32 @@ class EntrypointDispatcherTest {
 
         assertEquals(
                 List.of("construct:Good", "init:Good", "construct:Second", "init:Second"), EVENTS);
+    }
+
+    @Test
+    @DisplayName("beforeCreate runs for each mod immediately before that mod is constructed")
+    void beforeCreateRunsBeforeEachConstruction() {
+        // NeoForge hosting needs activate(modId) before @Mod construction; if beforeCreate only
+        // ran once (or after create), multi-mod packs would share one active context.
+        EntrypointDispatcher dispatcher = dispatcher();
+        dispatcher.register(mod("first", main(Good.class)), getClass().getClassLoader());
+        dispatcher.register(mod("second", main(Second.class)), getClass().getClassLoader());
+
+        dispatcher.run(
+                "main",
+                Initializer.class,
+                metadata -> EVENTS.add("before:" + metadata.id()),
+                (metadata, instance) -> instance.onInitialize());
+
+        assertEquals(
+                List.of(
+                        "before:first",
+                        "construct:Good",
+                        "init:Good",
+                        "before:second",
+                        "construct:Second",
+                        "init:Second"),
+                EVENTS);
     }
 
     @Test
@@ -165,6 +230,33 @@ class EntrypointDispatcherTest {
         assertEquals(1, thrown.failures().size());
         assertTrue(thrown.getMessage().contains("broken"), thrown.getMessage());
         assertEquals("main", thrown.phase());
+    }
+
+    @Test
+    @DisplayName("AssertionError from construction is attributed and does not abort the phase early")
+    void assertionErrorFromInvokerStubIsCollected() {
+        EntrypointDispatcher dispatcher = dispatcher();
+        dispatcher.register(
+                mod("naturespirit", main(AssertionFromCtor.class)), getClass().getClassLoader());
+        dispatcher.register(mod("fine", main(Good.class)), getClass().getClassLoader());
+
+        EntrypointPhaseException thrown = assertThrows(EntrypointPhaseException.class,
+                () -> dispatcher.run("main", Initializer.class,
+                        (metadata, instance) -> instance.onInitialize()));
+
+        assertTrue(EVENTS.contains("init:Good"), "later mods must still run after AssertionError");
+        assertEquals(1, thrown.failures().size());
+        assertTrue(
+                thrown.getMessage().contains("naturespirit")
+                        || thrown.getMessage().contains("AssertionFromCtor")
+                        || thrown.getMessage().contains("AssertionError"),
+                thrown.getMessage());
+        Throwable cause = thrown.failures().get(0).getCause();
+        // LanguageAdapter wraps constructor throw; walk to AssertionError.
+        while (cause != null && !(cause instanceof AssertionError)) {
+            cause = cause.getCause();
+        }
+        assertTrue(cause instanceof AssertionError, "cause should be the invoker AssertionError");
     }
 
     @Test

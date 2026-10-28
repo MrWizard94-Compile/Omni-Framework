@@ -266,7 +266,20 @@ public final class FabricMetadataImporter implements MetadataImporter {
         if ("*".equals(range) || range.isBlank()) {
             return VersionPredicate.any();
         }
-        Optional<VersionPredicate> parsed = VersionPredicate.expand(range);
+        String trimmed = range.trim();
+        // Dual-loader jars embed NeoForge-style minecraft intervals in fabric.mod.json.
+        // Soften half-open upper for minecraft the same way NeoForge import does.
+        if ("minecraft".equals(target)
+                && (trimmed.startsWith("[") || trimmed.startsWith("("))
+                && trimmed.endsWith(")")
+                && trimmed.contains(",")) {
+            String inclusive = trimmed.substring(0, trimmed.length() - 1) + "]";
+            Optional<VersionPredicate> softened = VersionPredicate.expand(inclusive);
+            if (softened.isPresent()) {
+                return softened.get();
+            }
+        }
+        Optional<VersionPredicate> parsed = VersionPredicate.expand(trimmed);
         if (parsed.isPresent()) {
             return parsed.get();
         }
